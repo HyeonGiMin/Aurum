@@ -38,6 +38,11 @@ public partial class QueryTabView : UserControl
     private bool _fetching;
     private bool _executing;   // 실행 중 재실행 요청 무시 (연타 시 세션 충돌 방지)
     private readonly DispatcherTimer _runTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private AvaloniaEdit.CodeCompletion.CompletionWindow? _completion;
+    private readonly Dictionary<string, List<ColumnInfo>> _columnCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
+    public List<TableInfo> CompletionTables { get; set; } = [];
     private readonly Stopwatch _scriptWatch = new();
 
     public string InfoMessage { get; private set; } = "Ready";
@@ -72,6 +77,95 @@ public partial class QueryTabView : UserControl
             HookScrollBar();
             Dispatcher.UIThread.Post(MaybeAutoFetch, DispatcherPriority.Background);
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
+        // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
+        Editor.TextArea.TextEntered += (_, e) =>
+        {
+            if (e.Text == ".")
+                _ = ShowCompletionAsync();
+        };
+        Editor.TextArea.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            // Ctrl+Space, macOS 에선 Option+Space 도 (Ctrl+Space 가 입력소스 전환과 겹침)
+            var trigger = e.Key == Avalonia.Input.Key.Space &&
+                          (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) ||
+                           (OperatingSystem.IsMacOS() && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Alt)));
+            if (trigger)
+            {
+                e.Handled = true;
+                _ = ShowCompletionAsync();
+            }
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    // ---------- Autocomplete ----------
+
+    private async Task ShowCompletionAsync()
+    {
+        var text = Editor.Text ?? "";
+        var caret = Math.Clamp(Editor.CaretOffset, 0, text.Length);
+
+        var wordStart = caret;
+        while (wordStart > 0 && (char.IsLetterOrDigit(text[wordStart - 1]) || text[wordStart - 1] == '_'))
+            wordStart--;
+
+        string? qualifier = null;
+        if (wordStart > 0 && text[wordStart - 1] == '.')
+        {
+            var qEnd = wordStart - 1;
+            var qStart = qEnd;
+            while (qStart > 0 && (char.IsLetterOrDigit(text[qStart - 1]) || text[qStart - 1] == '_'))
+                qStart--;
+            if (qStart < qEnd)
+                qualifier = text[qStart..qEnd];
+        }
+
+        List<SqlCompletionItem> items;
+        if (qualifier is null)
+        {
+            items = SqlCompletion.General(CompletionTables);
+        }
+        else
+        {
+            items = SqlCompletion.SchemaTables(CompletionTables, qualifier)
+                    ?? await ColumnItemsAsync(qualifier, text);
+        }
+        if (items.Count == 0)
+            return;
+
+        _completion?.Close();
+        var window = new AvaloniaEdit.CodeCompletion.CompletionWindow(Editor.TextArea)
+        {
+            StartOffset = wordStart,
+        };
+        foreach (var item in items)
+            window.CompletionList.CompletionData.Add(item);
+        window.Closed += (_, _) => _completion = null;
+        _completion = window;
+        window.Show();
+    }
+
+    private async Task<List<SqlCompletionItem>> ColumnItemsAsync(string qualifier, string sql)
+    {
+        if (SqlCompletion.ResolveTable(CompletionTables, qualifier, sql) is not { } table || _session is null)
+            return [];
+        var key = $"{table.Schema}.{table.Name}";
+        if (!_columnCache.TryGetValue(key, out var columns))
+        {
+            try
+            {
+                await using var conn = await _session.Profile.OpenAsync();
+                columns = await SchemaCatalog.GetColumnsAsync(conn, table);
+                _columnCache[key] = columns;
+            }
+            catch
+            {
+                return [];
+            }
+        }
+        return columns
+            .Select(c => new SqlCompletionItem(c.Name, c.Type + (c.Pk.Length > 0 ? " · PK" : ""), 4))
+            .ToList();
     }
 
     // ---------- Session ----------

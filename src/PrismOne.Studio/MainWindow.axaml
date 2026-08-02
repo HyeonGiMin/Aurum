@@ -55,7 +55,7 @@
             Background="{DynamicResource ChromeBgBrush}">
       <StackPanel Orientation="Horizontal" Spacing="2">
 
-        <Button Name="NewTabButton" Classes="tool" Click="OnMenuNewTab" IsEnabled="False" ToolTip.Tip="New Query Tab (Ctrl+T)">
+        <Button Name="NewTabButton" Classes="tool" Click="OnMenuNewTab" ToolTip.Tip="New Query Tab (Ctrl+T)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconPage}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.4"/>
             <Path Data="{StaticResource IconPlus}" Fill="{StaticResource ExportGreenBrush}"/>

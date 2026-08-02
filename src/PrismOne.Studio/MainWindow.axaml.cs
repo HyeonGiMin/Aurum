@@ -102,6 +102,8 @@ public partial class MainWindow : Window
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
         await LoadBrowserAsync(profile);
+        foreach (var v in AllViews())
+            v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
 
         // 세션 없는 기존 탭(시작 시 만든 Query1 등)에 접속을 붙이고, 없으면 새 탭
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
@@ -120,10 +122,7 @@ public partial class MainWindow : Window
     // ---------- Tabs ----------
 
     private async void OnMenuNewTab(object? sender, RoutedEventArgs e)
-    {
-        if (_profile is { } profile)
-            await NewTabAsync(profile);
-    }
+        => await NewTabAsync(_profile);   // 미접속이면 세션 없는 탭 (로그인 시 자동 연결)
 
     private async void OnMenuCloseTab(object? sender, RoutedEventArgs e)
     {
@@ -133,7 +132,7 @@ public partial class MainWindow : Window
 
     private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null)
     {
-        var view = new QueryTabView();
+        var view = new QueryTabView { CompletionTables = _allTables };
         view.InfoChanged += OnTabInfoChanged;
         view.CaretChanged += OnTabCaretChanged;
 
@@ -370,11 +369,8 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.T && cmdOrCtrl)
         {
-            if (_profile is { } profile)
-            {
-                e.Handled = true;
-                _ = NewTabAsync(profile);
-            }
+            e.Handled = true;
+            _ = NewTabAsync(_profile);
         }
         else if (e.Key == Key.W && cmdOrCtrl)
         {
