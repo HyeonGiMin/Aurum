@@ -33,7 +33,7 @@
         </Grid>
         <StackPanel Orientation="Horizontal" Spacing="18" Margin="88,6,0,0">
           <CheckBox Name="ReadOnlyBox" Content="Read Only" FontSize="13"/>
-          <CheckBox Name="SavePasswordBox" Content="Save password (encrypted)" FontSize="13" IsChecked="True"/>
+          <TextBlock Text="비밀번호는 암호화되어 저장됩니다" FontSize="12" Opacity="0.6" VerticalAlignment="Center"/>
         </StackPanel>
       </StackPanel>
     </Border>

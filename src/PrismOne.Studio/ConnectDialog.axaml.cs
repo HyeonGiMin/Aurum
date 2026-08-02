@@ -94,7 +94,6 @@ public partial class ConnectDialog : Window
         PasswordBox.Text = "";
         DatabaseCombo.Text = "";
         ReadOnlyBox.IsChecked = false;
-        SavePasswordBox.IsChecked = true;
         ErrorText.IsVisible = false;
         UpdateHeader();
         UsernameBox.Focus();
@@ -153,7 +152,7 @@ public partial class ConnectDialog : Window
         {
             // 접속 검증만 하고 닫는다. 실제 세션은 MainWindow/탭이 연다.
             await using var conn = await profile.OpenAsync();
-            ConnectionStore.Remember(profile, SavePasswordBox.IsChecked == true);
+            ConnectionStore.Remember(profile, savePassword: true);   // 항상 암호화 저장
             Result = profile;
             Close();
         }
