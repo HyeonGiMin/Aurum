@@ -34,8 +34,14 @@ public partial class MainWindow : Window
             foreach (var view in AllViews())
                 await view.CloseSessionAsync();
         };
-        // Golden: 메인 창이 먼저 뜨고, 로그온은 Ctrl+L 로 연다
+        // Golden: 메인 창이 먼저 뜨고(빈 Query1 탭 포함), 로그온은 Ctrl+L 로 연다
         BuildNativeMenu();
+        if (Environment.GetEnvironmentVariable("IAPDM_SHOT_DIR") is null)
+            Opened += async (_, _) =>
+            {
+                if (_tabs.Count == 0)
+                    await NewTabAsync(null);
+            };
 
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
         // 샘플 데이터로 채운 화면을 PNG 로 저장하고 종료한다.
@@ -96,7 +102,19 @@ public partial class MainWindow : Window
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
         await LoadBrowserAsync(profile);
-        await NewTabAsync(profile);
+
+        // 세션 없는 기존 탭(시작 시 만든 Query1 등)에 접속을 붙이고, 없으면 새 탭
+        var orphans = AllViews().Where(v => !v.IsConnected).ToList();
+        if (orphans.Count > 0)
+        {
+            foreach (var view in orphans)
+                await view.ConnectAsync(profile);
+            orphans[0].FocusEditor();
+        }
+        else
+        {
+            await NewTabAsync(profile);
+        }
     }
 
     // ---------- Tabs ----------
@@ -113,7 +131,7 @@ public partial class MainWindow : Window
             await CloseTabAsync(item, view);
     }
 
-    private async Task<QueryTabView> NewTabAsync(ConnectionProfile profile, string? title = null, string? sql = null)
+    private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null)
     {
         var view = new QueryTabView();
         view.InfoChanged += OnTabInfoChanged;
@@ -129,7 +147,8 @@ public partial class MainWindow : Window
         QueryTabs.SelectedItem = item;
         if (sql is not null)
             view.SetSql(sql);
-        await view.ConnectAsync(profile);
+        if (profile is not null)
+            await view.ConnectAsync(profile);
         view.FocusEditor();
         return view;
     }
