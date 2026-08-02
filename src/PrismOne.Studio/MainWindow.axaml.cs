@@ -393,6 +393,16 @@ public partial class MainWindow : Window
             e.Handled = true;
             OnMenuToggleBrowser(sender, e);
         }
+        else if (e.Key == Key.Up && cmdOrCtrl)
+        {
+            e.Handled = true;
+            ActiveView?.HistoryPrev();
+        }
+        else if (e.Key == Key.Down && cmdOrCtrl)
+        {
+            e.Handled = true;
+            ActiveView?.HistoryNext();
+        }
         else if (e.Key == Key.O && cmdOrCtrl)
         {
             e.Handled = true;
@@ -426,6 +436,9 @@ public partial class MainWindow : Window
     private void OnMenuCancel(object? sender, RoutedEventArgs e) => ActiveView?.Cancel();
 
     private void OnMenuFind(object? sender, RoutedEventArgs e) => ActiveView?.OpenSearch();
+
+    private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
+    private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
 
     private async void OnMenuCommit(object? sender, RoutedEventArgs e)
     {

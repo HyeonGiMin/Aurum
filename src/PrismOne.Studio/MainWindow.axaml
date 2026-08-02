@@ -135,6 +135,18 @@
           </Canvas></Viewbox>
         </Button>
 
+        <Button Name="HistoryPrevButton" Classes="tool" Click="OnMenuHistoryPrev" ToolTip.Tip="Previous Query (Ctrl+↑)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconChevronLeft}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="HistoryNextButton" Classes="tool" Click="OnMenuHistoryNext" ToolTip.Tip="Next Query (Ctrl+↓)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconChevronRight}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
         <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
 
         <Button Name="ExecuteButton" Classes="tool" Click="OnMenuExecute" IsEnabled="False" ToolTip.Tip="Run Statement (F9)">

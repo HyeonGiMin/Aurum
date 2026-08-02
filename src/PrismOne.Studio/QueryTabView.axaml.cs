@@ -233,6 +233,50 @@ public partial class QueryTabView : UserControl
     // 툴바/메뉴 편집 동작 (Golden: cut/copy/paste/undo/redo)
     public void OpenSearch() => _search.Open();
 
+    // ---------- Query history (Golden ◀ ▶) ----------
+
+    private int _historyIndex = -1;   // -1 = 히스토리 밖(작성 중 초안)
+    private string _historyDraft = "";
+
+    public void HistoryPrev()
+    {
+        var items = HistoryStore.Items;
+        if (items.Count == 0) return;
+        if (_historyIndex == -1)
+        {
+            _historyDraft = Editor.Text ?? "";
+            _historyIndex = items.Count - 1;
+        }
+        else if (_historyIndex > 0)
+        {
+            _historyIndex--;
+        }
+        else return;
+        Editor.Text = items[_historyIndex];
+        Editor.CaretOffset = Editor.Text.Length;
+        SetInfo($"History {_historyIndex + 1} / {items.Count}");
+    }
+
+    public void HistoryNext()
+    {
+        if (_historyIndex == -1) return;
+        var items = HistoryStore.Items;
+        if (_historyIndex < items.Count - 1)
+        {
+            _historyIndex++;
+            Editor.Text = items[_historyIndex];
+            Editor.CaretOffset = Editor.Text.Length;
+            SetInfo($"History {_historyIndex + 1} / {items.Count}");
+        }
+        else
+        {
+            _historyIndex = -1;
+            Editor.Text = _historyDraft;
+            Editor.CaretOffset = Editor.Text.Length;
+            SetInfo("History: back to draft");
+        }
+    }
+
     public void EditorCut() => Editor.Cut();
     public void EditorCopy() => Editor.Copy();
     public void EditorPaste() => Editor.Paste();
@@ -326,6 +370,8 @@ public partial class QueryTabView : UserControl
                     : $"Running statement {ran + 1} of {statements.Count}.", "", null);
                 var query = await _session.ExecuteAsync(stmt.Text, ct);
                 _session.NoteStatement(stmt.Text);
+                HistoryStore.Add(stmt.Text);
+                _historyIndex = -1;
                 _current = query;
                 ran++;
 
