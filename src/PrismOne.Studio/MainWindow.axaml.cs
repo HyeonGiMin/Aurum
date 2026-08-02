@@ -244,18 +244,21 @@ public partial class MainWindow : Window
     {
         if (ActiveView is { } view)
         {
-            StatusLabel.Text = view.InfoMessage;
+            StatusLabel.Text = view.InTransaction ? $"[TX] {view.InfoMessage}" : view.InfoMessage;
             RowsLabel.Text = view.InfoRows;
             TimeLabel.Text = view.InfoTime;
+            UpdateTxState();
         }
     }
 
     private void OnTabInfoChanged(QueryTabView view)
     {
         if (!ReferenceEquals(view, ActiveView)) return;
-        StatusLabel.Text = view.InfoMessage;
+        // 열린 트랜잭션이 있으면 [TX] 표시 (Golden 의 미커밋 알림)
+        StatusLabel.Text = view.InTransaction ? $"[TX] {view.InfoMessage}" : view.InfoMessage;
         RowsLabel.Text = view.InfoRows;
         TimeLabel.Text = view.InfoTime;
+        UpdateTxState();
     }
 
     private void OnTabCaretChanged(QueryTabView view, int line, int col)
@@ -421,6 +424,44 @@ public partial class MainWindow : Window
     }
 
     private void OnMenuCancel(object? sender, RoutedEventArgs e) => ActiveView?.Cancel();
+
+    private void OnMenuFind(object? sender, RoutedEventArgs e) => ActiveView?.OpenSearch();
+
+    private async void OnMenuCommit(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+        {
+            await view.CommitAsync();
+            UpdateTxState();
+        }
+    }
+
+    private async void OnMenuRollback(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+        {
+            await view.RollbackAsync();
+            UpdateTxState();
+        }
+    }
+
+    private void OnAutoCommitChanged(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            view.AutoCommit = AutoCommitBox.IsChecked == true;
+    }
+
+    /// <summary>활성 탭의 트랜잭션 상태를 툴바(Commit/Rollback/Auto)에 반영.</summary>
+    private void UpdateTxState()
+    {
+        var view = ActiveView;
+        var connected = view?.IsConnected == true;
+        CommitButton.IsEnabled = connected && view!.InTransaction;
+        RollbackButton.IsEnabled = connected && view!.InTransaction;
+        AutoCommitBox.IsEnabled = connected;
+        if (view is not null)
+            AutoCommitBox.IsChecked = view.AutoCommit;
+    }
 
     private async void OnMenuFetchAll(object? sender, RoutedEventArgs e)
     {

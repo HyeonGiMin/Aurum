@@ -43,6 +43,11 @@ public partial class QueryTabView : UserControl
 
     /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
     public List<TableInfo> CompletionTables { get; set; } = [];
+
+    /// <summary>Golden 기본: 수동 커밋 (false). true 면 PG 기본 autocommit 그대로.</summary>
+    public bool AutoCommit { get; set; }
+
+    public bool InTransaction => _session?.InTransaction == true;
     private readonly Stopwatch _scriptWatch = new();
 
     public string InfoMessage { get; private set; } = "Ready";
@@ -54,10 +59,13 @@ public partial class QueryTabView : UserControl
     public bool IsConnected => _session?.IsAlive == true;
     public string SessionDisplayName => _session?.Profile.DisplayName ?? "not connected";
 
+    private readonly AvaloniaEdit.Search.SearchPanel _search;
+
     public QueryTabView()
     {
         InitializeComponent();
         Editor.SyntaxHighlighting = SqlHighlighting.Definition;
+        _search = AvaloniaEdit.Search.SearchPanel.Install(Editor);   // Ctrl+F 내장
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
             CaretChanged?.Invoke(this, Editor.TextArea.Caret.Line, Editor.TextArea.Caret.Column);
         // 실행 중 경과 시간을 상태바에 실시간 표시 (Golden 의 Running… + 타이머)
@@ -204,6 +212,8 @@ public partial class QueryTabView : UserControl
     }
 
     // 툴바/메뉴 편집 동작 (Golden: cut/copy/paste/undo/redo)
+    public void OpenSearch() => _search.Open();
+
     public void EditorCut() => Editor.Cut();
     public void EditorCopy() => Editor.Copy();
     public void EditorPaste() => Editor.Paste();
@@ -287,11 +297,16 @@ public partial class QueryTabView : UserControl
             {
                 if (_current is not null) { await _current.AbortAsync(); _current = null; }
                 await _session.EnsureAliveAsync(ct);
+                // Golden 의 수동 커밋 모드 — 단, PG 특성상 읽기 문장은 트랜잭션을 열지 않는다
+                // (idle-in-transaction 이 VACUUM 을 방해). 변경 문장부터 BEGIN.
+                if (!AutoCommit && !QuerySession.IsReadOnlyStatement(stmt.Text))
+                    await _session.EnsureTransactionAsync(ct);
 
                 SetInfo(statements.Count == 1
                     ? "Running single statement at cursor."
                     : $"Running statement {ran + 1} of {statements.Count}.", "", null);
                 var query = await _session.ExecuteAsync(stmt.Text, ct);
+                _session.NoteStatement(stmt.Text);
                 _current = query;
                 ran++;
 
@@ -358,6 +373,41 @@ public partial class QueryTabView : UserControl
     }
 
     public void Cancel() => _cts?.Cancel();
+
+    // ---------- Commit / Rollback (Golden) ----------
+
+    public async Task CommitAsync()
+    {
+        if (_session is null || !_session.InTransaction) return;
+        if (_executing || _current is { Completed: false })
+        {
+            // Golden: "cannot commit transaction - SQL statements in progress"
+            SetInfo("Cannot commit — statement still running/fetching. Cancel or Fetch All first.");
+            return;
+        }
+        try
+        {
+            await _session.CommitAsync();
+            SetInfo("Commit complete.");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+    }
+
+    public async Task RollbackAsync()
+    {
+        if (_session is null || !_session.InTransaction) return;
+        if (_executing || _current is { Completed: false })
+        {
+            SetInfo("Cannot rollback — statement still running/fetching. Cancel or Fetch All first.");
+            return;
+        }
+        try
+        {
+            await _session.RollbackAsync();
+            SetInfo("Rollback complete.");
+        }
+        catch (Exception ex) { ShowError(ex.Message); }
+    }
 
     private async Task RecoverAsync()
     {

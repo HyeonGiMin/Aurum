@@ -15,6 +15,9 @@ public sealed class QuerySession : IAsyncDisposable
     public NpgsqlConnection Connection { get; private set; }
     public bool IsAlive => Connection.State == ConnectionState.Open;
 
+    /// <summary>수동 커밋 모드에서 열린 트랜잭션이 있는지 (Golden 의 Commit/Rollback 대상).</summary>
+    public bool InTransaction { get; private set; }
+
     private QuerySession(ConnectionProfile profile, NpgsqlConnection conn)
     {
         Profile = profile;
@@ -41,12 +44,65 @@ public sealed class QuerySession : IAsyncDisposable
         }
     }
 
-    /// <summary>취소/오류로 세션이 끊겼으면 같은 프로파일로 다시 연다.</summary>
+    /// <summary>취소/오류로 세션이 끊겼으면 같은 프로파일로 다시 연다. (트랜잭션은 소멸)</summary>
     public async Task EnsureAliveAsync(CancellationToken ct = default)
     {
         if (IsAlive) return;
         try { await Connection.DisposeAsync(); } catch { /* 이미 죽은 접속 */ }
         Connection = await Profile.OpenAsync(ct);
+        InTransaction = false;
+    }
+
+    // ---------- 트랜잭션 제어 (Golden: AutoCommit off 가 기본) ----------
+
+    public async Task EnsureTransactionAsync(CancellationToken ct = default)
+    {
+        if (InTransaction) return;
+        await ExecSimpleAsync("BEGIN", ct);
+        InTransaction = true;
+    }
+
+    public async Task CommitAsync(CancellationToken ct = default)
+    {
+        await ExecSimpleAsync("COMMIT", ct);
+        InTransaction = false;
+    }
+
+    public async Task RollbackAsync(CancellationToken ct = default)
+    {
+        await ExecSimpleAsync("ROLLBACK", ct);
+        InTransaction = false;
+    }
+
+    /// <summary>읽기 전용 문장인지 — PG 에선 SELECT 에까지 트랜잭션을 열면 idle-in-transaction
+    /// 세션이 스냅샷을 붙들어 VACUUM 을 방해하므로, 수동 커밋 모드여도 읽기는 autocommit 으로 둔다.</summary>
+    public static bool IsReadOnlyStatement(string sql)
+    {
+        var head = sql.TrimStart();
+        return head.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+            || head.StartsWith("EXPLAIN", StringComparison.OrdinalIgnoreCase)
+            || head.StartsWith("SHOW", StringComparison.OrdinalIgnoreCase)
+            || head.StartsWith("VALUES", StringComparison.OrdinalIgnoreCase)
+            || head.StartsWith("TABLE ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>사용자가 직접 BEGIN/COMMIT/ROLLBACK 을 친 경우 상태를 따라간다.</summary>
+    public void NoteStatement(string sql)
+    {
+        var head = sql.TrimStart();
+        if (head.StartsWith("BEGIN", StringComparison.OrdinalIgnoreCase) ||
+            head.StartsWith("START TRANSACTION", StringComparison.OrdinalIgnoreCase))
+            InTransaction = true;
+        else if (head.StartsWith("COMMIT", StringComparison.OrdinalIgnoreCase) ||
+                 head.StartsWith("ROLLBACK", StringComparison.OrdinalIgnoreCase) ||
+                 head.StartsWith("END", StringComparison.OrdinalIgnoreCase))
+            InTransaction = false;
+    }
+
+    private async Task ExecSimpleAsync(string sql, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(sql, Connection);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     public async ValueTask DisposeAsync()

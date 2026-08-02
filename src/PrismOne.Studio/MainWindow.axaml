@@ -33,6 +33,9 @@
         <MenuItem Header="Run Script" InputGesture="F5" Click="OnMenuRunScript"/>
         <MenuItem Header="Explain Statement" Click="OnMenuExplain"/>
         <MenuItem Header="Cancel" Click="OnMenuCancel"/>
+        <Separator/>
+        <MenuItem Header="Commit" Click="OnMenuCommit"/>
+        <MenuItem Header="Rollback" Click="OnMenuRollback"/>
       </MenuItem>
       <MenuItem Header="Results">
         <MenuItem Header="Fetch All Records" InputGesture="Ctrl+End" Click="OnMenuFetchAll"/>
@@ -125,7 +128,7 @@
           </Canvas></Viewbox>
         </Button>
 
-        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Find (준비 중)">
+        <Button Name="FindButton" Classes="tool" Click="OnMenuFind" ToolTip.Tip="Find (Ctrl+F)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconSearchCircle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2"/>
             <Path Data="{StaticResource IconSearchHandle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2.4"/>
@@ -163,6 +166,27 @@
             <Path Data="{StaticResource IconCancelSlash}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2"/>
           </Canvas></Viewbox>
         </Button>
+
+        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+
+        <Button Name="CommitButton" Classes="tool" Click="OnMenuCommit" IsEnabled="False" ToolTip.Tip="Commit — 현재 트랜잭션 확정">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="M4,13 L10,19 L20,5" Stroke="{StaticResource ExportGreenBrush}" StrokeThickness="3.2"
+                  StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="RollbackButton" Classes="tool" Click="OnMenuRollback" IsEnabled="False" ToolTip.Tip="Rollback — 현재 트랜잭션 되돌리기">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconUndoArc}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoHead}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <CheckBox Name="AutoCommitBox" Content="Auto" FontSize="11.5" Margin="4,0,0,0"
+                  VerticalAlignment="Center" IsEnabled="False"
+                  IsCheckedChanged="OnAutoCommitChanged"
+                  ToolTip.Tip="AutoCommit — 끄면(기본) Commit/Rollback 으로 직접 제어 (Golden 방식)"/>
 
         <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Bind Variables (준비 중)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
