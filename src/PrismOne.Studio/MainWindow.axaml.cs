@@ -616,11 +616,20 @@ public partial class MainWindow : Window
 
         canvas.Measure(new Avalonia.Size(512, 512));
         canvas.Arrange(new Avalonia.Rect(0, 0, 512, 512));
-        using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(
-            new Avalonia.PixelSize(512, 512), new Avalonia.Vector(96, 96));
-        bitmap.Render(canvas);
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
-        bitmap.Save(path);
+        using (var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                   new Avalonia.PixelSize(512, 512), new Avalonia.Vector(96, 96)))
+        {
+            bitmap.Render(canvas);
+            bitmap.Save(path);
+        }
+        // .icns 최상위(512@2x)용 1024px — 같은 512 좌표계를 2배 DPI 로 렌더
+        using (var bitmap2x = new Avalonia.Media.Imaging.RenderTargetBitmap(
+                   new Avalonia.PixelSize(1024, 1024), new Avalonia.Vector(192, 192)))
+        {
+            bitmap2x.Render(canvas);
+            bitmap2x.Save(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, "icon_1024.png"));
+        }
     }
 
     private static void SaveShot(Window window, string path)
