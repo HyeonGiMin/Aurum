@@ -3,7 +3,7 @@
 PRISMONE(PostgreSQL) 데이터베이스를 다루는 데스크톱/CLI 도구 모음입니다. .NET 10 (C#) 단일 솔루션.
 데스크톱 앱(제품명 **IAP Database Manager**)은 Oracle 시절 쓰던 Benthic Golden 의 UI·동작을 재현합니다.
 
-- **사용법: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)**
+- **사용법: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)** · **진행 상황·다음 작업: [docs/STATUS.md](docs/STATUS.md)**
 - Golden 동작 명세: [docs/GOLDEN_BEHAVIOR.md](docs/GOLDEN_BEHAVIOR.md) · 파리티 계획: [docs/STUDIO_PLAN.md](docs/STUDIO_PLAN.md)
 - PostgreSQL·pgAdmin 기능 분석: [docs/PG_FEATURES.md](docs/PG_FEATURES.md)
 

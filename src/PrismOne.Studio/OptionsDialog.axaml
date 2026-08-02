@@ -1,0 +1,32 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.OptionsDialog"
+        Title="Options - IAP Database Manager"
+        Width="480" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <StackPanel Margin="18" Spacing="12">
+    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto">
+      <Grid.Styles>
+        <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>
+        <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="30"/><Setter Property="FontSize" Value="13"/></Style>
+      </Grid.Styles>
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Fetch 배치 크기"/>
+      <TextBox   Grid.Row="0" Grid.Column="1" Name="FetchBatchBox"/>
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="탭별 최대 행수 (-1 무제한)"/>
+      <TextBox   Grid.Row="1" Grid.Column="1" Name="LimitBox"/>
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="NULL 표시 문자열"/>
+      <TextBox   Grid.Row="2" Grid.Column="1" Name="NullTextBox"/>
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="statement_timeout (ms, 0=없음)"/>
+      <TextBox   Grid.Row="3" Grid.Column="1" Name="TimeoutBox"/>
+    </Grid>
+
+    <CheckBox Name="AutoCommitOption" Content="AutoCommit (끄면 Golden 식 수동 커밋)" FontSize="13"/>
+
+    <TextBlock Text="변경은 새로 실행하는 문장부터 적용됩니다." FontSize="12" Opacity="0.65" TextWrapping="Wrap"/>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" MinHeight="30" MinWidth="80" Click="OnCancel"/>
+      <Button Content="OK" MinHeight="30" MinWidth="80" Classes="accent" IsDefault="True" Click="OnOk"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

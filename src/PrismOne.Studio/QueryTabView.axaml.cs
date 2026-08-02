@@ -27,10 +27,14 @@ public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null);
 /// </summary>
 public partial class QueryTabView : UserControl
 {
-    private const int FetchBatch = 100;   // Golden 기본값: 초기/배치 100행
     private const int AutoFetchThreshold = 60;
 
+    /// <summary>옵션(fetch 크기·행수 상한·NULL 표시·timeout) — MainWindow 가 주입.</summary>
+    public AppOptions Options { get; set; } = new();
+    private int FetchBatch => Options.FetchBatch;
+
     private QuerySession? _session;
+    private bool _ownsSession;      // private 탭이면 true — 닫을 때 세션도 정리
     private ActiveQuery? _current;
     private CancellationTokenSource? _cts;
     private ObservableCollection<RowItem> _rows = [];
@@ -44,6 +48,9 @@ public partial class QueryTabView : UserControl
 
     /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
     public List<TableInfo> CompletionTables { get; set; } = [];
+
+    /// <summary>브라우저에서 선택된 스키마 — 자동완성 정렬에서 우선한다.</summary>
+    public string? PreferredSchema { get; set; }
 
     /// <summary>Golden 기본: 수동 커밋 (false). true 면 PG 기본 autocommit 그대로.</summary>
     public bool AutoCommit { get; set; }
@@ -60,9 +67,13 @@ public partial class QueryTabView : UserControl
     public bool IsConnected => _session?.IsAlive == true;
     public string SessionDisplayName => _session?.Profile.DisplayName ?? "not connected";
     public ConnectionProfile? SessionProfile => _session?.Profile;
+    public bool IsPrivateSession => _ownsSession;
 
     /// <summary>마지막으로 그리드를 만든 문장 — COPY export 가 서버에서 다시 실행한다.</summary>
     public string? LastGridSql { get; private set; }
+
+    /// <summary>Transpose: 행/열 전치 표시 (Golden 의 Transpose Columns/Records).</summary>
+    private bool _transposed;
 
     /// <summary>바인드 변수 값 — Golden 처럼 탭 안에서 이전 값을 기억한다.</summary>
     private readonly Dictionary<string, string?> _bindValues = new(StringComparer.OrdinalIgnoreCase);
@@ -132,6 +143,16 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
 
+    /// <summary>스크린샷 모드 전용 — 현재 떠 있는 자동완성 팝업 창.</summary>
+    internal Control? CompletionWindowForShot => _completion?.CompletionList;
+
+    /// <summary>스크린샷 모드 전용 — 자동완성 팝업을 강제로 띄운다.</summary>
+    internal Task ShowCompletionForShotAsync()
+    {
+        Editor.CaretOffset = (Editor.Text ?? "").Length;
+        return ShowCompletionAsync();
+    }
+
     // ---------- Autocomplete ----------
 
     private async Task ShowCompletionAsync()
@@ -159,8 +180,8 @@ public partial class QueryTabView : UserControl
         {
             // 테이블 자리(from/join/into/update 뒤)면 테이블만 — 키워드 잡음 제거
             items = SqlCompletion.IsTablePosition(text, wordStart)
-                ? SqlCompletion.TablesOnly(CompletionTables)
-                : SqlCompletion.General(CompletionTables);
+                ? SqlCompletion.TablesOnly(CompletionTables, PreferredSchema)
+                : SqlCompletion.General(CompletionTables, PreferredSchema);
         }
         else
         {
@@ -174,6 +195,8 @@ public partial class QueryTabView : UserControl
         var window = new AvaloniaEdit.CodeCompletion.CompletionWindow(Editor.TextArea)
         {
             StartOffset = wordStart,
+            Width = 420,
+            MaxHeight = 320,
         };
         foreach (var item in items)
             window.CompletionList.CompletionData.Add(item);
@@ -201,19 +224,33 @@ public partial class QueryTabView : UserControl
             }
         }
         return columns
-            .Select(c => new SqlCompletionItem(c.Name, c.Type + (c.Pk.Length > 0 ? " · PK" : ""), 4))
+            .Select(c => new SqlCompletionItem(
+                c.Name,
+                c.Type + (c.Pk.Length > 0 ? " · PK" : "") + (c.Fk.Length > 0 ? " · FK" : ""),
+                4, SqlCompletionKind.Column))
             .ToList();
     }
 
     // ---------- Session ----------
 
-    public async Task ConnectAsync(ConnectionProfile profile)
+    /// <summary>Golden: 탭들은 메인 세션을 공유한다.</summary>
+    public void AttachSession(QuerySession session, bool owned = false)
+    {
+        _session = session;
+        _ownsSession = owned;
+        AutoCommit = Options.AutoCommit;
+        if (Options.StatementTimeoutMs > 0)
+            _ = session.ExecuteTextAsync($"SET statement_timeout = {Options.StatementTimeoutMs}");
+        session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
+        SetInfo($"Session: {session.Profile.DisplayName}" + (owned ? " (private)" : ""));
+    }
+
+    /// <summary>"New Private Tab" — 이 탭만의 전용 접속을 연다.</summary>
+    public async Task ConnectPrivateAsync(ConnectionProfile profile)
     {
         try
         {
-            _session = await QuerySession.CreateAsync(profile);
-            _session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
-            SetInfo($"Session: {profile.DisplayName}");
+            AttachSession(await QuerySession.CreateAsync(profile), owned: true);
         }
         catch (Exception ex)
         {
@@ -232,7 +269,9 @@ public partial class QueryTabView : UserControl
     {
         _cts?.Cancel();
         if (_current is not null) { await _current.AbortAsync(); _current = null; }
-        if (_session is not null) { await _session.DisposeAsync(); _session = null; }
+        if (_session is not null && _ownsSession)
+            await _session.DisposeAsync();
+        _session = null;
     }
 
     public void FocusEditor() => Editor.Focus();
@@ -250,6 +289,22 @@ public partial class QueryTabView : UserControl
 
     // 툴바/메뉴 편집 동작 (Golden: cut/copy/paste/undo/redo)
     public void OpenSearch() => _search.Open();
+
+    /// <summary>커서 위치의 식별자 (schema.table 형태 포함) — Ctrl+D describe 용.</summary>
+    public string? WordAtCaret()
+    {
+        var text = Editor.Text ?? "";
+        if (text.Length == 0) return null;
+        var caret = Math.Clamp(Editor.CaretOffset, 0, text.Length);
+        bool IsPart(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '.' || c == '"';
+
+        var start = caret;
+        while (start > 0 && IsPart(text[start - 1])) start--;
+        var end = caret;
+        while (end < text.Length && IsPart(text[end])) end++;
+        var word = text[start..end].Trim('.', '"');
+        return word.Length == 0 ? null : word;
+    }
 
     /// <summary>툴바에서 직접 바인드 변수 값을 미리 입력 (실행 시엔 자동으로 뜬다).</summary>
     public async Task EditBindVariablesAsync()
@@ -354,6 +409,11 @@ public partial class QueryTabView : UserControl
         if (_executing) { SetInfo("Busy — statement still running. Cancel first."); return; }
         var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
         if (stmt is null) return;
+        if (!_session.TryBeginRun(this))
+        {
+            SetInfo("Busy — another tab is running on this session.");
+            return;
+        }
 
         _executing = true;
         _cts?.Cancel();
@@ -423,6 +483,7 @@ public partial class QueryTabView : UserControl
         {
             _executing = false;
             _runTimer.Stop();
+            _session?.EndRun(this);
         }
     }
 
@@ -509,6 +570,12 @@ public partial class QueryTabView : UserControl
         if (_executing)
         {
             SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        // 공유 세션이므로 다른 탭이 실행 중이면 기다려야 한다
+        if (!_session.TryBeginRun(this))
+        {
+            SetInfo("Busy — another tab is running on this session.");
             return;
         }
         if (explain)
@@ -620,6 +687,7 @@ public partial class QueryTabView : UserControl
         {
             _executing = false;
             _runTimer.Stop();
+            _session?.EndRun(this);
         }
     }
 
@@ -639,6 +707,113 @@ public partial class QueryTabView : UserControl
     }
 
     public void Cancel() => _cts?.Cancel();
+
+    // ---------- 그리드 기능 (Golden: Transpose / Size Columns / Filter) ----------
+
+    /// <summary>행/열 전치 — 컬럼이 많은 한 행을 세로로 읽을 때 (Golden Transpose).</summary>
+    public void ToggleTranspose()
+    {
+        if (_columns.Count == 0 || _rows.Count == 0)
+        {
+            SetInfo("No result to transpose");
+            return;
+        }
+        if (_transposed)
+        {
+            RenderNormal();
+            SetInfo("Transpose off");
+            return;
+        }
+
+        var source = _rows.ToList();
+        ResultGrid.Columns.Clear();
+        ResultGrid.Columns.Add(new DataGridTextColumn
+        {
+            Header = "Column",
+            Binding = new Binding($"{nameof(RowItem.Cells)}[0]"),
+            Width = new DataGridLength(200),
+        });
+        for (var r = 0; r < source.Count; r++)
+        {
+            ResultGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = $"row {source[r].No}",
+                Binding = new Binding($"{nameof(RowItem.Cells)}[{r + 1}]"),
+                Width = DataGridLength.Auto,
+                MaxWidth = 420,
+            });
+        }
+        var transposed = new ObservableCollection<RowItem>();
+        for (var c = 0; c < _columns.Count; c++)
+        {
+            var cells = new string?[source.Count + 1];
+            cells[0] = _columns[c];
+            for (var r = 0; r < source.Count; r++)
+                cells[r + 1] = source[r].Cells[c];
+            transposed.Add(new RowItem(c + 1, cells));
+        }
+        ResultGrid.ItemsSource = transposed;
+        _transposed = true;
+        SetInfo($"Transposed — {_columns.Count} column(s) × {source.Count} row(s)");
+    }
+
+    private void RenderNormal()
+    {
+        ResultGrid.Columns.Clear();
+        var noColumn = new DataGridTextColumn
+        {
+            Header = "#",
+            Binding = new Binding(nameof(RowItem.No)),
+            Width = new DataGridLength(46),
+            IsReadOnly = true,
+        };
+        noColumn.CellStyleClasses.Add("rownum");
+        ResultGrid.Columns.Add(noColumn);
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            ResultGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = _columns[i],
+                Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]"),
+                Width = DataGridLength.Auto,
+                MaxWidth = 420,
+            });
+        }
+        ResultGrid.ItemsSource = _rows;
+        _transposed = false;
+    }
+
+    /// <summary>모든 컬럼을 내용에 맞춘다 (Golden: Size All Columns to Fit).</summary>
+    public void SizeColumnsToFit()
+    {
+        foreach (var column in ResultGrid.Columns)
+        {
+            if (column == ResultGrid.Columns[0] && !_transposed) continue;
+            column.Width = DataGridLength.Auto;
+        }
+        SetInfo("Columns sized to fit");
+    }
+
+    /// <summary>선택 셀 값으로 WHERE 절을 만들어 에디터에 덧붙인다 (Golden: Filter records like selected cell).</summary>
+    public void FilterBySelectedCell()
+    {
+        if (_transposed || ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;
+        if (index < 0 || index >= _columns.Count) return;
+        var value = row.Cells[index];
+        var literal = value is null ? "IS NULL" : "= '" + value.Replace("'", "''") + "'";
+        var clause = $"{_columns[index]} {literal}";
+        Editor.Document.Insert(Editor.Document.TextLength, $"\n-- filter: WHERE {clause}\n");
+        Editor.Focus();
+        SetInfo($"Filter clause appended: {clause}");
+    }
+
+    /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>
+    public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) LoadedSnapshot() => Snapshot();
 
     // ---------- Cell detail (Golden 의 cell detail window, jsonb pretty-print) ----------
 
@@ -757,6 +932,7 @@ public partial class QueryTabView : UserControl
     {
         _columns = columns;
         _rows = [];
+        _transposed = false;
         NoRecordsPanel.IsVisible = columns.Count == 0;
         ResultGrid.IsVisible = columns.Count > 0;
         ResultGrid.Columns.Clear();
@@ -793,13 +969,40 @@ public partial class QueryTabView : UserControl
     {
         if (_current is null || _current.Completed || _fetching || _cts is null)
             return;
+        // 공유 세션: 다른 탭이 새 문장을 실행하면 이 결과의 reader 는 닫힌다
+        if (_session is not null && !ReferenceEquals(_session.Current, _current))
+        {
+            SetInfo("Fetch stopped — another tab used this session.", InfoRows, InfoTime);
+            _current = null;
+            return;
+        }
         _fetching = true;
         try
         {
-            var batch = await _current.FetchAsync(FetchBatch, _cts.Token);
+            var want = FetchBatch;
+            if (Options.RecordsetLimit > 0)
+            {
+                var remain = Options.RecordsetLimit - _rows.Count;
+                if (remain <= 0)
+                {
+                    SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records (limit reached)", InfoTime);
+                    return;
+                }
+                want = Math.Min(want, remain);
+            }
+            var batch = await _current.FetchAsync(want, _cts.Token);
             var no = _rows.Count;
             foreach (var row in batch)
-                _rows.Add(new RowItem(++no, row.Cells, row.Raw));
+            {
+                var cells = row.Cells;
+                if (Options.NullText.Length > 0)
+                {
+                    cells = (string?[])cells.Clone();
+                    for (var i = 0; i < cells.Length; i++)
+                        cells[i] ??= Options.NullText;
+                }
+                _rows.Add(new RowItem(++no, cells, row.Raw));
+            }
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).
             Dispatcher.UIThread.Post(() =>

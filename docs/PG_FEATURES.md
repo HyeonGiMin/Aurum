@@ -43,8 +43,13 @@ Golden 파리티(GOLDEN_BEHAVIOR.md)가 UI/UX 의 기준이라면, 이 문서는
 | 배열/복합 타입 표시 | ValueFormatter 가 배열은 처리 — 복합타입/범위타입 보강 | 수요 시 |
 | `pg_size_pretty` 테이블 크기 | 브라우저 목록에 크기 컬럼(옵션) | P5 |
 
-## 4. 반영 순서 (요약)
+## 4. 반영 현황
 
-1. **P2 잔여**: 쿼리 히스토리 → 공유 세션 모델(+private 탭) → 바인드 변수
-2. **P4 (PG 강화)**: Messages(NOTICE) pane → EXPLAIN ANALYZE 트리 → COPY export → jsonb cell detail → statement_timeout
-3. **P5 (관리)**: pg_stat_activity 모니터/킬, 테이블 크기
+✅ 구현 완료: Messages(NOTICE) pane · EXPLAIN (ANALYZE) 플랜 트리 · COPY 기반 export ·
+jsonb Cell Detail · pg_stat_activity Session Monitor · statement_timeout(옵션) ·
+읽기 문장 autocommit 절충 · Read Only 세션
+
+🔜 남은 후보: 테이블 DDL 보기(Show DDL) · 파티션 인지 describe · search_path 표시 ·
+테이블 크기(pg_size_pretty) · COPY 기반 import(CLI 와 함께)
+
+> 최신 진행 상황은 [STATUS.md](STATUS.md).
