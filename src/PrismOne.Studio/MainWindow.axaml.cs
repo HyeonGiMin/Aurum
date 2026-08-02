@@ -35,6 +35,7 @@ public partial class MainWindow : Window
                 await view.CloseSessionAsync();
         };
         // Golden: 메인 창이 먼저 뜨고, 로그온은 Ctrl+L 로 연다
+        BuildNativeMenu();
 
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
         // 샘플 데이터로 채운 화면을 PNG 로 저장하고 종료한다.
@@ -137,6 +138,61 @@ public partial class MainWindow : Window
     {
         _tabs.Remove(item);
         await view.CloseSessionAsync();
+    }
+
+    /// <summary>macOS: 인앱 메뉴 대신 상단 네이티브 메뉴바 사용. 단축키 자체는 KeyDown 핸들러가 처리.</summary>
+    private void BuildNativeMenu()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+        MainMenu.IsVisible = false;
+
+        NativeMenuItem Item(string header, Action action)
+        {
+            var item = new NativeMenuItem(header);
+            item.Click += (_, _) => action();
+            return item;
+        }
+        NativeMenuItem Sub(string header, params NativeMenuItemBase[] items)
+        {
+            var item = new NativeMenuItem(header);
+            var menu = new NativeMenu();
+            foreach (var child in items)
+                menu.Items.Add(child);
+            item.Menu = menu;
+            return item;
+        }
+        var args = new RoutedEventArgs();
+
+        var root = new NativeMenu();
+        root.Items.Add(Sub("File",
+            Item("New Query Tab (⌘T)", () => OnMenuNewTab(this, args)),
+            Item("Close Tab (⌘W)", () => OnMenuCloseTab(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Open Script… (⌘O)", () => OnMenuOpen(this, args)),
+            Item("Save Script As… (⌘S)", () => OnMenuSave(this, args))));
+        root.Items.Add(Sub("Edit",
+            Item("Undo", () => OnMenuUndo(this, args)),
+            Item("Redo", () => OnMenuRedo(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Cut", () => OnMenuCut(this, args)),
+            Item("Copy", () => OnMenuCopy(this, args)),
+            Item("Paste", () => OnMenuPaste(this, args))));
+        root.Items.Add(Sub("Script",
+            Item("Run Statement (F9)", () => OnMenuExecute(this, args)),
+            Item("Run Script (F5)", () => OnMenuRunScript(this, args)),
+            Item("Explain Statement", () => OnMenuExplain(this, args)),
+            Item("Cancel", () => OnMenuCancel(this, args))));
+        root.Items.Add(Sub("Results",
+            Item("Fetch All Records (⌘End)", () => OnMenuFetchAll(this, args)),
+            Item("Export Grid As CSV…", () => OnMenuExport(this, args))));
+        root.Items.Add(Sub("View",
+            Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
+        root.Items.Add(Sub("Tools",
+            Item("Logon… (⌘L)", () => _ = ShowLogonAsync())));
+        root.Items.Add(Sub("Help",
+            Item("About IAP Database Manager", () => OnMenuAbout(this, args))));
+        NativeMenu.SetMenu(this, root);
     }
 
     /// <summary>View > Object Browser — Golden 6 기본은 패널 없음, 필요할 때만 켠다.</summary>
@@ -567,51 +623,51 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>앱 아이콘: 어두운 라운드 사각 + DB 실린더 + Golden 유산 노란 번개.</summary>
+    /// <summary>앱 아이콘: IAP 로고 기반 — 검은 라운드 배경 + 파랑→보라 그라데이션 IAP 레터마크.</summary>
     private static void RenderAppIcon(string path)
     {
+        var background = Avalonia.Media.Color.Parse("#0A0C10");
         var canvas = new Canvas { Width = 512, Height = 512 };
         canvas.Children.Add(new Border
         {
             Width = 512, Height = 512,
             CornerRadius = new Avalonia.CornerRadius(112),
-            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#262C34")),
+            Background = new Avalonia.Media.SolidColorBrush(background),
         });
 
-        var cylinder = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#DDE5EC"));
-        var cylinderTop = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F2F6F9"));
-        var cylinderLine = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#AEBBC7"));
-
-        // 몸통 + 바닥
-        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        // 로고의 좌→우 그라데이션 (하늘색 → 파랑 → 보라)
+        var gradient = new Avalonia.Media.LinearGradientBrush
         {
-            Data = Avalonia.Media.Geometry.Parse("M126,160 L126,356 A130,40 0 0 0 386,356 L386,160 Z"),
-            Fill = cylinder,
-        });
-        // 윗면
-        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
-        {
-            Data = Avalonia.Media.Geometry.Parse("M126,160 A130,40 0 1 0 386,160 A130,40 0 1 0 126,160 Z"),
-            Fill = cylinderTop,
-        });
-        // 디스크 경계선 2개
-        foreach (var y in new[] { 228, 294 })
-        {
-            canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+            StartPoint = new Avalonia.RelativePoint(0, 0.5, Avalonia.RelativeUnit.Relative),
+            EndPoint = new Avalonia.RelativePoint(1, 0.5, Avalonia.RelativeUnit.Relative),
+            GradientStops =
             {
-                Data = Avalonia.Media.Geometry.Parse($"M126,{y} A130,40 0 0 0 386,{y}"),
-                Stroke = cylinderLine,
-                StrokeThickness = 10,
-            });
-        }
-        // Golden 번개
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#55B7F6"), 0.0),
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#3E6CEA"), 0.5),
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#6C3BE9"), 1.0),
+            },
+        };
+
+        // I + A(counter 포함) + P(counter·왼발 포함) — 한 지오메트리(even-odd)라 그라데이션이 이어진다
         canvas.Children.Add(new Avalonia.Controls.Shapes.Path
         {
-            Data = Avalonia.Media.Geometry.Parse("M312,36 L142,306 L252,306 L216,478 L412,196 L296,196 Z"),
-            Fill = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F7C500")),
-            Stroke = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6E5900")),
-            StrokeThickness = 14,
-            StrokeJoin = Avalonia.Media.PenLineJoin.Round,
+            Data = Avalonia.Media.Geometry.Parse(
+                // I
+                "M48,184 L90,184 L90,328 L48,328 Z " +
+                // A 외곽 + 삼각 카운터
+                "M120,328 L178,184 L210,184 L268,328 Z " +
+                "M194,236 L232,328 L156,328 Z " +
+                // P 외곽(넓고 얕은 볼, 스템은 베이스라인까지) + 둥근 카운터
+                "M300,184 L398,184 A66,54 0 0 1 464,238 A66,54 0 0 1 398,292 L342,292 L342,328 L300,328 Z " +
+                "M342,222 L398,222 A24,16 0 0 1 422,238 A24,16 0 0 1 398,254 L342,254 Z"),
+            Fill = gradient,
+        });
+
+        // A 의 슬래시 컷 — 왼쪽 다리는 남기고 안쪽만 비스듬히 잘라낸다
+        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        {
+            Data = Avalonia.Media.Geometry.Parse("M170,334 L228,270 L246,292 L188,356 Z"),
+            Fill = new Avalonia.Media.SolidColorBrush(background),
         });
 
         canvas.Measure(new Avalonia.Size(512, 512));

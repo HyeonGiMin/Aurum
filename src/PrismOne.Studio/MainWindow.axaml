@@ -10,7 +10,7 @@
   <DockPanel>
 
     <!-- 메뉴바 (Golden: File Edit Script Results View Tools Tabs Help) -->
-    <Menu DockPanel.Dock="Top">
+    <Menu Name="MainMenu" DockPanel.Dock="Top">
       <MenuItem Header="File">
         <MenuItem Header="New Query Tab" InputGesture="Ctrl+T" Click="OnMenuNewTab"/>
         <MenuItem Header="Close Tab" InputGesture="Ctrl+W" Click="OnMenuCloseTab"/>
