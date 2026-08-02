@@ -65,6 +65,9 @@ public partial class QueryTabView : UserControl
     /// <summary>마지막으로 그리드를 만든 문장 — COPY export 가 서버에서 다시 실행한다.</summary>
     public string? LastGridSql { get; private set; }
 
+    /// <summary>Transpose: 행/열 전치 표시 (Golden 의 Transpose Columns/Records).</summary>
+    private bool _transposed;
+
     /// <summary>바인드 변수 값 — Golden 처럼 탭 안에서 이전 값을 기억한다.</summary>
     private readonly Dictionary<string, string?> _bindValues = new(StringComparer.OrdinalIgnoreCase);
 
@@ -664,6 +667,113 @@ public partial class QueryTabView : UserControl
 
     public void Cancel() => _cts?.Cancel();
 
+    // ---------- 그리드 기능 (Golden: Transpose / Size Columns / Filter) ----------
+
+    /// <summary>행/열 전치 — 컬럼이 많은 한 행을 세로로 읽을 때 (Golden Transpose).</summary>
+    public void ToggleTranspose()
+    {
+        if (_columns.Count == 0 || _rows.Count == 0)
+        {
+            SetInfo("No result to transpose");
+            return;
+        }
+        if (_transposed)
+        {
+            RenderNormal();
+            SetInfo("Transpose off");
+            return;
+        }
+
+        var source = _rows.ToList();
+        ResultGrid.Columns.Clear();
+        ResultGrid.Columns.Add(new DataGridTextColumn
+        {
+            Header = "Column",
+            Binding = new Binding($"{nameof(RowItem.Cells)}[0]"),
+            Width = new DataGridLength(200),
+        });
+        for (var r = 0; r < source.Count; r++)
+        {
+            ResultGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = $"row {source[r].No}",
+                Binding = new Binding($"{nameof(RowItem.Cells)}[{r + 1}]"),
+                Width = DataGridLength.Auto,
+                MaxWidth = 420,
+            });
+        }
+        var transposed = new ObservableCollection<RowItem>();
+        for (var c = 0; c < _columns.Count; c++)
+        {
+            var cells = new string?[source.Count + 1];
+            cells[0] = _columns[c];
+            for (var r = 0; r < source.Count; r++)
+                cells[r + 1] = source[r].Cells[c];
+            transposed.Add(new RowItem(c + 1, cells));
+        }
+        ResultGrid.ItemsSource = transposed;
+        _transposed = true;
+        SetInfo($"Transposed — {_columns.Count} column(s) × {source.Count} row(s)");
+    }
+
+    private void RenderNormal()
+    {
+        ResultGrid.Columns.Clear();
+        var noColumn = new DataGridTextColumn
+        {
+            Header = "#",
+            Binding = new Binding(nameof(RowItem.No)),
+            Width = new DataGridLength(46),
+            IsReadOnly = true,
+        };
+        noColumn.CellStyleClasses.Add("rownum");
+        ResultGrid.Columns.Add(noColumn);
+        for (var i = 0; i < _columns.Count; i++)
+        {
+            ResultGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = _columns[i],
+                Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]"),
+                Width = DataGridLength.Auto,
+                MaxWidth = 420,
+            });
+        }
+        ResultGrid.ItemsSource = _rows;
+        _transposed = false;
+    }
+
+    /// <summary>모든 컬럼을 내용에 맞춘다 (Golden: Size All Columns to Fit).</summary>
+    public void SizeColumnsToFit()
+    {
+        foreach (var column in ResultGrid.Columns)
+        {
+            if (column == ResultGrid.Columns[0] && !_transposed) continue;
+            column.Width = DataGridLength.Auto;
+        }
+        SetInfo("Columns sized to fit");
+    }
+
+    /// <summary>선택 셀 값으로 WHERE 절을 만들어 에디터에 덧붙인다 (Golden: Filter records like selected cell).</summary>
+    public void FilterBySelectedCell()
+    {
+        if (_transposed || ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;
+        if (index < 0 || index >= _columns.Count) return;
+        var value = row.Cells[index];
+        var literal = value is null ? "IS NULL" : "= '" + value.Replace("'", "''") + "'";
+        var clause = $"{_columns[index]} {literal}";
+        Editor.Document.Insert(Editor.Document.TextLength, $"\n-- filter: WHERE {clause}\n");
+        Editor.Focus();
+        SetInfo($"Filter clause appended: {clause}");
+    }
+
+    /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>
+    public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) LoadedSnapshot() => Snapshot();
+
     // ---------- Cell detail (Golden 의 cell detail window, jsonb pretty-print) ----------
 
     private void OnCellDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
@@ -781,6 +891,7 @@ public partial class QueryTabView : UserControl
     {
         _columns = columns;
         _rows = [];
+        _transposed = false;
         NoRecordsPanel.IsVisible = columns.Count == 0;
         ResultGrid.IsVisible = columns.Count > 0;
         ResultGrid.Columns.Clear();

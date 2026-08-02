@@ -62,6 +62,14 @@ select * from prismone.study where study_key = :key and modality = :mod;
   자동으로 pretty-print** 됩니다. DICOM Data Set 열람에 사용하세요.
 - 셀 복사(헤더 포함), 컬럼 리사이즈 지원. 빈 결과는 `▸ 1 No Records`.
 
+### 그리드 기능 (Results 메뉴)
+
+| 기능 | 설명 |
+|---|---|
+| **Transpose** (Ctrl+Shift+X) | 행/열 전치 — 컬럼이 많은 한 행을 세로로 읽을 때. 다시 누르면 원래대로 |
+| **Size All Columns to Fit** | 모든 컬럼 폭을 내용에 맞춤 |
+| **Filter Like Selected Cell** | 선택 셀 값으로 `WHERE` 절을 만들어 에디터 끝에 주석으로 덧붙임 |
+
 ## 5. 트랜잭션 (Golden 방식)
 
 - **AutoCommit 은 기본 꺼짐**(툴바 `Auto` 체크박스). INSERT/UPDATE/DDL 을 실행하면
@@ -110,9 +118,12 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 ## 10. 파일 · 내보내기 · 탭
 
 - **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장.
-- Results > **Export CSV**: 마지막 실행 쿼리를 서버에서 `COPY … TO STDOUT` 으로
-  다시 실행해 **전체 행을 잘림 없이 고속으로** 내보냅니다 (그리드에 100행만 보여도
-  전체가 나갑니다). COPY 가 안 되는 문장이면 로드된 행으로 자동 폴백.
+- Results 메뉴의 내보내기 3종:
+  - **Export All Rows As CSV… (COPY)** — 마지막 실행 쿼리를 서버에서 `COPY … TO STDOUT`
+    으로 다시 실행해 **전체 행을 잘림 없이 고속으로**. COPY 불가 문장이면 로드된 행 폴백.
+  - **Save Grid As TSV…** — 로드된 행을 탭 구분 텍스트로 (엑셀 붙여넣기용).
+  - **Save Grid As INSERT…** — 로드된 행을 `INSERT INTO …` 문으로. 대상 테이블명은
+    쿼리의 FROM 절에서 추정합니다. 숫자/boolean 은 그대로, NULL 은 NULL 로.
 - **Ctrl+T** 새 탭 / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
 
 ### 세션 모델 (Golden 과 동일)

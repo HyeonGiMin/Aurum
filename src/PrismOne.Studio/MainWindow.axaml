@@ -41,7 +41,14 @@
       </MenuItem>
       <MenuItem Header="Results">
         <MenuItem Header="Fetch All Records" InputGesture="Ctrl+End" Click="OnMenuFetchAll"/>
-        <MenuItem Header="Export Grid As CSV…" Click="OnMenuExport"/>
+        <Separator/>
+        <MenuItem Header="Transpose Columns/Records" InputGesture="Ctrl+Shift+X" Click="OnMenuTranspose"/>
+        <MenuItem Header="Size All Columns to Fit" Click="OnMenuSizeColumns"/>
+        <MenuItem Header="Filter Like Selected Cell" Click="OnMenuFilterCell"/>
+        <Separator/>
+        <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
+        <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
+        <MenuItem Header="Save Grid As INSERT…" Click="OnMenuExportInsert"/>
       </MenuItem>
       <MenuItem Header="View">
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>

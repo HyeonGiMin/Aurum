@@ -234,7 +234,14 @@ public partial class MainWindow : Window
             Item("Cancel", () => OnMenuCancel(this, args))));
         root.Items.Add(Sub("Results",
             Item("Fetch All Records (⌘End)", () => OnMenuFetchAll(this, args)),
-            Item("Export Grid As CSV…", () => OnMenuExport(this, args))));
+            new NativeMenuItemSeparator(),
+            Item("Transpose Columns/Records (⇧⌘X)", () => OnMenuTranspose(this, args)),
+            Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
+            Item("Filter Like Selected Cell", () => OnMenuFilterCell(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
+            Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
+            Item("Save Grid As INSERT…", () => OnMenuExportInsert(this, args))));
         root.Items.Add(Sub("View",
             Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
         root.Items.Add(Sub("Tools",
@@ -423,6 +430,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             _ = ShowLogonAsync();
         }
+        else if (e.Key == Key.X && cmdOrCtrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            ActiveView?.ToggleTranspose();
+        }
         else if (e.Key == Key.F8)
         {
             e.Handled = true;
@@ -529,6 +541,58 @@ public partial class MainWindow : Window
         AutoCommitBox.IsEnabled = connected;
         if (view is not null)
             AutoCommitBox.IsChecked = view.AutoCommit;
+    }
+
+    private void OnMenuTranspose(object? sender, RoutedEventArgs e) => ActiveView?.ToggleTranspose();
+    private void OnMenuSizeColumns(object? sender, RoutedEventArgs e) => ActiveView?.SizeColumnsToFit();
+    private void OnMenuFilterCell(object? sender, RoutedEventArgs e) => ActiveView?.FilterBySelectedCell();
+
+    private async void OnMenuExportTsv(object? sender, RoutedEventArgs e)
+        => await SaveGridAsAsync(GridExportFormat.Tsv, "result.tsv", "tsv", "Tab-separated");
+
+    private async void OnMenuExportInsert(object? sender, RoutedEventArgs e)
+        => await SaveGridAsAsync(GridExportFormat.Insert, "result.sql", "sql", "SQL script");
+
+    /// <summary>Golden 의 Save Grid As — 로드된 행을 TSV / INSERT 문으로.</summary>
+    private async Task SaveGridAsAsync(GridExportFormat format, string suggested, string ext, string label)
+    {
+        if (ActiveView is not { HasResult: true } view)
+        {
+            StatusLabel.Text = "No result to export";
+            return;
+        }
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = $"Save Grid As {label}",
+            SuggestedFileName = suggested,
+            DefaultExtension = ext,
+            FileTypeChoices = [new FilePickerFileType(label) { Patterns = [$"*.{ext}"] }],
+        });
+        if (file is null) return;
+
+        try
+        {
+            var (columns, rows) = view.LoadedSnapshot();
+            var table = TableNameForInsert(view);
+            var text = GridExporter.Build(format, columns, rows, table);
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new System.IO.StreamWriter(stream, new UTF8Encoding(true));
+            await writer.WriteAsync(text);
+            StatusLabel.Text = $"Saved {rows.Count:N0} loaded record(s) to {file.Name}";
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Save failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>INSERT 문 대상 테이블 추정 — 마지막 쿼리의 FROM 절, 없으면 자리표시자.</summary>
+    private static string TableNameForInsert(QueryTabView view)
+    {
+        var sql = view.LastGridSql ?? "";
+        var match = System.Text.RegularExpressions.Regex.Match(
+            sql, @"\bfrom\s+([A-Za-z_][\w.]*)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : "table_name";
     }
 
     private async void OnMenuFetchAll(object? sender, RoutedEventArgs e)
