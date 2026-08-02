@@ -60,7 +60,8 @@ public partial class ConnectDialog : Window
             DatabaseCombo.SelectedItem = (DatabaseCombo.ItemsSource as IEnumerable<string>)?
                 .FirstOrDefault(s => s == c.DisplayDatabase);
             DatabaseCombo.Text = c.DisplayDatabase;
-            SavePasswordBox.IsChecked = c.Password is not null;
+            // Save password 체크는 사용자가 끈 경우가 아니면 항상 켜둔다
+            // (예전에 비밀번호 없이 저장된 항목을 선택해도 꺼지지 않게)
             ErrorText.IsVisible = false;
             UpdateHeader();
         }

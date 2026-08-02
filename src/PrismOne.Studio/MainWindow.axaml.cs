@@ -39,7 +39,16 @@ public partial class MainWindow : Window
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
         // 샘플 데이터로 채운 화면을 PNG 로 저장하고 종료한다.
         // IAPDM_SHOT_CONN="host:port/db|user|pass" 를 함께 주면 실제 접속·쿼리·스크롤까지 재현한다.
-        if (Environment.GetEnvironmentVariable("IAPDM_SHOT_DIR") is { Length: > 0 } shotDir)
+        // 앱 아이콘 PNG 재생성: IAPDM_RENDER_ICON=<png경로>
+        if (Environment.GetEnvironmentVariable("IAPDM_RENDER_ICON") is { Length: > 0 } iconPath)
+        {
+            Opened += (_, _) =>
+            {
+                RenderAppIcon(iconPath);
+                Environment.Exit(0);
+            };
+        }
+        else if (Environment.GetEnvironmentVariable("IAPDM_SHOT_DIR") is { Length: > 0 } shotDir)
         {
             if (Environment.GetEnvironmentVariable("IAPDM_SHOT_SIZE")?.Split('x') is [var w, var h]
                 && double.TryParse(w, out var width) && double.TryParse(h, out var height))
@@ -556,6 +565,62 @@ public partial class MainWindow : Window
         {
             Environment.Exit(0);
         }
+    }
+
+    /// <summary>앱 아이콘: 어두운 라운드 사각 + DB 실린더 + Golden 유산 노란 번개.</summary>
+    private static void RenderAppIcon(string path)
+    {
+        var canvas = new Canvas { Width = 512, Height = 512 };
+        canvas.Children.Add(new Border
+        {
+            Width = 512, Height = 512,
+            CornerRadius = new Avalonia.CornerRadius(112),
+            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#262C34")),
+        });
+
+        var cylinder = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#DDE5EC"));
+        var cylinderTop = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F2F6F9"));
+        var cylinderLine = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#AEBBC7"));
+
+        // 몸통 + 바닥
+        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        {
+            Data = Avalonia.Media.Geometry.Parse("M126,160 L126,356 A130,40 0 0 0 386,356 L386,160 Z"),
+            Fill = cylinder,
+        });
+        // 윗면
+        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        {
+            Data = Avalonia.Media.Geometry.Parse("M126,160 A130,40 0 1 0 386,160 A130,40 0 1 0 126,160 Z"),
+            Fill = cylinderTop,
+        });
+        // 디스크 경계선 2개
+        foreach (var y in new[] { 228, 294 })
+        {
+            canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+            {
+                Data = Avalonia.Media.Geometry.Parse($"M126,{y} A130,40 0 0 0 386,{y}"),
+                Stroke = cylinderLine,
+                StrokeThickness = 10,
+            });
+        }
+        // Golden 번개
+        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        {
+            Data = Avalonia.Media.Geometry.Parse("M312,36 L142,306 L252,306 L216,478 L412,196 L296,196 Z"),
+            Fill = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#F7C500")),
+            Stroke = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#6E5900")),
+            StrokeThickness = 14,
+            StrokeJoin = Avalonia.Media.PenLineJoin.Round,
+        });
+
+        canvas.Measure(new Avalonia.Size(512, 512));
+        canvas.Arrange(new Avalonia.Rect(0, 0, 512, 512));
+        using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(
+            new Avalonia.PixelSize(512, 512), new Avalonia.Vector(96, 96));
+        bitmap.Render(canvas);
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+        bitmap.Save(path);
     }
 
     private static void SaveShot(Window window, string path)

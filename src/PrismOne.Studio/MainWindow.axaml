@@ -4,6 +4,7 @@
         xmlns:core="using:PrismOne.Db.Core"
         x:Class="PrismOne.Studio.MainWindow"
         Title="Disconnected - IAP Database Manager"
+        Icon="/Assets/icon.png"
         Width="1280" Height="840"
         WindowStartupLocation="CenterScreen">
   <DockPanel>
