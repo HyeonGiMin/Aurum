@@ -59,6 +59,10 @@ public partial class QueryTabView : UserControl
 
     public bool IsConnected => _session?.IsAlive == true;
     public string SessionDisplayName => _session?.Profile.DisplayName ?? "not connected";
+    public ConnectionProfile? SessionProfile => _session?.Profile;
+
+    /// <summary>마지막으로 그리드를 만든 문장 — COPY export 가 서버에서 다시 실행한다.</summary>
+    public string? LastGridSql { get; private set; }
 
     private readonly AvaloniaEdit.Search.SearchPanel _search;
 
@@ -520,6 +524,7 @@ public partial class QueryTabView : UserControl
                 {
                     BindGrid(query.Columns);
                     gridShown = true;
+                    LastGridSql = stmt.Text;
                     await FetchMoreAsync();
                 }
                 else

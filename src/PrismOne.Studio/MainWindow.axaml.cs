@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Npgsql;
 using PrismOne.Db.Core;
 
 namespace PrismOne.Studio;
@@ -559,12 +560,11 @@ public partial class MainWindow : Window
 
     private async void OnMenuExport(object? sender, RoutedEventArgs e)
     {
-        if (ActiveView is not { HasResult: true } view)
+        if (ActiveView is not { } view || (view.LastGridSql is null && !view.HasResult))
         {
             StatusLabel.Text = "No result to export";
             return;
         }
-        var (columns, rows) = view.Snapshot();
 
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
@@ -576,14 +576,39 @@ public partial class MainWindow : Window
         if (file is null)
             return;
 
+        // 1차: COPY (query) TO STDOUT — 서버에서 전체 행을 원문 그대로 고속 스트리밍
+        if (view.LastGridSql is { } sql && view.SessionProfile is { } profile)
+        {
+            try
+            {
+                await using var stream = await file.OpenWriteAsync();
+                var chars = await CopyExporter.ExportCsvAsync(profile, sql, stream,
+                    total => StatusLabel.Text = $"Exporting… {total / 1_000_000.0:0.0}M chars");
+                StatusLabel.Text = $"Exported to {file.Name} via COPY ({chars:N0} chars, 전체 행·전문)";
+                return;
+            }
+            catch (PostgresException ex)
+            {
+                // COPY 가 못 받는 문장(비 SELECT 등) → 로드된 행으로 폴백
+                StatusLabel.Text = $"COPY export 불가({ex.SqlState}) — 로드된 행으로 내보냅니다";
+            }
+            catch (Exception ex)
+            {
+                StatusLabel.Text = $"Export failed: {ex.Message}";
+                return;
+            }
+        }
+
+        // 2차 폴백: 그리드에 로드된 행(표시용 500자 컷 적용) 그대로
         try
         {
+            var (columns, rows) = view.Snapshot();
             await using var stream = await file.OpenWriteAsync();
             await using var writer = new System.IO.StreamWriter(stream, new UTF8Encoding(true));
             await writer.WriteLineAsync(string.Join(",", columns.Select(CsvField)));
             foreach (var row in rows)
                 await writer.WriteLineAsync(string.Join(",", row.Select(v => CsvField(v ?? ""))));
-            StatusLabel.Text = $"Exported {rows.Count:N0} record(s) to {file.Name}";
+            StatusLabel.Text = $"Exported {rows.Count:N0} loaded record(s) to {file.Name}";
         }
         catch (Exception ex)
         {

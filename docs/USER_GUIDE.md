@@ -87,7 +87,10 @@ PG 함수가 `RAISE NOTICE/WARNING` 을 내면 결과 아래 **Messages pane** �
 
 ## 10. 파일 · 내보내기 · 탭
 
-- **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장 / Results > **Export CSV**.
+- **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장.
+- Results > **Export CSV**: 마지막 실행 쿼리를 서버에서 `COPY … TO STDOUT` 으로
+  다시 실행해 **전체 행을 잘림 없이 고속으로** 내보냅니다 (그리드에 100행만 보여도
+  전체가 나갑니다). COPY 가 안 되는 문장이면 로드된 행으로 자동 폴백.
 - **Ctrl+T** 새 탭(탭=독립 세션) / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
 
 ## 11. 단축키 요약
