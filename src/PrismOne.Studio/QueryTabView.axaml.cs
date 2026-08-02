@@ -49,6 +49,9 @@ public partial class QueryTabView : UserControl
     /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
     public List<TableInfo> CompletionTables { get; set; } = [];
 
+    /// <summary>브라우저에서 선택된 스키마 — 자동완성 정렬에서 우선한다.</summary>
+    public string? PreferredSchema { get; set; }
+
     /// <summary>Golden 기본: 수동 커밋 (false). true 면 PG 기본 autocommit 그대로.</summary>
     public bool AutoCommit { get; set; }
 
@@ -140,6 +143,16 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
 
+    /// <summary>스크린샷 모드 전용 — 현재 떠 있는 자동완성 팝업 창.</summary>
+    internal Control? CompletionWindowForShot => _completion?.CompletionList;
+
+    /// <summary>스크린샷 모드 전용 — 자동완성 팝업을 강제로 띄운다.</summary>
+    internal Task ShowCompletionForShotAsync()
+    {
+        Editor.CaretOffset = (Editor.Text ?? "").Length;
+        return ShowCompletionAsync();
+    }
+
     // ---------- Autocomplete ----------
 
     private async Task ShowCompletionAsync()
@@ -167,8 +180,8 @@ public partial class QueryTabView : UserControl
         {
             // 테이블 자리(from/join/into/update 뒤)면 테이블만 — 키워드 잡음 제거
             items = SqlCompletion.IsTablePosition(text, wordStart)
-                ? SqlCompletion.TablesOnly(CompletionTables)
-                : SqlCompletion.General(CompletionTables);
+                ? SqlCompletion.TablesOnly(CompletionTables, PreferredSchema)
+                : SqlCompletion.General(CompletionTables, PreferredSchema);
         }
         else
         {
@@ -182,6 +195,8 @@ public partial class QueryTabView : UserControl
         var window = new AvaloniaEdit.CodeCompletion.CompletionWindow(Editor.TextArea)
         {
             StartOffset = wordStart,
+            Width = 420,
+            MaxHeight = 320,
         };
         foreach (var item in items)
             window.CompletionList.CompletionData.Add(item);
@@ -209,7 +224,10 @@ public partial class QueryTabView : UserControl
             }
         }
         return columns
-            .Select(c => new SqlCompletionItem(c.Name, c.Type + (c.Pk.Length > 0 ? " · PK" : ""), 4))
+            .Select(c => new SqlCompletionItem(
+                c.Name,
+                c.Type + (c.Pk.Length > 0 ? " · PK" : "") + (c.Fk.Length > 0 ? " · FK" : ""),
+                4, SqlCompletionKind.Column))
             .ToList();
     }
 

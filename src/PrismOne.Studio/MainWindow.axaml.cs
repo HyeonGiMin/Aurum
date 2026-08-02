@@ -163,7 +163,12 @@ public partial class MainWindow : Window
 
     private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null, bool isPrivate = false)
     {
-        var view = new QueryTabView { CompletionTables = _allTables, Options = _options };
+        var view = new QueryTabView
+        {
+            CompletionTables = _allTables,
+            Options = _options,
+            PreferredSchema = SchemaCombo.SelectedItem as string,
+        };
         view.InfoChanged += OnTabInfoChanged;
         view.CaretChanged += OnTabCaretChanged;
 
@@ -336,10 +341,19 @@ public partial class MainWindow : Window
         SchemaCombo.ItemsSource = schemas;
         var preferred = schemas.FirstOrDefault(s => s == _profile?.Database) ?? schemas.FirstOrDefault();
         SchemaCombo.SelectedItem = preferred;
+        foreach (var view in AllViews())
+            view.PreferredSchema = preferred;
         RefreshObjectList();
     }
 
-    private void OnBrowserFilterChanged(object? sender, RoutedEventArgs e) => RefreshObjectList();
+    private void OnBrowserFilterChanged(object? sender, RoutedEventArgs e)
+    {
+        RefreshObjectList();
+        // 자동완성이 현재 스키마를 우선하도록 전달
+        var schema = SchemaCombo.SelectedItem as string;
+        foreach (var view in AllViews())
+            view.PreferredSchema = schema;
+    }
 
     private void RefreshObjectList()
     {
@@ -914,6 +928,24 @@ public partial class MainWindow : Window
                 }
                 await Task.Delay(900);
                 SaveShot(this, System.IO.Path.Combine(dir, "live_describe.png"));
+
+                // 자동완성 팝업 캡처: "select * from " 뒤에서 목록 표시
+                view.SetSql("select * from ");
+                view.FocusEditor();
+                await Task.Delay(200);
+                await view.ShowCompletionForShotAsync();
+                await Task.Delay(700);
+                if (view.CompletionWindowForShot is { } popup && popup.Bounds.Width > 1)
+                {
+                    var size = new Avalonia.PixelSize((int)popup.Bounds.Width, (int)popup.Bounds.Height);
+                    using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
+                    bmp.Render(popup);
+                    bmp.Save(System.IO.Path.Combine(dir, "live_completion.png"));
+                }
+                else
+                {
+                    SaveShot(this, System.IO.Path.Combine(dir, "live_completion.png"));
+                }
 
                 view.SetSql(Environment.GetEnvironmentVariable("IAPDM_SHOT_SQL")
                     ?? "select table_schema, table_name from information_schema.tables order by 1, 2;");
