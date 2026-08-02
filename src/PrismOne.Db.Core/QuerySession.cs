@@ -18,6 +18,29 @@ public sealed class QuerySession : IAsyncDisposable
     /// <summary>수동 커밋 모드에서 열린 트랜잭션이 있는지 (Golden 의 Commit/Rollback 대상).</summary>
     public bool InTransaction { get; private set; }
 
+    /// <summary>
+    /// 이 세션에서 마지막으로 연 결과셋. 공유 세션(Golden)에서는 접속 하나에 reader 하나뿐이라
+    /// 다른 탭이 실행하면 이전 결과의 fetch 는 중단된다.
+    /// </summary>
+    public ActiveQuery? Current { get; private set; }
+
+    /// <summary>현재 실행 중인 소유자(탭). null 이면 유휴.</summary>
+    public object? RunningOwner { get; private set; }
+
+    public bool TryBeginRun(object owner)
+    {
+        if (RunningOwner is not null && !ReferenceEquals(RunningOwner, owner))
+            return false;
+        RunningOwner = owner;
+        return true;
+    }
+
+    public void EndRun(object owner)
+    {
+        if (ReferenceEquals(RunningOwner, owner))
+            RunningOwner = null;
+    }
+
     /// <summary>RAISE NOTICE/WARNING 등 서버 메시지 (pgAdmin 의 Messages 탭).</summary>
     public event Action<string>? NoticeReceived;
 
@@ -44,12 +67,18 @@ public sealed class QuerySession : IAsyncDisposable
             foreach (var (name, value) in binds)
                 cmd.Parameters.AddWithValue(name, (object?)value ?? DBNull.Value);
         }
+        // 접속 하나에 reader 하나 — 이전 결과가 열려 있으면 먼저 닫는다 (공유 세션 시맨틱)
+        if (Current is { Completed: false })
+            await Current.AbortAsync();
+
         var sw = Stopwatch.StartNew();
         try
         {
             var reader = await cmd.ExecuteReaderAsync(ct);
             sw.Stop();
-            return await ActiveQuery.CreateAsync(cmd, reader, sw.Elapsed);
+            var query = await ActiveQuery.CreateAsync(cmd, reader, sw.Elapsed);
+            Current = query;
+            return query;
         }
         catch
         {

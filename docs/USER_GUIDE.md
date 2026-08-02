@@ -113,7 +113,16 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 - Results > **Export CSV**: 마지막 실행 쿼리를 서버에서 `COPY … TO STDOUT` 으로
   다시 실행해 **전체 행을 잘림 없이 고속으로** 내보냅니다 (그리드에 100행만 보여도
   전체가 나갑니다). COPY 가 안 되는 문장이면 로드된 행으로 자동 폴백.
-- **Ctrl+T** 새 탭(탭=독립 세션) / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
+- **Ctrl+T** 새 탭 / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
+
+### 세션 모델 (Golden 과 동일)
+
+- **탭들은 메인 접속 하나를 공유합니다.** 따라서 Commit/Rollback 은 공유 탭 전체에 걸리고,
+  한 탭이 실행 중이면 다른 탭은 `Busy — another tab is running on this session.` 로 거부됩니다.
+  접속 하나에 결과셋 하나이므로, 다른 탭에서 새 문장을 실행하면 이전 탭의 남은 fetch 는
+  중단됩니다(`Fetch stopped — another tab used this session.`).
+- **Ctrl+Shift+T = New Private Tab** — 그 탭만의 **전용 접속**을 엽니다. 독립 트랜잭션이
+  필요하거나 긴 쿼리를 돌리면서 다른 탭에서 작업하려면 이걸 쓰세요.
 
 ## 11. 단축키 요약
 
@@ -123,7 +132,7 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 | F5 / Shift+Enter | 스크립트 실행 | | Ctrl+End | 전체 fetch |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F | 찾기 |
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
-| Ctrl+T / W | 탭 열기/닫기 | | Ctrl+Z / Y | Undo / Redo |
+| Ctrl+T / ⇧T / W | 탭 / 전용탭 / 닫기 | | Ctrl+Z / Y | Undo / Redo |
 | Ctrl+O / S | 열기 / 저장 | | | |
 
 (macOS 에선 Ctrl 대신 Cmd 도 동작)

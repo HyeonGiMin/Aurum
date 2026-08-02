@@ -87,15 +87,14 @@ UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.pn
 
 ## 10. 우리 구현과의 갭 (우선순위순)
 
-1. **세션 모델**: 탭=세션(현재) → **탭들이 메인 세션 공유 + private 탭 옵션** (§3)
-2. **Run script 시맨틱**: F5 = 커서부터 끝까지 순차 실행 (현재 F9와 동일하게 잘못 매핑)
-   - Shift+Enter 도 Run Script 로
-3. **fetch 기본값**: 500 → **초기/배치 100** + 옵션화, 탭별 상한(-1 무제한)
+1. ~~**세션 모델**: 탭=세션 → 탭들이 메인 세션 공유 + private 탭~~ ✅ 구현됨 (Ctrl+Shift+T)
+2. ~~**Run script 시맨틱**: F5 = 커서부터 끝까지~~ ✅ 구현됨 (F5 / Shift+Enter)
+3. **fetch 기본값**: ✅ 초기/배치 100. 옵션화·탭별 상한(-1)은 미구현
 4. Commit/Rollback/Autocommit (P4 예정 — 공유 세션 위에서)
-5. 자동완성 팝업, Find/Replace (P2)
-6. 히스토리 (P2), Favorites (P3+)
+5. ~~자동완성 팝업, Find~~ ✅ 구현됨 (Replace 는 검색 패널 내장)
+6. ~~히스토리~~ ✅ 구현됨 (Ctrl+↑↓). Favorites 는 미구현
 7. 그리드: transpose, 셀 상세, 컬럼 fit, xlsx/INSERT export (P4)
-8. Output 창 (RAISE NOTICE) — PG에선 Npgsql Notice 이벤트로 수신 (P4)
+8. ~~Output 창 (RAISE NOTICE)~~ ✅ 구현됨 (Messages pane)
 9. 워크스페이스 저장/복원 (P5)
 10. EditMode(그리드 편집) — 대형 기능, 별도 단계로 (P6 후보)
 

@@ -31,6 +31,7 @@ public partial class QueryTabView : UserControl
     private const int AutoFetchThreshold = 60;
 
     private QuerySession? _session;
+    private bool _ownsSession;      // private 탭이면 true — 닫을 때 세션도 정리
     private ActiveQuery? _current;
     private CancellationTokenSource? _cts;
     private ObservableCollection<RowItem> _rows = [];
@@ -207,13 +208,21 @@ public partial class QueryTabView : UserControl
 
     // ---------- Session ----------
 
-    public async Task ConnectAsync(ConnectionProfile profile)
+    /// <summary>Golden: 탭들은 메인 세션을 공유한다.</summary>
+    public void AttachSession(QuerySession session, bool owned = false)
+    {
+        _session = session;
+        _ownsSession = owned;
+        session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
+        SetInfo($"Session: {session.Profile.DisplayName}" + (owned ? " (private)" : ""));
+    }
+
+    /// <summary>"New Private Tab" — 이 탭만의 전용 접속을 연다.</summary>
+    public async Task ConnectPrivateAsync(ConnectionProfile profile)
     {
         try
         {
-            _session = await QuerySession.CreateAsync(profile);
-            _session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
-            SetInfo($"Session: {profile.DisplayName}");
+            AttachSession(await QuerySession.CreateAsync(profile), owned: true);
         }
         catch (Exception ex)
         {
@@ -232,7 +241,9 @@ public partial class QueryTabView : UserControl
     {
         _cts?.Cancel();
         if (_current is not null) { await _current.AbortAsync(); _current = null; }
-        if (_session is not null) { await _session.DisposeAsync(); _session = null; }
+        if (_session is not null && _ownsSession)
+            await _session.DisposeAsync();
+        _session = null;
     }
 
     public void FocusEditor() => Editor.Focus();
@@ -354,6 +365,11 @@ public partial class QueryTabView : UserControl
         if (_executing) { SetInfo("Busy — statement still running. Cancel first."); return; }
         var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
         if (stmt is null) return;
+        if (!_session.TryBeginRun(this))
+        {
+            SetInfo("Busy — another tab is running on this session.");
+            return;
+        }
 
         _executing = true;
         _cts?.Cancel();
@@ -423,6 +439,7 @@ public partial class QueryTabView : UserControl
         {
             _executing = false;
             _runTimer.Stop();
+            _session?.EndRun(this);
         }
     }
 
@@ -509,6 +526,12 @@ public partial class QueryTabView : UserControl
         if (_executing)
         {
             SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        // 공유 세션이므로 다른 탭이 실행 중이면 기다려야 한다
+        if (!_session.TryBeginRun(this))
+        {
+            SetInfo("Busy — another tab is running on this session.");
             return;
         }
         if (explain)
@@ -620,6 +643,7 @@ public partial class QueryTabView : UserControl
         {
             _executing = false;
             _runTimer.Stop();
+            _session?.EndRun(this);
         }
     }
 
@@ -793,6 +817,13 @@ public partial class QueryTabView : UserControl
     {
         if (_current is null || _current.Completed || _fetching || _cts is null)
             return;
+        // 공유 세션: 다른 탭이 새 문장을 실행하면 이 결과의 reader 는 닫힌다
+        if (_session is not null && !ReferenceEquals(_session.Current, _current))
+        {
+            SetInfo("Fetch stopped — another tab used this session.", InfoRows, InfoTime);
+            _current = null;
+            return;
+        }
         _fetching = true;
         try
         {

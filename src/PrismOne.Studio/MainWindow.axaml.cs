@@ -19,6 +19,7 @@ public sealed record ObjectRow(string Name, string Type, TableInfo Info);
 public partial class MainWindow : Window
 {
     private ConnectionProfile? _profile;
+    private QuerySession? _sharedSession;   // Golden: 탭들이 공유하는 메인 접속
     private readonly ObservableCollection<TabItem> _tabs = [];
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
@@ -34,6 +35,8 @@ public partial class MainWindow : Window
         {
             foreach (var view in AllViews())
                 await view.CloseSessionAsync();
+            if (_sharedSession is not null)
+                await _sharedSession.DisposeAsync();
         };
         // Golden: 메인 창이 먼저 뜨고(빈 Query1 탭 포함), 로그온은 Ctrl+L 로 연다
         BuildNativeMenu();
@@ -107,12 +110,24 @@ public partial class MainWindow : Window
         foreach (var v in AllViews())
             v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
 
-        // 세션 없는 기존 탭(시작 시 만든 Query1 등)에 접속을 붙이고, 없으면 새 탭
+        // Golden: 메인 접속 하나를 공유 세션으로 열고 탭들에 붙인다
+        if (_sharedSession is not null)
+            await _sharedSession.DisposeAsync();
+        try
+        {
+            _sharedSession = await QuerySession.CreateAsync(profile);
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Connect failed: {ex.Message}";
+            return;
+        }
+
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
         if (orphans.Count > 0)
         {
             foreach (var view in orphans)
-                await view.ConnectAsync(profile);
+                view.AttachSession(_sharedSession);
             orphans[0].FocusEditor();
         }
         else
@@ -126,13 +141,24 @@ public partial class MainWindow : Window
     private async void OnMenuNewTab(object? sender, RoutedEventArgs e)
         => await NewTabAsync(_profile);   // 미접속이면 세션 없는 탭 (로그인 시 자동 연결)
 
+    private async void OnMenuNewPrivateTab(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is not { } profile)
+        {
+            StatusLabel.Text = "Private Tab 은 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+            return;
+        }
+        _tabCounter++;
+        await NewTabAsync(profile, $"Private {_tabCounter}", isPrivate: true);
+    }
+
     private async void OnMenuCloseTab(object? sender, RoutedEventArgs e)
     {
         if (QueryTabs.SelectedItem is TabItem item && item.Content is QueryTabView view)
             await CloseTabAsync(item, view);
     }
 
-    private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null)
+    private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null, bool isPrivate = false)
     {
         var view = new QueryTabView { CompletionTables = _allTables };
         view.InfoChanged += OnTabInfoChanged;
@@ -148,8 +174,10 @@ public partial class MainWindow : Window
         QueryTabs.SelectedItem = item;
         if (sql is not null)
             view.SetSql(sql);
-        if (profile is not null)
-            await view.ConnectAsync(profile);
+        if (isPrivate && profile is not null)
+            await view.ConnectPrivateAsync(profile);
+        else if (_sharedSession is not null)
+            view.AttachSession(_sharedSession);
         view.FocusEditor();
         return view;
     }
@@ -187,6 +215,7 @@ public partial class MainWindow : Window
         var root = new NativeMenu();
         root.Items.Add(Sub("File",
             Item("New Query Tab (⌘T)", () => OnMenuNewTab(this, args)),
+            Item("New Private Tab (⇧⌘T)", () => OnMenuNewPrivateTab(this, args)),
             Item("Close Tab (⌘W)", () => OnMenuCloseTab(this, args)),
             new NativeMenuItemSeparator(),
             Item("Open Script… (⌘O)", () => OnMenuOpen(this, args)),
@@ -376,7 +405,10 @@ public partial class MainWindow : Window
         else if (e.Key == Key.T && cmdOrCtrl)
         {
             e.Handled = true;
-            _ = NewTabAsync(_profile);
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                OnMenuNewPrivateTab(sender, e);
+            else
+                _ = NewTabAsync(_profile);
         }
         else if (e.Key == Key.W && cmdOrCtrl)
         {

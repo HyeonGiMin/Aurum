@@ -13,6 +13,7 @@
     <Menu Name="MainMenu" DockPanel.Dock="Top">
       <MenuItem Header="File">
         <MenuItem Header="New Query Tab" InputGesture="Ctrl+T" Click="OnMenuNewTab"/>
+        <MenuItem Header="New Private Tab (전용 접속)" InputGesture="Ctrl+Shift+T" Click="OnMenuNewPrivateTab"/>
         <MenuItem Header="Close Tab" InputGesture="Ctrl+W" Click="OnMenuCloseTab"/>
         <Separator/>
         <MenuItem Header="Open Script…" InputGesture="Ctrl+O" Click="OnMenuOpen"/>
