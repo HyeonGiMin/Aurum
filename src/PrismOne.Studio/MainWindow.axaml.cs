@@ -446,6 +446,12 @@ public partial class MainWindow : Window
 
     private void OnMenuFind(object? sender, RoutedEventArgs e) => ActiveView?.OpenSearch();
 
+    private async void OnMenuBindVars(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.EditBindVariablesAsync();
+    }
+
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
         if (_profile is { } profile)

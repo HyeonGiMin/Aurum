@@ -35,9 +35,15 @@ public sealed class QuerySession : IAsyncDisposable
         conn.Notice += (_, e) =>
             NoticeReceived?.Invoke($"{e.Notice.Severity}: {e.Notice.MessageText}");
 
-    public async Task<ActiveQuery> ExecuteAsync(string sql, CancellationToken ct = default)
+    public async Task<ActiveQuery> ExecuteAsync(
+        string sql, CancellationToken ct = default, IReadOnlyDictionary<string, string?>? binds = null)
     {
-        var cmd = new NpgsqlCommand(sql, Connection);
+        var cmd = new NpgsqlCommand(binds is { Count: > 0 } ? BindVariables.Rewrite(sql) : sql, Connection);
+        if (binds is { Count: > 0 })
+        {
+            foreach (var (name, value) in binds)
+                cmd.Parameters.AddWithValue(name, (object?)value ?? DBNull.Value);
+        }
         var sw = Stopwatch.StartNew();
         try
         {

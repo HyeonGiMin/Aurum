@@ -210,7 +210,8 @@
                   IsCheckedChanged="OnAutoCommitChanged"
                   ToolTip.Tip="AutoCommit — 끄면(기본) Commit/Rollback 으로 직접 제어 (Golden 방식)"/>
 
-        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Bind Variables (준비 중)">
+        <Button Name="BindVarButton" Classes="tool" Click="OnMenuBindVars"
+                ToolTip.Tip="Bind Variables — 문장의 :var 값 입력 (실행 시 자동으로도 뜸)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconOval}" Fill="{StaticResource BoltYellowBrush}"
                   Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1.2"/>

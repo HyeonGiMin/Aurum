@@ -1,0 +1,27 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        x:Class="PrismOne.Studio.BindVariableDialog"
+        Title="Bind Variables"
+        Width="460" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <!-- Golden: :var 를 만나면 값을 묻고, 이전 값을 기억한다 -->
+  <StackPanel Margin="16" Spacing="10">
+    <TextBlock Text="문장의 바인드 변수 값을 입력하세요. 비워 두면 NULL 로 전달됩니다."
+               FontSize="12" Opacity="0.75" TextWrapping="Wrap"/>
+    <ItemsControl Name="VariableList">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="local:BindEntry">
+          <Grid ColumnDefinitions="120,*" Margin="0,3">
+            <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center" FontSize="13"/>
+            <TextBox Grid.Column="1" Text="{Binding Value, Mode=TwoWay}" MinHeight="30" FontSize="13"/>
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Content="Cancel" MinHeight="30" Click="OnCancel"/>
+      <Button Content="OK" MinHeight="30" Classes="accent" IsDefault="True" Click="OnOk"/>
+    </StackPanel>
+  </StackPanel>
+</Window>

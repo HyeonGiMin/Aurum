@@ -64,6 +64,9 @@ public partial class QueryTabView : UserControl
     /// <summary>마지막으로 그리드를 만든 문장 — COPY export 가 서버에서 다시 실행한다.</summary>
     public string? LastGridSql { get; private set; }
 
+    /// <summary>바인드 변수 값 — Golden 처럼 탭 안에서 이전 값을 기억한다.</summary>
+    private readonly Dictionary<string, string?> _bindValues = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly AvaloniaEdit.Search.SearchPanel _search;
 
     public QueryTabView()
@@ -247,6 +250,28 @@ public partial class QueryTabView : UserControl
 
     // 툴바/메뉴 편집 동작 (Golden: cut/copy/paste/undo/redo)
     public void OpenSearch() => _search.Open();
+
+    /// <summary>툴바에서 직접 바인드 변수 값을 미리 입력 (실행 시엔 자동으로 뜬다).</summary>
+    public async Task EditBindVariablesAsync()
+    {
+        var variables = BindVariables.Find(Editor.Text ?? "");
+        if (variables.Count == 0)
+        {
+            SetInfo("No bind variables (:name) in this script");
+            return;
+        }
+        var dialog = new BindVariableDialog(variables, _bindValues);
+        if (VisualRoot is Window owner)
+            await dialog.ShowDialog(owner);
+        else
+            dialog.Show();
+        if (dialog.Result is { } values)
+        {
+            foreach (var (name, value) in values)
+                _bindValues[name] = value;
+            SetInfo($"{values.Count} bind variable(s) set");
+        }
+    }
 
     // ---------- Query history (Golden ◀ ▶) ----------
 
@@ -489,6 +514,28 @@ public partial class QueryTabView : UserControl
         if (explain)
             statements = statements.Select(s => s with { Text = "EXPLAIN " + s.Text }).ToList();
 
+        // Golden: :var 가 있으면 값을 묻는다 (이전 값 기억, 취소하면 실행 안 함)
+        var variables = statements
+            .SelectMany(s => BindVariables.Find(s.Text))
+            .GroupBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+        if (variables.Count > 0)
+        {
+            var dialog = new BindVariableDialog(variables, _bindValues);
+            if (VisualRoot is Window owner)
+                await dialog.ShowDialog(owner);
+            else
+                dialog.Show();
+            if (dialog.Result is not { } values)
+            {
+                SetInfo("Cancelled — bind variables not entered");
+                return;
+            }
+            foreach (var (name, value) in values)
+                _bindValues[name] = value;
+        }
+
         _executing = true;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
@@ -515,7 +562,9 @@ public partial class QueryTabView : UserControl
                 SetInfo(statements.Count == 1
                     ? "Running single statement at cursor."
                     : $"Running statement {ran + 1} of {statements.Count}.", "", null);
-                var query = await _session.ExecuteAsync(stmt.Text, ct);
+                var binds = BindVariables.Find(stmt.Text)
+                    .ToDictionary(v => v.Name, v => _bindValues.GetValueOrDefault(v.Name), StringComparer.OrdinalIgnoreCase);
+                var query = await _session.ExecuteAsync(stmt.Text, ct, binds);
                 _session.NoteStatement(stmt.Text);
                 HistoryStore.Add(stmt.Text);
                 _historyIndex = -1;
