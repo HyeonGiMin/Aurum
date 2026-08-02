@@ -18,14 +18,22 @@ public sealed class QuerySession : IAsyncDisposable
     /// <summary>수동 커밋 모드에서 열린 트랜잭션이 있는지 (Golden 의 Commit/Rollback 대상).</summary>
     public bool InTransaction { get; private set; }
 
+    /// <summary>RAISE NOTICE/WARNING 등 서버 메시지 (pgAdmin 의 Messages 탭).</summary>
+    public event Action<string>? NoticeReceived;
+
     private QuerySession(ConnectionProfile profile, NpgsqlConnection conn)
     {
         Profile = profile;
         Connection = conn;
+        HookNotices(conn);
     }
 
     public static async Task<QuerySession> CreateAsync(ConnectionProfile profile, CancellationToken ct = default)
         => new(profile, await profile.OpenAsync(ct));
+
+    private void HookNotices(NpgsqlConnection conn) =>
+        conn.Notice += (_, e) =>
+            NoticeReceived?.Invoke($"{e.Notice.Severity}: {e.Notice.MessageText}");
 
     public async Task<ActiveQuery> ExecuteAsync(string sql, CancellationToken ct = default)
     {
@@ -50,6 +58,7 @@ public sealed class QuerySession : IAsyncDisposable
         if (IsAlive) return;
         try { await Connection.DisposeAsync(); } catch { /* 이미 죽은 접속 */ }
         Connection = await Profile.OpenAsync(ct);
+        HookNotices(Connection);
         InTransaction = false;
     }
 

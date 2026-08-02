@@ -3,7 +3,7 @@
              xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
              x:Class="PrismOne.Studio.QueryTabView">
   <!-- Golden 쿼리 창: 위 SQL 에디터(키워드 하이라이팅), 아래 결과 그리드 -->
-  <Grid RowDefinitions="*,4,1.6*" Background="{DynamicResource ContentBgBrush}">
+  <Grid RowDefinitions="*,4,1.6*,Auto" Background="{DynamicResource ContentBgBrush}">
 
     <ae:TextEditor Name="Editor" Grid.Row="0"
                    Background="{DynamicResource ContentBgBrush}"
@@ -43,6 +43,20 @@
                              Foreground="{DynamicResource ErrorRedBrush}"/>
       </ScrollViewer>
     </Panel>
+
+    <!-- 서버 메시지 (RAISE NOTICE/WARNING — pgAdmin Messages 탭, Golden output 창 대응) -->
+    <Border Grid.Row="3" Name="MessagesPane" IsVisible="False"
+            Background="{DynamicResource HeaderBgBrush}"
+            BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,1,0,0">
+      <Grid RowDefinitions="Auto,Auto">
+        <TextBlock Grid.Row="0" Text="Messages" FontSize="11" FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextMutedBrush}" Margin="8,3,0,1"/>
+        <ScrollViewer Grid.Row="1" Name="MessagesScroll" MaxHeight="110">
+          <SelectableTextBlock Name="MessagesText" Margin="8,0,8,6" TextWrapping="Wrap"
+                               FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12"/>
+        </ScrollViewer>
+      </Grid>
+    </Border>
 
   </Grid>
 </UserControl>

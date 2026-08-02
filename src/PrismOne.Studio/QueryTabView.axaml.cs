@@ -202,12 +202,20 @@ public partial class QueryTabView : UserControl
         try
         {
             _session = await QuerySession.CreateAsync(profile);
+            _session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
             SetInfo($"Session: {profile.DisplayName}");
         }
         catch (Exception ex)
         {
             SetInfo($"Connect failed: {ex.Message}");
         }
+    }
+
+    private void AppendMessage(string line)
+    {
+        MessagesText.Text += line + "\n";
+        MessagesPane.IsVisible = true;
+        MessagesScroll.ScrollToEnd();
     }
 
     public async Task CloseSessionAsync()
@@ -435,6 +443,8 @@ public partial class QueryTabView : UserControl
         ResultGrid.ItemsSource = null;
         ResultGrid.IsVisible = false;
         NoRecordsPanel.IsVisible = false;
+        MessagesText.Text = "";
+        MessagesPane.IsVisible = false;
     }
 
     public void Cancel() => _cts?.Cancel();
