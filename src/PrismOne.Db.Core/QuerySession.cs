@@ -131,6 +131,9 @@ public sealed class QuerySession : IAsyncDisposable
     }
 }
 
+/// <summary>fetch 된 행 하나. Raw 는 표시용으로 잘린 셀의 원문만 담는다 (없으면 null).</summary>
+public readonly record struct FetchedRow(string?[] Cells, string?[]? Raw);
+
 /// <summary>
 /// 실행된 문장 하나. SELECT 면 reader 를 열어둔 채 배치 단위로 점진 fetch 한다.
 /// 한 행을 미리 읽어(look-ahead) 다음 배치 존재 여부를 정확히 안다.
@@ -139,7 +142,7 @@ public sealed class ActiveQuery : IAsyncDisposable
 {
     private readonly NpgsqlCommand _cmd;
     private readonly NpgsqlDataReader _reader;
-    private string?[]? _lookahead;
+    private FetchedRow? _lookahead;
 
     public IReadOnlyList<string> Columns { get; }
     public bool HasGrid => Columns.Count > 0;
@@ -168,14 +171,14 @@ public sealed class ActiveQuery : IAsyncDisposable
         return query;
     }
 
-    public async Task<List<string?[]>> FetchAsync(int maxRows, CancellationToken ct = default)
+    public async Task<List<FetchedRow>> FetchAsync(int maxRows, CancellationToken ct = default)
     {
-        var rows = new List<string?[]>();
+        var rows = new List<FetchedRow>();
         if (Completed) return rows;
 
-        if (_lookahead is not null)
+        if (_lookahead is { } ahead)
         {
-            rows.Add(_lookahead);
+            rows.Add(ahead);
             _lookahead = null;
         }
         while (rows.Count < maxRows)
@@ -188,12 +191,22 @@ public sealed class ActiveQuery : IAsyncDisposable
         return rows;
     }
 
-    private string?[] ReadRow()
+    private FetchedRow ReadRow()
     {
-        var row = new string?[_reader.FieldCount];
-        for (var i = 0; i < row.Length; i++)
-            row[i] = ValueFormatter.Format(_reader.GetValue(i));
-        return row;
+        var cells = new string?[_reader.FieldCount];
+        string?[]? raw = null;
+        for (var i = 0; i < cells.Length; i++)
+        {
+            var value = _reader.GetValue(i);
+            cells[i] = ValueFormatter.Format(value);
+            // 표시용으로 잘린 값만 원문을 보관 (cell detail 창용) — 메모리 절약
+            if (cells[i] is { } display && display.Length > ValueFormatter.MaxDisplayChars)
+            {
+                raw ??= new string?[cells.Length];
+                raw[i] = ValueFormatter.FormatFull(value);
+            }
+        }
+        return new FetchedRow(cells, raw);
     }
 
     private async Task FinishAsync()

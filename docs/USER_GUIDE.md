@@ -44,7 +44,9 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
   (상태바 `Fetched 300 records (more)`). 큰 테이블도 LIMIT 없이 바로 조회하세요.
 - **Ctrl+End** = 끝까지 전부 fetch.
 - 셀 값이 아주 크면(예: dcmdataset 의 JSONB) 표시는 500자에서 잘리고
-  `… (+N chars)` 로 표기됩니다. CSV export 도 동일 기준입니다.
+  `… (+N chars)` 로 표기됩니다.
+- **셀 더블클릭 → Cell Detail 창**: 잘림 없는 전문을 보여주고, **JSON(jsonb)이면
+  자동으로 pretty-print** 됩니다. DICOM Data Set 열람에 사용하세요.
 - 셀 복사(헤더 포함), 컬럼 리사이즈 지원. 빈 결과는 `▸ 1 No Records`.
 
 ## 5. 트랜잭션 (Golden 방식)

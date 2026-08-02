@@ -43,4 +43,36 @@ public static class ValueFormatter
 
     private static string Truncate(string s) =>
         s.Length <= MaxDisplayChars ? s : s[..MaxDisplayChars] + $"… (+{s.Length - MaxDisplayChars:N0} chars)";
+
+    /// <summary>셀 상세(cell detail) 창용 — 잘라내지 않은 전문. bytea 만 2MB 헥사에서 상한.</summary>
+    public static string? FormatFull(object v) => v switch
+    {
+        null or DBNull => null,
+        string s => s,
+        bool b => b ? "true" : "false",
+        DateTime dt => dt.ToString(dt.TimeOfDay == TimeSpan.Zero ? "yyyy-MM-dd" : "yyyy-MM-dd HH:mm:ss.FFF", CultureInfo.InvariantCulture),
+        DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss.FFFzzz", CultureInfo.InvariantCulture),
+        byte[] bytes => FormatBytesFull(bytes),
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        Array a => FormatArrayFull(a),
+        _ => v.ToString(),
+    };
+
+    private const int MaxByteaFull = 1_000_000;   // 헥사 2MB
+
+    private static string FormatBytesFull(byte[] bytes)
+    {
+        var shown = bytes.Length > MaxByteaFull ? bytes.AsSpan(0, MaxByteaFull) : bytes.AsSpan();
+        var sb = new StringBuilder(@"\x", shown.Length * 2 + 24);
+        foreach (var b in shown) sb.Append(b.ToString("x2"));
+        if (bytes.Length > MaxByteaFull) sb.Append($"… (total {bytes.Length:N0} bytes)");
+        return sb.ToString();
+    }
+
+    private static string FormatArrayFull(Array a)
+    {
+        var parts = new List<string?>(a.Length);
+        foreach (var item in a) parts.Add(FormatFull(item!) ?? "NULL");
+        return "{" + string.Join(",", parts) + "}";
+    }
 }

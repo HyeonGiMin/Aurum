@@ -17,8 +17,8 @@ using PrismOne.Db.Core;
 
 namespace PrismOne.Studio;
 
-/// <summary>그리드 한 행: Golden 처럼 왼쪽에 행번호(No)를 붙인다.</summary>
-public sealed record RowItem(int No, string?[] Cells);
+/// <summary>그리드 한 행: Golden 처럼 왼쪽에 행번호(No)를 붙인다. Raw 는 잘린 셀의 원문.</summary>
+public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null);
 
 /// <summary>
 /// 쿼리 탭 하나 = 세션 하나 (Golden 의 쿼리 창 모델).
@@ -90,6 +90,8 @@ public partial class QueryTabView : UserControl
             HookScrollBar();
             Dispatcher.UIThread.Post(MaybeAutoFetch, DispatcherPriority.Background);
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // 셀 더블클릭 → 전문 상세 창 (jsonb 는 pretty-print)
+        ResultGrid.DoubleTapped += OnCellDoubleTapped;
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
@@ -589,6 +591,72 @@ public partial class QueryTabView : UserControl
 
     public void Cancel() => _cts?.Cancel();
 
+    // ---------- Cell detail (Golden 의 cell detail window, jsonb pretty-print) ----------
+
+    private void OnCellDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
+    {
+        if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+            return;
+        var index = ResultGrid.Columns.IndexOf(col) - 1;   // 0번은 행번호 컬럼
+        if (index < 0 || index >= _columns.Count)
+            return;
+        var value = row.Raw?[index] ?? row.Cells[index];
+        OpenCellDetail(_columns[index], row.No, value);
+    }
+
+    private void OpenCellDetail(string column, int rowNo, string? value)
+    {
+        var display = value;
+        string? note = null;
+        var trimmed = value?.TrimStart() ?? "";
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(value!);
+                display = System.Text.Json.JsonSerializer.Serialize(doc.RootElement,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                note = "JSON pretty-printed";
+            }
+            catch { /* JSON 이 아니면 원문 그대로 */ }
+        }
+
+        var header = new TextBlock
+        {
+            Text = $"{column} · row {rowNo} · {value?.Length ?? 0:N0} chars" +
+                   (note is null ? "" : $" · {note}"),
+            FontSize = 12,
+            Opacity = 0.75,
+            Margin = new Avalonia.Thickness(10, 8),
+        };
+        var text = new TextBox
+        {
+            Text = display ?? "(null)",
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            FontFamily = new Avalonia.Media.FontFamily("Menlo, Consolas, Monaco, Courier New"),
+            FontSize = 12.5,
+            BorderThickness = new Avalonia.Thickness(0),
+        };
+        var dock = new DockPanel();
+        DockPanel.SetDock(header, Dock.Top);
+        dock.Children.Add(header);
+        dock.Children.Add(text);
+
+        var window = new Window
+        {
+            Title = $"Cell Detail — {column}",
+            Width = 720,
+            Height = 540,
+            Content = dock,
+        };
+        if (VisualRoot is Window owner)
+            window.Show(owner);
+        else
+            window.Show();
+    }
+
     // ---------- Commit / Rollback (Golden) ----------
 
     public async Task CommitAsync()
@@ -682,7 +750,7 @@ public partial class QueryTabView : UserControl
             var batch = await _current.FetchAsync(FetchBatch, _cts.Token);
             var no = _rows.Count;
             foreach (var row in batch)
-                _rows.Add(new RowItem(++no, row));
+                _rows.Add(new RowItem(++no, row.Cells, row.Raw));
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).
             Dispatcher.UIThread.Post(() =>
