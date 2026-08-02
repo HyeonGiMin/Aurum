@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TabItem> _tabs = [];
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
+    private AppOptions _options = AppOptions.Load();
 
     public MainWindow()
     {
@@ -123,6 +124,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        UpdateConnectionPill();
+
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
         if (orphans.Count > 0)
         {
@@ -160,7 +163,7 @@ public partial class MainWindow : Window
 
     private async Task<QueryTabView> NewTabAsync(ConnectionProfile? profile, string? title = null, string? sql = null, bool isPrivate = false)
     {
-        var view = new QueryTabView { CompletionTables = _allTables };
+        var view = new QueryTabView { CompletionTables = _allTables, Options = _options };
         view.InfoChanged += OnTabInfoChanged;
         view.CaretChanged += OnTabCaretChanged;
 
@@ -219,7 +222,10 @@ public partial class MainWindow : Window
             Item("Close Tab (⌘W)", () => OnMenuCloseTab(this, args)),
             new NativeMenuItemSeparator(),
             Item("Open Script… (⌘O)", () => OnMenuOpen(this, args)),
-            Item("Save Script As… (⌘S)", () => OnMenuSave(this, args))));
+            Item("Save Script As… (⌘S)", () => OnMenuSave(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Open Workspace…", () => OnMenuOpenWorkspace(this, args)),
+            Item("Save Workspace…", () => OnMenuSaveWorkspace(this, args))));
         root.Items.Add(Sub("Edit",
             Item("Undo", () => OnMenuUndo(this, args)),
             Item("Redo", () => OnMenuRedo(this, args)),
@@ -231,7 +237,11 @@ public partial class MainWindow : Window
             Item("Run Statement (F9)", () => OnMenuExecute(this, args)),
             Item("Run Script (F5)", () => OnMenuRunScript(this, args)),
             Item("Explain Statement", () => OnMenuExplain(this, args)),
-            Item("Cancel", () => OnMenuCancel(this, args))));
+            Item("Cancel", () => OnMenuCancel(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Describe (⌘D)", () => OnMenuDescribe(this, args)),
+            Item("Commit", () => OnMenuCommit(this, args)),
+            Item("Rollback", () => OnMenuRollback(this, args))));
         root.Items.Add(Sub("Results",
             Item("Fetch All Records (⌘End)", () => OnMenuFetchAll(this, args)),
             new NativeMenuItemSeparator(),
@@ -246,7 +256,8 @@ public partial class MainWindow : Window
             Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
         root.Items.Add(Sub("Tools",
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
-            Item("Session Monitor…", () => OnMenuSessionMonitor(this, args))));
+            Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
+            Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
             Item("About IAP Database Manager", () => OnMenuAbout(this, args))));
         NativeMenu.SetMenu(this, root);
@@ -435,6 +446,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             ActiveView?.ToggleTranspose();
         }
+        else if (e.Key == Key.D && cmdOrCtrl)
+        {
+            e.Handled = true;
+            OnMenuDescribe(sender, e);
+        }
         else if (e.Key == Key.F8)
         {
             e.Handled = true;
@@ -496,6 +512,82 @@ public partial class MainWindow : Window
             await view.EditBindVariablesAsync();
     }
 
+    private async void OnMenuOptions(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new OptionsDialog(_options);
+        await dialog.ShowDialog(this);
+        if (dialog.Result is { } options)
+        {
+            _options = options;
+            foreach (var view in AllViews())
+                view.Options = options;
+            StatusLabel.Text = "Options saved";
+        }
+    }
+
+    // ---------- 워크스페이스 (Golden: 열린 탭 세트 저장/복원) ----------
+
+    private static readonly FilePickerFileType WorkspaceFileType =
+        new("IAP Workspace") { Patterns = ["*.iapws"] };
+
+    private async void OnMenuSaveWorkspace(object? sender, RoutedEventArgs e)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Workspace",
+            SuggestedFileName = "workspace.iapws",
+            DefaultExtension = "iapws",
+            FileTypeChoices = [WorkspaceFileType],
+        });
+        if (file is null) return;
+        try
+        {
+            var workspace = new Workspace { Connection = _profile?.DisplayName };
+            foreach (var item in _tabs)
+            {
+                if (item.Content is not QueryTabView view) continue;
+                workspace.Tabs.Add(new WorkspaceTab
+                {
+                    Title = item.Header as string ?? "Query",
+                    Sql = view.GetSql(),
+                    IsPrivate = view.IsPrivateSession,
+                });
+            }
+            workspace.Save(file.Path.LocalPath);
+            StatusLabel.Text = $"Workspace saved: {file.Name} ({workspace.Tabs.Count} tabs)";
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Workspace save failed: {ex.Message}";
+        }
+    }
+
+    private async void OnMenuOpenWorkspace(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open Workspace",
+            FileTypeFilter = [WorkspaceFileType],
+            AllowMultiple = false,
+        });
+        if (files.Count == 0) return;
+        var workspace = Workspace.Load(files[0].Path.LocalPath);
+        if (workspace is null)
+        {
+            StatusLabel.Text = "Workspace 파일을 읽지 못했습니다";
+            return;
+        }
+        foreach (var item in _tabs.ToList())
+        {
+            if (item.Content is QueryTabView view)
+                await CloseTabAsync(item, view);
+        }
+        foreach (var tab in workspace.Tabs)
+            await NewTabAsync(_profile, tab.Title, tab.Sql, tab.IsPrivate && _profile is not null);
+        StatusLabel.Text = $"Workspace loaded: {files[0].Name} ({workspace.Tabs.Count} tabs)" +
+                           (workspace.Connection is { } c ? $" · saved with {c}" : "");
+    }
+
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
         if (_profile is { } profile)
@@ -529,6 +621,60 @@ public partial class MainWindow : Window
     {
         if (ActiveView is { } view)
             view.AutoCommit = AutoCommitBox.IsChecked == true;
+    }
+
+    /// <summary>상태바의 접속 pill 갱신 — 미접속이면 빨강, 접속되면 초록.</summary>
+    private void UpdateConnectionPill()
+    {
+        var connected = _profile is not null && _sharedSession?.IsAlive == true;
+        ConnPill.Background = new Avalonia.Media.SolidColorBrush(
+            Avalonia.Media.Color.Parse(connected ? "#D9EFD9" : "#F3D6D6"));
+        ConnPill.BorderBrush = new Avalonia.Media.SolidColorBrush(
+            Avalonia.Media.Color.Parse(connected ? "#9CC79C" : "#D89A9A"));
+        ConnDot.Fill = new Avalonia.Media.SolidColorBrush(
+            Avalonia.Media.Color.Parse(connected ? "#2E7D32" : "#C0392B"));
+        ConnText.Foreground = new Avalonia.Media.SolidColorBrush(
+            Avalonia.Media.Color.Parse(connected ? "#1E5B20" : "#7B241C"));
+        ConnText.Text = connected ? _profile!.DisplayName : "Disconnected";
+    }
+
+    /// <summary>Ctrl+D — 커서 위치 테이블을 브라우저 describe 로 보여준다 (Golden).</summary>
+    private void OnMenuDescribe(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView?.WordAtCaret() is not { Length: > 0 } word)
+        {
+            StatusLabel.Text = "커서를 테이블 이름 위에 두고 Ctrl+D 를 누르세요";
+            return;
+        }
+        var parts = word.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var name = parts[^1];
+        var schema = parts.Length > 1 ? parts[^2] : null;
+
+        var match = _allTables.FirstOrDefault(t =>
+            t.Name.Equals(name, StringComparison.OrdinalIgnoreCase) &&
+            (schema is null || t.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase)));
+        if (match is null)
+        {
+            StatusLabel.Text = $"'{word}' 테이블을 찾지 못했습니다";
+            return;
+        }
+
+        if (!BrowserPanel.IsVisible)
+            OnMenuToggleBrowser(this, e);
+        SchemaCombo.SelectedItem = match.Schema;
+        if (ShowCombo.SelectedItem as string != "All" && match.IsView)
+            ShowCombo.SelectedItem = "Views";
+        RefreshObjectList();
+        if (ObjectsGrid.ItemsSource is IEnumerable<ObjectRow> rows)
+        {
+            var target = rows.FirstOrDefault(r => r.Info.Name.Equals(match.Name, StringComparison.OrdinalIgnoreCase));
+            if (target is not null)
+            {
+                ObjectsGrid.SelectedItem = target;
+                ObjectsGrid.ScrollIntoView(target, null);
+            }
+        }
+        StatusLabel.Text = $"Describe: {match.Schema}.{match.Name}";
     }
 
     /// <summary>활성 탭의 트랜잭션 상태를 툴바(Commit/Rollback/Auto)에 반영.</summary>
@@ -759,6 +905,16 @@ public partial class MainWindow : Window
 
             if (ActiveView is { } view)
             {
+                // describe 진단: 브라우저 첫 테이블 선택 → describe 로드
+                OnMenuToggleBrowser(this, new RoutedEventArgs());
+                await Task.Delay(300);
+                if (ObjectsGrid.ItemsSource is System.Collections.IEnumerable objs)
+                {
+                    foreach (var o in objs) { ObjectsGrid.SelectedItem = o; break; }
+                }
+                await Task.Delay(900);
+                SaveShot(this, System.IO.Path.Combine(dir, "live_describe.png"));
+
                 view.SetSql(Environment.GetEnvironmentVariable("IAPDM_SHOT_SQL")
                     ?? "select table_schema, table_name from information_schema.tables order by 1, 2;");
                 await view.ExecuteAtCaretAsync();

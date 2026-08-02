@@ -27,8 +27,11 @@ public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null);
 /// </summary>
 public partial class QueryTabView : UserControl
 {
-    private const int FetchBatch = 100;   // Golden 기본값: 초기/배치 100행
     private const int AutoFetchThreshold = 60;
+
+    /// <summary>옵션(fetch 크기·행수 상한·NULL 표시·timeout) — MainWindow 가 주입.</summary>
+    public AppOptions Options { get; set; } = new();
+    private int FetchBatch => Options.FetchBatch;
 
     private QuerySession? _session;
     private bool _ownsSession;      // private 탭이면 true — 닫을 때 세션도 정리
@@ -61,6 +64,7 @@ public partial class QueryTabView : UserControl
     public bool IsConnected => _session?.IsAlive == true;
     public string SessionDisplayName => _session?.Profile.DisplayName ?? "not connected";
     public ConnectionProfile? SessionProfile => _session?.Profile;
+    public bool IsPrivateSession => _ownsSession;
 
     /// <summary>마지막으로 그리드를 만든 문장 — COPY export 가 서버에서 다시 실행한다.</summary>
     public string? LastGridSql { get; private set; }
@@ -216,6 +220,9 @@ public partial class QueryTabView : UserControl
     {
         _session = session;
         _ownsSession = owned;
+        AutoCommit = Options.AutoCommit;
+        if (Options.StatementTimeoutMs > 0)
+            _ = session.ExecuteTextAsync($"SET statement_timeout = {Options.StatementTimeoutMs}");
         session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
         SetInfo($"Session: {session.Profile.DisplayName}" + (owned ? " (private)" : ""));
     }
@@ -264,6 +271,22 @@ public partial class QueryTabView : UserControl
 
     // 툴바/메뉴 편집 동작 (Golden: cut/copy/paste/undo/redo)
     public void OpenSearch() => _search.Open();
+
+    /// <summary>커서 위치의 식별자 (schema.table 형태 포함) — Ctrl+D describe 용.</summary>
+    public string? WordAtCaret()
+    {
+        var text = Editor.Text ?? "";
+        if (text.Length == 0) return null;
+        var caret = Math.Clamp(Editor.CaretOffset, 0, text.Length);
+        bool IsPart(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '.' || c == '"';
+
+        var start = caret;
+        while (start > 0 && IsPart(text[start - 1])) start--;
+        var end = caret;
+        while (end < text.Length && IsPart(text[end])) end++;
+        var word = text[start..end].Trim('.', '"');
+        return word.Length == 0 ? null : word;
+    }
 
     /// <summary>툴바에서 직접 바인드 변수 값을 미리 입력 (실행 시엔 자동으로 뜬다).</summary>
     public async Task EditBindVariablesAsync()
@@ -938,10 +961,30 @@ public partial class QueryTabView : UserControl
         _fetching = true;
         try
         {
-            var batch = await _current.FetchAsync(FetchBatch, _cts.Token);
+            var want = FetchBatch;
+            if (Options.RecordsetLimit > 0)
+            {
+                var remain = Options.RecordsetLimit - _rows.Count;
+                if (remain <= 0)
+                {
+                    SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records (limit reached)", InfoTime);
+                    return;
+                }
+                want = Math.Min(want, remain);
+            }
+            var batch = await _current.FetchAsync(want, _cts.Token);
             var no = _rows.Count;
             foreach (var row in batch)
-                _rows.Add(new RowItem(++no, row.Cells, row.Raw));
+            {
+                var cells = row.Cells;
+                if (Options.NullText.Length > 0)
+                {
+                    cells = (string?[])cells.Clone();
+                    for (var i = 0; i < cells.Length; i++)
+                        cells[i] ??= Options.NullText;
+                }
+                _rows.Add(new RowItem(++no, cells, row.Raw));
+            }
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).
             Dispatcher.UIThread.Post(() =>

@@ -23,6 +23,8 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 - **Read Only** 체크: 세션이 읽기 전용(`default_transaction_read_only=on`)으로 열려
   실수로 UPDATE 를 날려도 거부됩니다. 운영 DB 조회용으로 권장.
 - 로그인하면 열려 있던 빈 탭들에 세션이 붙습니다.
+- 상태바 왼쪽 **접속 pill** 로 상태를 알 수 있습니다 — 미접속이면 빨강 `Disconnected`,
+  접속되면 초록 `user@host:port/db`.
 
 ## 3. 쿼리 실행
 
@@ -94,6 +96,12 @@ select * from prismone.study where study_key = :key and modality = :mod;
   초안으로 복귀. 히스토리는 재시작 후에도 유지(최근 500개).
 - **Ctrl+F** (툴바 돋보기) — 에디터 검색 패널.
 
+## 7.5 Describe (Ctrl+D)
+
+에디터에서 **테이블 이름 위에 커서를 두고 Ctrl+D** 를 누르면 Object Browser 가 열리며
+그 테이블이 선택되고 컬럼 목록(describe)이 표시됩니다. `prismone.study` 처럼 스키마를
+붙여도 되고 `study` 만 써도 됩니다.
+
 ## 8. Object Browser (F8)
 
 - 툴바 ≡ 버튼 또는 **F8** 로 오른쪽 패널 토글 (기본 숨김 — Golden 6 레이아웃).
@@ -143,15 +151,24 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 | F5 / Shift+Enter | 스크립트 실행 | | Ctrl+End | 전체 fetch |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F | 찾기 |
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
-| Ctrl+T / ⇧T / W | 탭 / 전용탭 / 닫기 | | Ctrl+Z / Y | Undo / Redo |
+| Ctrl+T / ⇧T / W | 탭 / 전용탭 / 닫기 |
+| Ctrl+D | Describe | | Ctrl+Shift+X | Transpose | | Ctrl+Z / Y | Undo / Redo |
 | Ctrl+O / S | 열기 / 저장 | | | |
 
 (macOS 에선 Ctrl 대신 Cmd 도 동작)
 
+## 11.5 워크스페이스 · 옵션
+
+- **File > Save/Open Workspace…** — 열린 탭들의 제목·SQL·전용접속 여부를 `.iapws` 파일로
+  저장하고 그대로 복원합니다 (Golden 의 Workspace).
+- **Tools > Options…** (툴바 렌치) — fetch 배치 크기, 탭별 최대 행수(-1 무제한),
+  NULL 표시 문자열, `statement_timeout`(ms), AutoCommit 기본값.
+  설정은 `~/.prismone-studio/options.json` 에 저장되고 새 실행부터 적용됩니다.
+
 ## 12. 데이터 파일 · 문제 해결
 
 - `~/.prismone-studio/` — `connections.json`(접속 목록, 비밀번호 암호문),
-  `key.bin`(암호화 키, 0600), `history.jsonl`(쿼리 히스토리).
+  `key.bin`(암호화 키, 0600), `history.jsonl`(쿼리 히스토리), `options.json`(옵션).
 - 키 파일을 지우면 저장된 비밀번호만 무효가 됩니다(접속 목록은 유지) —
   다음 로그인 때 비밀번호만 다시 입력하면 됩니다.
 - 세션이 끊기면 다음 실행 때 같은 프로파일로 자동 재접속합니다(열려 있던 트랜잭션은 소멸).

@@ -1,0 +1,74 @@
+using System.Text.Json;
+
+namespace PrismOne.Db.Core;
+
+/// <summary>앱 옵션 (~/.prismone-studio/options.json). Golden 의 Options 다이얼로그 대응.</summary>
+public sealed class AppOptions
+{
+    /// <summary>초기/추가 fetch 배치 크기 (Golden 기본 100).</summary>
+    public int FetchBatch { get; set; } = 100;
+
+    /// <summary>탭별 최대 로드 행수. -1 이면 무제한.</summary>
+    public int RecordsetLimit { get; set; } = -1;
+
+    /// <summary>NULL 셀 표시 문자열 (빈 문자열이면 공백).</summary>
+    public string NullText { get; set; } = "";
+
+    /// <summary>0 이면 미설정. 세션에 SET statement_timeout 적용 (ms).</summary>
+    public int StatementTimeoutMs { get; set; }
+
+    /// <summary>true 면 PG 기본 autocommit, false 면 Golden 식 수동 커밋.</summary>
+    public bool AutoCommit { get; set; }
+
+    private static string Dir =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".prismone-studio");
+
+    private static string FilePath => Path.Combine(Dir, "options.json");
+
+    public static AppOptions Load()
+    {
+        try
+        {
+            return File.Exists(FilePath)
+                ? JsonSerializer.Deserialize<AppOptions>(File.ReadAllText(FilePath)) ?? new AppOptions()
+                : new AppOptions();
+        }
+        catch
+        {
+            return new AppOptions();
+        }
+    }
+
+    public void Save()
+    {
+        try
+        {
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { /* 옵션 저장 실패는 치명적이지 않다 */ }
+    }
+}
+
+/// <summary>워크스페이스: 열린 탭들의 SQL 과 이름 (Golden 의 Workspace 파일).</summary>
+public sealed class WorkspaceTab
+{
+    public string Title { get; set; } = "";
+    public string Sql { get; set; } = "";
+    public bool IsPrivate { get; set; }
+}
+
+public sealed class Workspace
+{
+    public string? Connection { get; set; }        // user@host:port/db
+    public List<WorkspaceTab> Tabs { get; set; } = [];
+
+    public static Workspace? Load(string path)
+    {
+        try { return JsonSerializer.Deserialize<Workspace>(File.ReadAllText(path)); }
+        catch { return null; }
+    }
+
+    public void Save(string path) =>
+        File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+}
