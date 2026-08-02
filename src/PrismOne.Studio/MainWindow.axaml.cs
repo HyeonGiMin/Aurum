@@ -223,6 +223,7 @@ public partial class MainWindow : Window
         MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
         MainGrid.ColumnDefinitions[2].Width = new GridLength(show ? 352 : 0);
         BrowserMenuItem.Header = show ? "Object Browser ✓" : "Object Browser";
+        BrowserToggleButton.Classes.Set("active", show);
     }
 
     /// <summary>탭줄 오른쪽 ▾ — Golden 의 탭 목록 드롭다운.</summary>

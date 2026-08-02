@@ -102,6 +102,12 @@
   <Style Selector="Button.tool:disabled">
     <Setter Property="Opacity" Value="0.35"/>
   </Style>
+  <!-- 토글형 툴 버튼(Object Browser 등)의 켜짐 상태 -->
+  <Style Selector="Button.tool.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#D6E8F8"/>
+    <Setter Property="BorderBrush" Value="#9CC3E8"/>
+  </Style>
+
   <Style Selector="Button.tool:disabled /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderBrush" Value="Transparent"/>
