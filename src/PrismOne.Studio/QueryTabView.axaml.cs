@@ -87,9 +87,25 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
+        // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
         Editor.TextArea.TextEntered += (_, e) =>
         {
             if (e.Text == ".")
+            {
+                _ = ShowCompletionAsync();
+                return;
+            }
+            if (_completion is not null || string.IsNullOrEmpty(e.Text))
+                return;
+            var ch = e.Text[0];
+            if (ch != ' ' && !char.IsLetter(ch) && ch != '_')
+                return;
+            var text = Editor.Text ?? "";
+            var caret = Math.Clamp(Editor.CaretOffset, 0, text.Length);
+            var wordStart = caret;
+            while (wordStart > 0 && (char.IsLetterOrDigit(text[wordStart - 1]) || text[wordStart - 1] == '_'))
+                wordStart--;
+            if (SqlCompletion.IsTablePosition(text, wordStart))
                 _ = ShowCompletionAsync();
         };
         Editor.TextArea.AddHandler(KeyDownEvent, (_, e) =>
@@ -131,7 +147,10 @@ public partial class QueryTabView : UserControl
         List<SqlCompletionItem> items;
         if (qualifier is null)
         {
-            items = SqlCompletion.General(CompletionTables);
+            // 테이블 자리(from/join/into/update 뒤)면 테이블만 — 키워드 잡음 제거
+            items = SqlCompletion.IsTablePosition(text, wordStart)
+                ? SqlCompletion.TablesOnly(CompletionTables)
+                : SqlCompletion.General(CompletionTables);
         }
         else
         {

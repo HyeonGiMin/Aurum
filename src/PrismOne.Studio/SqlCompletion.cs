@@ -60,6 +60,32 @@ public static class SqlCompletion
         return map;
     }
 
+    /// <summary>커서(단어 시작) 직전의 키워드가 테이블 자리인지 — from/join/into/update 뒤.</summary>
+    public static bool IsTablePosition(string text, int wordStart)
+    {
+        var i = wordStart;
+        while (i > 0 && char.IsWhiteSpace(text[i - 1])) i--;
+        var end = i;
+        while (i > 0 && (char.IsLetterOrDigit(text[i - 1]) || text[i - 1] == '_')) i--;
+        var word = text[i..end];
+        return word.Equals("from", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("join", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("into", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("update", StringComparison.OrdinalIgnoreCase)
+            || word.Equals("table", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>테이블 자리: 테이블 + 스키마만 (키워드 잡음 없이).</summary>
+    public static List<SqlCompletionItem> TablesOnly(IReadOnlyList<TableInfo> tables)
+    {
+        var items = tables
+            .Select(t => new SqlCompletionItem(t.Name, $"{t.Schema} · {(t.IsView ? "view" : "table")}", 3))
+            .ToList();
+        items.AddRange(tables.Select(t => t.Schema).Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(s => new SqlCompletionItem(s, "schema", 2)));
+        return items;
+    }
+
     /// <summary>한정자 없는 위치: 키워드 + 스키마 + 테이블.</summary>
     public static List<SqlCompletionItem> General(IReadOnlyList<TableInfo> tables)
     {
