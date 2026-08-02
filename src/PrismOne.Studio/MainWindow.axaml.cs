@@ -94,6 +94,7 @@ public partial class MainWindow : Window
         ExecuteButton.IsEnabled = true;
         RunScriptButton.IsEnabled = true;
         ExplainButton.IsEnabled = true;
+        ExplainAnalyzeButton.IsEnabled = true;
         StopButton.IsEnabled = true;
         FetchAllButton.IsEnabled = true;
         ExportButton.IsEnabled = true;
@@ -430,7 +431,13 @@ public partial class MainWindow : Window
     private async void OnMenuExplain(object? sender, RoutedEventArgs e)
     {
         if (ActiveView is { } view)
-            await view.ExecuteAtCaretAsync(explain: true);
+            await view.ExecuteExplainAsync(analyze: false);
+    }
+
+    private async void OnMenuExplainAnalyze(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.ExecuteExplainAsync(analyze: true);
     }
 
     private void OnMenuCancel(object? sender, RoutedEventArgs e) => ActiveView?.Cancel();
@@ -625,6 +632,11 @@ public partial class MainWindow : Window
                 await view.ScrollToBottomAsync();
                 await Task.Delay(400);
                 SaveShot(this, System.IO.Path.Combine(dir, "live_scrolled.png"));
+
+                view.SetSql("select t.table_name, c.column_name from information_schema.tables t join information_schema.columns c on c.table_name = t.table_name where t.table_schema = 'prismone' order by 1, 2;");
+                await view.ExecuteExplainAsync(analyze: true);
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "live_explain.png"));
             }
         }
         catch (Exception ex)

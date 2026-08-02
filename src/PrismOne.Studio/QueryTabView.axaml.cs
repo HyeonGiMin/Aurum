@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -298,8 +299,8 @@ public partial class QueryTabView : UserControl
 
     // ---------- Execute ----------
 
-    /// <summary>F9: 선택 영역(있으면) 또는 커서 위치 문장 하나를 실행. explain=true 면 EXPLAIN.</summary>
-    public Task ExecuteAtCaretAsync(bool explain = false)
+    /// <summary>F9: 선택 영역(있으면) 또는 커서 위치 문장 하나를 실행.</summary>
+    public Task ExecuteAtCaretAsync()
     {
         List<SqlStatement> statements;
         if (!string.IsNullOrEmpty(Editor.SelectedText))
@@ -311,7 +312,139 @@ public partial class QueryTabView : UserControl
             var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
             statements = stmt is null ? [] : [stmt];
         }
-        return ExecuteStatementsAsync(statements, explain);
+        return ExecuteStatementsAsync(statements, explain: false);
+    }
+
+    /// <summary>커서 문장을 EXPLAIN (FORMAT JSON) 으로 실행해 플랜 트리로 표시.
+    /// analyze=true 면 실제 실행 — DML 은 pgAdmin 처럼 자동 롤백으로 보호한다.</summary>
+    public async Task ExecuteExplainAsync(bool analyze)
+    {
+        if (_session is null) { SetInfo("Not connected"); return; }
+        if (_executing) { SetInfo("Busy — statement still running. Cancel first."); return; }
+        var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
+        if (stmt is null) return;
+
+        _executing = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var ct = _cts.Token;
+        HideError();
+        ClearResultArea();
+        _scriptWatch.Restart();
+        _runTimer.Start();
+
+        var needRollback = analyze && !QuerySession.IsReadOnlyStatement(stmt.Text);
+        var wasInTx = _session.InTransaction;
+        try
+        {
+            if (_current is not null) { await _current.AbortAsync(); _current = null; }
+            await _session.EnsureAliveAsync(ct);
+            SetInfo(analyze ? "Running EXPLAIN ANALYZE…" : "Running EXPLAIN…", "", null);
+
+            // ANALYZE 는 DML 을 실제 실행하므로 트랜잭션으로 감싸 되돌린다
+            if (needRollback && !wasInTx)
+                await _session.EnsureTransactionAsync(ct);
+
+            var options = analyze ? "ANALYZE, BUFFERS, FORMAT JSON" : "FORMAT JSON";
+            // 그리드 경로(표시용 500자 컷)를 타면 JSON 이 잘리므로 원문 전용 경로로 받는다
+            var json = await _session.ExecuteTextAsync($"EXPLAIN ({options}) {stmt.Text}", ct);
+
+            if (needRollback)
+            {
+                await _session.RollbackAsync(ct);
+                if (wasInTx)
+                    await _session.EnsureTransactionAsync(ct);   // 원래 열려 있던 TX 상태 유지는 포기하고 새로 연다
+            }
+            _scriptWatch.Stop();
+
+            var plan = PlanParser.Parse(json);
+            if (plan is null)
+            {
+                ShowError("플랜을 해석하지 못했습니다:\n" + json);
+                return;
+            }
+            BindPlanTree(plan, analyze);
+            var timing = plan.ExecutionMs is { } ms
+                ? $"Execution {ms:0.###} ms · Planning {plan.PlanningMs:0.###} ms"
+                : "plan only (not executed)";
+            SetInfo($"Explain complete — {timing}" + (needRollback ? " · rolled back" : ""),
+                "", ScriptTime());
+        }
+        catch (OperationCanceledException)
+        {
+            _scriptWatch.Stop();
+            SetInfo("Cancelled");
+            await RecoverAsync();
+        }
+        catch (PostgresException ex)
+        {
+            _scriptWatch.Stop();
+            ShowError($"{ex.Severity} {ex.SqlState}: {ex.MessageText}");
+            await RecoverAsync();
+        }
+        catch (Exception ex)
+        {
+            _scriptWatch.Stop();
+            ShowError(ex.Message);
+            await RecoverAsync();
+        }
+        finally
+        {
+            _executing = false;
+            _runTimer.Stop();
+        }
+    }
+
+    private void BindPlanTree(PlanResult plan, bool analyze)
+    {
+        var totalMs = plan.ExecutionMs ?? plan.Root.TotalMs ?? 0;
+        var items = new List<TreeViewItem>();
+        if (analyze)
+        {
+            items.Add(new TreeViewItem
+            {
+                Header = new TextBlock
+                {
+                    Text = $"Planning {plan.PlanningMs:0.###} ms · Execution {plan.ExecutionMs:0.###} ms",
+                    FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                },
+            });
+        }
+        items.Add(BuildPlanItem(plan.Root, totalMs));
+        PlanTree.ItemsSource = items;
+        PlanTree.IsVisible = true;
+        ResultGrid.IsVisible = false;
+        NoRecordsPanel.IsVisible = false;
+    }
+
+    private static TreeViewItem BuildPlanItem(PlanNode node, double totalMs)
+    {
+        var fraction = totalMs > 0 && node.TotalMs is { } ms ? ms / totalMs : 0;
+        var title = new TextBlock
+        {
+            Text = node.Title,
+            FontWeight = fraction >= 0.5 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
+            Foreground = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
+                       : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
+                       : Avalonia.Media.Brushes.Black,
+        };
+        var detail = new TextBlock
+        {
+            Text = "   " + node.Detail,
+            Foreground = Avalonia.Media.Brushes.Gray,
+            FontSize = 11.5,
+        };
+        var header = new StackPanel
+        {
+            Orientation = Avalonia.Layout.Orientation.Horizontal,
+            Children = { title, detail },
+        };
+        var item = new TreeViewItem { Header = header, IsExpanded = true };
+        if (node.Extra is not null)
+            ToolTip.SetTip(item, node.Extra);
+        foreach (var child in node.Children)
+            item.Items.Add(BuildPlanItem(child, totalMs));
+        return item;
     }
 
     /// <summary>F5/Shift+Enter: Golden 의 Run Script — 커서 위치 문장부터 끝까지 순차 실행.</summary>
@@ -445,6 +578,8 @@ public partial class QueryTabView : UserControl
         NoRecordsPanel.IsVisible = false;
         MessagesText.Text = "";
         MessagesPane.IsVisible = false;
+        PlanTree.ItemsSource = null;
+        PlanTree.IsVisible = false;
     }
 
     public void Cancel() => _cts?.Cancel();

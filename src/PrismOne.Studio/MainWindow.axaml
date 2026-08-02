@@ -31,7 +31,8 @@
       <MenuItem Header="Script">
         <MenuItem Header="Run Statement" InputGesture="F9" Click="OnMenuExecute"/>
         <MenuItem Header="Run Script" InputGesture="F5" Click="OnMenuRunScript"/>
-        <MenuItem Header="Explain Statement" Click="OnMenuExplain"/>
+        <MenuItem Header="Explain Statement (plan tree)" Click="OnMenuExplain"/>
+        <MenuItem Header="Explain Analyze (실제 실행·DML 자동 롤백)" Click="OnMenuExplainAnalyze"/>
         <MenuItem Header="Cancel" Click="OnMenuCancel"/>
         <Separator/>
         <MenuItem Header="Commit" Click="OnMenuCommit"/>
@@ -164,11 +165,19 @@
           </Canvas></Viewbox>
         </Button>
 
-        <Button Name="ExplainButton" Classes="tool" Click="OnMenuExplain" IsEnabled="False" ToolTip.Tip="Explain Statement">
+        <Button Name="ExplainButton" Classes="tool" Click="OnMenuExplain" IsEnabled="False" ToolTip.Tip="Explain — 플랜 트리 (실행 안 함)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconBolt}" Fill="{StaticResource BoltYellowBrush}"
                   Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1"/>
             <Ellipse Canvas.Left="11" Canvas.Top="10" Width="13" Height="13" Fill="White" Stroke="#8A6D00" StrokeThickness="1"/><TextBlock Canvas.Left="13.5" Canvas.Top="9.5" Text="E" FontSize="12" FontWeight="Bold" Foreground="#1A1A1A"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="ExplainAnalyzeButton" Classes="tool" Click="OnMenuExplainAnalyze" IsEnabled="False" ToolTip.Tip="Explain Analyze — 실제 실행 후 노드별 시간 (DML 은 자동 롤백)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBolt}" Fill="{StaticResource BoltYellowBrush}"
+                  Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1"/>
+            <Ellipse Canvas.Left="11" Canvas.Top="10" Width="13" Height="13" Fill="White" Stroke="#8A6D00" StrokeThickness="1"/><TextBlock Canvas.Left="12.8" Canvas.Top="9.5" Text="A" FontSize="12" FontWeight="Bold" Foreground="#1A1A1A"/>
           </Canvas></Viewbox>
         </Button>
 

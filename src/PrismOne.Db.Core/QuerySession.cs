@@ -114,6 +114,17 @@ public sealed class QuerySession : IAsyncDisposable
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>첫 컬럼을 원문 그대로(표시용 잘라내기 없이) 이어붙여 돌려준다 — EXPLAIN JSON 용.</summary>
+    public async Task<string> ExecuteTextAsync(string sql, CancellationToken ct = default)
+    {
+        await using var cmd = new NpgsqlCommand(sql, Connection);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var sb = new System.Text.StringBuilder();
+        while (await reader.ReadAsync(ct))
+            sb.AppendLine(reader.GetValue(0)?.ToString());
+        return sb.ToString();
+    }
+
     public async ValueTask DisposeAsync()
     {
         try { await Connection.DisposeAsync(); } catch { /* shutdown */ }

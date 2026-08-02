@@ -37,6 +37,9 @@
           <TextBlock Text="No Records" FontSize="12"/>
         </Border>
       </StackPanel>
+      <!-- EXPLAIN (ANALYZE) 플랜 트리 (pgAdmin 그래픽 플랜의 트리 버전) -->
+      <TreeView Name="PlanTree" IsVisible="False" Background="{DynamicResource ContentBgBrush}"
+                FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12"/>
       <ScrollViewer Name="ErrorPane" IsVisible="False" Background="{DynamicResource ContentBgBrush}">
         <SelectableTextBlock Name="ErrorText" Margin="12" TextWrapping="Wrap"
                              FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12.5"
