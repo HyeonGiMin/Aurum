@@ -47,6 +47,7 @@
       </MenuItem>
       <MenuItem Header="Tools">
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
+        <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
       </MenuItem>
       <MenuItem Header="Help">
         <MenuItem Header="About IAP Database Manager" Click="OnMenuAbout"/>

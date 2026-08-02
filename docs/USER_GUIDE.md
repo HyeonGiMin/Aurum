@@ -87,6 +87,13 @@ PG 함수가 `RAISE NOTICE/WARNING` 을 내면 결과 아래 **Messages pane** �
 열립니다. 새 실행 때 초기화됩니다.
 테스트: `DO $$ BEGIN RAISE NOTICE 'hello %', now(); END $$;`
 
+## 9.5 Session Monitor (Tools 메뉴)
+
+**Tools > Session Monitor** — 현재 DB 의 접속 세션(pg_stat_activity)을 보여줍니다.
+PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리. Auto(5s) 자동 새로고침,
+**Cancel Query**(쿼리만 취소) / **Terminate**(세션 종료 — 권한 필요).
+공유 staging 에서 누가 물고 있는지 확인할 때 사용.
+
 ## 10. 파일 · 내보내기 · 탭
 
 - **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장.

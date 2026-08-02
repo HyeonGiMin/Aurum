@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:PrismOne.Db.Core"
+        x:Class="PrismOne.Studio.SessionMonitorWindow"
+        Title="Session Monitor - IAP Database Manager"
+        Width="920" Height="480"
+        WindowStartupLocation="CenterOwner">
+  <!-- pg_stat_activity — 공유 서버에서 누가 물고 있는지 보고 취소/종료 -->
+  <DockPanel Margin="10">
+
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+      <Button Name="RefreshButton" Content="Refresh" MinHeight="28" Click="OnRefresh"/>
+      <CheckBox Name="AutoRefreshBox" Content="Auto (5s)" FontSize="12.5" VerticalAlignment="Center"
+                IsCheckedChanged="OnAutoRefreshChanged"/>
+      <Border Width="1" Height="20" Background="#C0C0C0" Margin="6,0"/>
+      <Button Name="CancelQueryButton" Content="Cancel Query" MinHeight="28" Click="OnCancelQuery"
+              ToolTip.Tip="선택 세션의 실행 중 쿼리만 취소 (세션 유지)"/>
+      <Button Name="TerminateButton" Content="Terminate" MinHeight="28" Click="OnTerminate"
+              Foreground="Firebrick" ToolTip.Tip="선택 세션 자체를 종료"/>
+      <TextBlock Name="MonitorStatus" FontSize="12" Opacity="0.75" VerticalAlignment="Center" Margin="8,0"/>
+    </StackPanel>
+
+    <DataGrid Name="ActivityGrid"
+              x:DataType="core:ActivityRow"
+              IsReadOnly="True" HeadersVisibility="Column"
+              GridLinesVisibility="Horizontal" RowHeight="24" FontSize="12"
+              CanUserSortColumns="False">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="PID" Binding="{Binding Pid}" Width="76"/>
+        <DataGridTextColumn Header="User" Binding="{Binding User}" Width="96"/>
+        <DataGridTextColumn Header="Client" Binding="{Binding Client}" Width="120"/>
+        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="120"/>
+        <DataGridTextColumn Header="Elapsed" Binding="{Binding Elapsed}" Width="96"/>
+        <DataGridTextColumn Header="Wait" Binding="{Binding Wait}" Width="130"/>
+        <DataGridTextColumn Header="Query" Binding="{Binding Query}" Width="*"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+  </DockPanel>
+</Window>

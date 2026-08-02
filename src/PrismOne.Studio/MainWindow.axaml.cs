@@ -209,7 +209,8 @@ public partial class MainWindow : Window
         root.Items.Add(Sub("View",
             Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
         root.Items.Add(Sub("Tools",
-            Item("Logon… (⌘L)", () => _ = ShowLogonAsync())));
+            Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
+            Item("Session Monitor…", () => OnMenuSessionMonitor(this, args))));
         root.Items.Add(Sub("Help",
             Item("About IAP Database Manager", () => OnMenuAbout(this, args))));
         NativeMenu.SetMenu(this, root);
@@ -444,6 +445,14 @@ public partial class MainWindow : Window
     private void OnMenuCancel(object? sender, RoutedEventArgs e) => ActiveView?.Cancel();
 
     private void OnMenuFind(object? sender, RoutedEventArgs e) => ActiveView?.OpenSearch();
+
+    private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile)
+            new SessionMonitorWindow(profile).Show(this);
+        else
+            StatusLabel.Text = "Session Monitor 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+    }
 
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
     private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
