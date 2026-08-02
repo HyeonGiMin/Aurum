@@ -233,6 +233,7 @@
     <Setter Property="MinHeight" Value="24"/>
     <Setter Property="HorizontalAlignment" Value="Stretch"/>
     <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
   </Style>
   <Style Selector="Button.qcell:pointerover /template/ ContentPresenter#PART_ContentPresenter">

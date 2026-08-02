@@ -221,7 +221,7 @@ public partial class MainWindow : Window
         BrowserPanel.IsVisible = show;
         BrowserSplitter.IsVisible = show;
         MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
-        MainGrid.ColumnDefinitions[2].Width = new GridLength(show ? 330 : 0);
+        MainGrid.ColumnDefinitions[2].Width = new GridLength(show ? 352 : 0);
         BrowserMenuItem.Header = show ? "Object Browser ✓" : "Object Browser";
     }
 
@@ -590,7 +590,8 @@ public partial class MainWindow : Window
     {
         try
         {
-            // 샘플 데이터로 화면 채우기
+            // 샘플 데이터로 화면 채우기 (브라우저 패널 포함)
+            OnMenuToggleBrowser(this, new RoutedEventArgs());
             var view = new QueryTabView();
             _tabs.Add(new TabItem { Header = "Query 1", Content = view });
             _tabs.Add(new TabItem { Header = "study-search.sql", Content = new QueryTabView() });

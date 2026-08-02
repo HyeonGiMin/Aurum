@@ -263,7 +263,7 @@
       <Border Name="BrowserPanel" Grid.Column="2" IsVisible="False"
               Background="{DynamicResource ChromeBgBrush}"
               BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
-        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,1.2*,Auto" Margin="10">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,1.2*,Auto" Margin="10">
 
           <Grid Grid.Row="0" ColumnDefinitions="55,*,32" Margin="0,0,0,6">
             <TextBlock Grid.Column="0" Classes="panelLabel" Text="Schema:"/>
@@ -309,7 +309,7 @@
 
           <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,6">
             <CheckBox Grid.Column="0" Name="UseSchemaBox" Content="Use Schema" FontSize="12"
-                      Margin="0,0,6,0" IsChecked="False"/>
+                      Margin="0,0,8,0" VerticalAlignment="Center" IsChecked="False"/>
             <TextBox Grid.Column="1" Name="SearchBox" Classes="search"
                      PlaceholderText="TableSearch" TextChanged="OnBrowserFilterChanged"/>
             <Button Grid.Column="2" Classes="tool" Margin="2,0,0,0" Click="OnBrowserFilterChanged" ToolTip.Tip="Search">
@@ -323,49 +323,70 @@
           <TextBlock Grid.Row="5" Name="DescribeTitle" Classes="panelLabel"
                      FontWeight="SemiBold" Margin="0,2,0,4" Text=""/>
 
-          <DataGrid Grid.Row="6" Name="DescribeGrid"
+          <!-- 그리드 기본 헤더는 정렬아이콘·마진 예약 때문에 좁은 컬럼에서 잘려서 자체 헤더를 그린다 -->
+          <Border Grid.Row="6" Height="24"
+                  Background="{DynamicResource HeaderBgBrush}"
+                  BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,1,0,1">
+            <Grid ColumnDefinitions="24,*,76,46,34,34,14">
+              <Grid.Styles>
+                <Style Selector="TextBlock">
+                  <Setter Property="FontSize" Value="12"/>
+                  <Setter Property="FontWeight" Value="SemiBold"/>
+                  <Setter Property="VerticalAlignment" Value="Center"/>
+                  <Setter Property="Margin" Value="4,0"/>
+                </Style>
+              </Grid.Styles>
+              <TextBlock Grid.Column="1" Text="Name"/>
+              <TextBlock Grid.Column="2" Text="Type"/>
+              <TextBlock Grid.Column="3" Text="N?"/>
+              <TextBlock Grid.Column="4" Text="PK"/>
+              <TextBlock Grid.Column="5" Text="FK"/>
+            </Grid>
+          </Border>
+
+          <DataGrid Grid.Row="7" Name="DescribeGrid"
                     x:DataType="core:ColumnInfo"
-                    IsReadOnly="True" HeadersVisibility="Column"
+                    IsReadOnly="True" HeadersVisibility="None"
                     GridLinesVisibility="Horizontal" RowHeight="22"
                     CanUserSortColumns="False">
             <DataGrid.Columns>
               <!-- 기본 TextColumn 은 좌우 12px 마진을 강제해 좁은 패널에서 잘린다 → 템플릿 컬럼 -->
-              <DataGridTemplateColumn Header="#" Width="26">
+              <DataGridTemplateColumn Width="24">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding No}" Margin="4,0" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="Name" Width="*">
+              <DataGridTemplateColumn Width="*">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding Name}" Margin="4,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="Type" Width="84">
+              <DataGridTemplateColumn Width="76">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding Type}" Margin="4,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="N?" Width="34">
+              <DataGridTemplateColumn Width="46">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding Nullable}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="PK" Width="28">
+              <DataGridTemplateColumn Width="34">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding Pk}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
                   </DataTemplate>
                 </DataGridTemplateColumn.CellTemplate>
               </DataGridTemplateColumn>
-              <DataGridTemplateColumn Header="FK" Width="28">
+              <DataGridTemplateColumn Width="34">
                 <DataGridTemplateColumn.CellTemplate>
                   <DataTemplate x:DataType="core:ColumnInfo">
                     <TextBlock Text="{Binding Fk}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
@@ -375,8 +396,9 @@
             </DataGrid.Columns>
           </DataGrid>
 
-          <Grid Grid.Row="7" ColumnDefinitions="Auto,*" Margin="0,6,0,0">
-            <CheckBox Grid.Column="0" Content="Use Alias" FontSize="12" Margin="0,0,6,0" IsEnabled="False"/>
+          <Grid Grid.Row="8" ColumnDefinitions="Auto,*" Margin="0,6,0,0">
+            <CheckBox Grid.Column="0" Content="Use Alias" FontSize="12" Margin="0,0,8,0"
+                      VerticalAlignment="Center" IsEnabled="False"/>
             <TextBox Grid.Column="1" Classes="search" PlaceholderText="Alias" IsEnabled="False"/>
           </Grid>
 

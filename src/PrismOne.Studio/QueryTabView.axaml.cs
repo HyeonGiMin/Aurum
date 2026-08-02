@@ -36,6 +36,8 @@ public partial class QueryTabView : UserControl
     private IReadOnlyList<string> _columns = [];
     private ScrollBar? _vScroll;
     private bool _fetching;
+    private bool _executing;   // 실행 중 재실행 요청 무시 (연타 시 세션 충돌 방지)
+    private readonly DispatcherTimer _runTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
     private readonly Stopwatch _scriptWatch = new();
 
     public string InfoMessage { get; private set; } = "Ready";
@@ -53,6 +55,12 @@ public partial class QueryTabView : UserControl
         Editor.SyntaxHighlighting = SqlHighlighting.Definition;
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
             CaretChanged?.Invoke(this, Editor.TextArea.Caret.Line, Editor.TextArea.Caret.Column);
+        // 실행 중 경과 시간을 상태바에 실시간 표시 (Golden 의 Running… + 타이머)
+        _runTimer.Tick += (_, _) =>
+        {
+            if (_executing)
+                SetInfo(InfoMessage, InfoRows, ScriptTime());
+        };
         // 스크롤바는 행이 넘칠 때 비로소 생기므로, 휠/키 입력 시마다 훅을 재시도한다
         ResultGrid.AddHandler(PointerWheelChangedEvent, (_, _) =>
         {
@@ -158,14 +166,23 @@ public partial class QueryTabView : UserControl
         }
         if (statements.Count == 0)
             return;
+        // Golden: 실행 중엔 새 실행 요청을 받지 않는다 (Cancel 만 가능)
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
         if (explain)
             statements = statements.Select(s => s with { Text = "EXPLAIN " + s.Text }).ToList();
 
+        _executing = true;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
         HideError();
+        ClearResultArea();   // Golden: 실행 시작 즉시 이전 결과(헤더 포함) 제거
         _scriptWatch.Restart();
+        _runTimer.Start();
 
         try
         {
@@ -177,7 +194,9 @@ public partial class QueryTabView : UserControl
                 if (_current is not null) { await _current.AbortAsync(); _current = null; }
                 await _session.EnsureAliveAsync(ct);
 
-                SetInfo("Executing…");
+                SetInfo(statements.Count == 1
+                    ? "Running single statement at cursor."
+                    : $"Running statement {ran + 1} of {statements.Count}.", "", null);
                 var query = await _session.ExecuteAsync(stmt.Text, ct);
                 _current = query;
                 ran++;
@@ -226,6 +245,22 @@ public partial class QueryTabView : UserControl
             ShowError(ex.Message);
             await RecoverAsync();
         }
+        finally
+        {
+            _executing = false;
+            _runTimer.Stop();
+        }
+    }
+
+    /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
+    private void ClearResultArea()
+    {
+        _columns = [];
+        _rows = [];
+        ResultGrid.Columns.Clear();
+        ResultGrid.ItemsSource = null;
+        ResultGrid.IsVisible = false;
+        NoRecordsPanel.IsVisible = false;
     }
 
     public void Cancel() => _cts?.Cancel();
@@ -304,7 +339,7 @@ public partial class QueryTabView : UserControl
     /// <summary>Ctrl+End — 끝까지 fetch (Golden 동작).</summary>
     public async Task FetchAllAsync()
     {
-        if (_current is null || _cts is null) return;
+        if (_current is null || _cts is null || _executing) return;
         try
         {
             while (!_current.Completed && !_cts.IsCancellationRequested)
