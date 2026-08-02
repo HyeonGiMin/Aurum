@@ -1,0 +1,248 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Golden 8 (Benthic) 라이트 크롬 재현: #F0F0F0 크롬, 흰 콘텐츠, 가는 회색 경계,
+       노란 번개 실행 아이콘, 연회색 그리드 헤더. -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <SolidColorBrush x:Key="ChromeBgBrush">#F0F0F0</SolidColorBrush>
+      <SolidColorBrush x:Key="ChromeBorderBrush">#D5D5D5</SolidColorBrush>
+      <SolidColorBrush x:Key="ContentBgBrush">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="HeaderBgBrush">#F5F5F5</SolidColorBrush>
+      <SolidColorBrush x:Key="HeaderBorderBrush">#E0E0E0</SolidColorBrush>
+      <SolidColorBrush x:Key="GridLineBrush">#E9E9E9</SolidColorBrush>
+      <SolidColorBrush x:Key="TextPrimaryBrush">#1A1A1A</SolidColorBrush>
+      <SolidColorBrush x:Key="TextMutedBrush">#666666</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolHoverBrush">#E5F1FB</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolHoverBorderBrush">#CCE4F7</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolPressedBrush">#CCE4F7</SolidColorBrush>
+      <SolidColorBrush x:Key="BoltYellowBrush">#F5C400</SolidColorBrush>
+      <SolidColorBrush x:Key="BoltOutlineBrush">#8A6D00</SolidColorBrush>
+      <SolidColorBrush x:Key="CancelRedBrush">#D23B2E</SolidColorBrush>
+      <SolidColorBrush x:Key="ExportGreenBrush">#2E9E44</SolidColorBrush>
+      <SolidColorBrush x:Key="PlugBlueBrush">#3E76B5</SolidColorBrush>
+      <SolidColorBrush x:Key="ErrorRedBrush">#B01A1A</SolidColorBrush>
+
+      <SolidColorBrush x:Key="FolderYellowBrush">#F0C36A</SolidColorBrush>
+      <SolidColorBrush x:Key="FolderOutlineBrush">#9A7B2F</SolidColorBrush>
+      <SolidColorBrush x:Key="FloppyBlueBrush">#3E76B5</SolidColorBrush>
+      <SolidColorBrush x:Key="IconGrayBrush">#8A8A8A</SolidColorBrush>
+      <SolidColorBrush x:Key="IconDarkBrush">#444444</SolidColorBrush>
+      <SolidColorBrush x:Key="WandPurpleBrush">#7B5AA6</SolidColorBrush>
+      <SolidColorBrush x:Key="PasteTanBrush">#C8A165</SolidColorBrush>
+
+      <StreamGeometry x:Key="IconBolt">M13,2 L5,13 L10,13 L9,22 L18,9 L12.5,9 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconFolder">M3,6 L9,6 L11,8 L21,8 L21,19 L3,19 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconFloppyBody">M4,4 L17,4 L20,7 L20,20 L4,20 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconFloppyLabel">M7,12 L17,12 L17,19 L7,19 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconFloppySlot">M8,5 L15,5 L15,10 L8,10 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPrintBody">M6,9 L18,9 L18,16 L6,16 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPrintPaperTop">M8,4 L16,4 L16,9 L8,9 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPrintPaperOut">M8,14 L16,14 L16,20 L8,20 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconCutLines">M7,3 L14,15 M17,3 L10,15</StreamGeometry>
+      <StreamGeometry x:Key="IconCutCircles">M5,17 a2.2,2.2 0 1 0 4.4,0 a2.2,2.2 0 1 0 -4.4,0 Z M14.6,17 a2.2,2.2 0 1 0 4.4,0 a2.2,2.2 0 1 0 -4.4,0 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconCopyBack">M8,3 L19,3 L19,15 L8,15 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconCopyFront">M5,7 L16,7 L16,20 L5,20 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPasteBoard">M5,4 L19,4 L19,21 L5,21 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPasteClip">M9,2 L15,2 L15,6 L9,6 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPastePaper">M8,9 L16,9 L16,18 L8,18 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconUndoHead">M8,4.5 L3.5,9 L8,13.5</StreamGeometry>
+      <StreamGeometry x:Key="IconUndoArc">M3.5,9 L13.5,9 C17.1,9 19.5,11.4 19.5,14.5 C19.5,17.6 17.1,20 13.5,20 L9,20</StreamGeometry>
+      <StreamGeometry x:Key="IconRedoHead">M16,4.5 L20.5,9 L16,13.5</StreamGeometry>
+      <StreamGeometry x:Key="IconRedoArc">M20.5,9 L10.5,9 C6.9,9 4.5,11.4 4.5,14.5 C4.5,17.6 6.9,20 10.5,20 L15,20</StreamGeometry>
+      <StreamGeometry x:Key="IconSearchCircle">M10.5,4 a6,6 0 1 0 0.01,0 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconSearchHandle">M15,15 L20.5,20.5</StreamGeometry>
+      <StreamGeometry x:Key="IconOval">M12,7.5 a7.5,4.5 0 1 0 0.01,0 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconWandLine">M4,20 L13.5,10.5</StreamGeometry>
+      <StreamGeometry x:Key="IconSparkle">M16.5,3.5 L17.8,6.7 L21,8 L17.8,9.3 L16.5,12.5 L15.2,9.3 L12,8 L15.2,6.7 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconWrench">M20.5,6.5 A4.5,4.5 0 0 1 14.5,10.7 L8.2,17 A2.3,2.3 0 1 1 5,13.8 L11.3,7.5 A4.5,4.5 0 0 1 17,3 L14.5,5.5 L15.5,8.5 L18.5,9.5 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconBars">M4,5 L20,5 L20,8 L4,8 Z M4,10 L20,10 L20,13 L4,13 Z M4,15 L20,15 L20,18 L4,18 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconCancelSlash">M7,7 L17,17</StreamGeometry>
+      <StreamGeometry x:Key="IconCancelCircle">M12,3 A9,9 0 1 0 12,21 A9,9 0 1 0 12,3 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconFetchAll">M6,3 L18,3 L12,9 Z M6,10 L18,10 L12,16 Z M6,19 L18,19 L18,21 L6,21 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconExportArrow">M11,2 L13,2 L13,9 L16.5,9 L12,14 L7.5,9 L11,9 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconExportTray">M4,16 L6,16 L6,19 L18,19 L18,16 L20,16 L20,21 L4,21 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPage">M6,2 L14,2 L18,6 L18,22 L6,22 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPlus">M10.7,10 L13.3,10 L13.3,12.7 L16,12.7 L16,15.3 L13.3,15.3 L13.3,18 L10.7,18 L10.7,15.3 L8,15.3 L8,12.7 L10.7,12.7 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPlugBody">M6.5,7.5 L17.5,7.5 L17.5,11.5 A5.5,5.5 0 0 1 6.5,11.5 Z</StreamGeometry>
+      <StreamGeometry x:Key="IconPlugProngs">M9,2.5 L9,7 M15,2.5 L15,7</StreamGeometry>
+      <StreamGeometry x:Key="IconPlugCord">M12,17 L12,21.5</StreamGeometry>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+    <Setter Property="FontSize" Value="13"/>
+  </Style>
+
+  <!-- 메뉴바 -->
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="Padding" Value="2,0"/>
+  </Style>
+  <Style Selector="MenuItem">
+    <Setter Property="FontSize" Value="12.5"/>
+  </Style>
+
+  <!-- 툴바 버튼 (Windows 클래식 플랫 스타일) -->
+  <Style Selector="Button.tool">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="2"/>
+    <Setter Property="Padding" Value="4,3"/>
+  </Style>
+  <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource ToolHoverBrush}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource ToolHoverBorderBrush}"/>
+  </Style>
+  <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource ToolPressedBrush}"/>
+  </Style>
+  <Style Selector="Button.tool:disabled">
+    <Setter Property="Opacity" Value="0.35"/>
+  </Style>
+  <Style Selector="Button.tool:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+
+  <!-- 비활성 입력/버튼이 어두운 박스로 보이지 않게 -->
+  <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="#F7F7F7"/>
+    <Setter Property="BorderBrush" Value="{StaticResource GridLineBrush}"/>
+  </Style>
+
+  <!-- 스크립트 탭 (Golden: 활성=흰색+굵게, 비활성=크롬 회색) -->
+  <Style Selector="TabControl">
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+  </Style>
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="MinHeight" Value="30"/>
+    <Setter Property="Padding" Value="14,5"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TabItem:pointerover">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+  </Style>
+  <Style Selector="TabItem:selected">
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+  </Style>
+
+  <!-- 스플리터: 평소엔 경계선, 올리면 살짝 강조 -->
+  <Style Selector="GridSplitter">
+    <Setter Property="MinWidth" Value="0"/>
+    <Setter Property="MinHeight" Value="0"/>
+  </Style>
+  <Style Selector="GridSplitter:pointerover">
+    <Setter Property="Background" Value="#B9D7F1"/>
+  </Style>
+
+  <!-- 다이얼로그/패널 공용 버튼 -->
+  <Style Selector="Button">
+    <Setter Property="FontSize" Value="12.5"/>
+  </Style>
+
+  <!-- 데이터 그리드 (흰 바탕·연회색 헤더·가는 격자선) -->
+  <Style Selector="DataGrid">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="RowBackground" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource GridLineBrush}"/>
+    <Setter Property="VerticalGridLinesBrush" Value="{StaticResource GridLineBrush}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource ChromeBorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+  </Style>
+  <Style Selector="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="Padding" Value="6,0"/>
+    <Setter Property="BorderBrush" Value="{StaticResource HeaderBorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+  </Style>
+  <Style Selector="DataGridCell">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="MinHeight" Value="22"/>
+  </Style>
+  <Style Selector="DataGridCell.rownum">
+    <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+  </Style>
+  <!-- 행번호/숫자 컬럼은 우측 정렬 (Golden) -->
+  <Style Selector="DataGridCell.rownum TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Right"/>
+  </Style>
+
+  <!-- SQL 에디터: 흰 바탕 모노스페이스 (키워드 하이라이팅은 P2 AvaloniaEdit) -->
+  <Style Selector="TextBox.editor">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="FontFamily" Value="Consolas,Menlo,Monaco,Courier New,monospace"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="CornerRadius" Value="0"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="8,6"/>
+  </Style>
+  <Style Selector="TextBox.editor /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+  </Style>
+  <Style Selector="TextBox.editor:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+  </Style>
+  <Style Selector="TextBox.editor:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+  </Style>
+
+  <!-- 오른쪽 스키마 패널의 콤보/검색 -->
+  <Style Selector="ComboBox.panel">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="Padding" Value="6,2"/>
+  </Style>
+  <Style Selector="TextBox.search">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="Padding" Value="6,2"/>
+  </Style>
+  <Style Selector="TextBlock.panelLabel">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+  </Style>
+
+  <!-- 우측 패널의 quick SQL 그리드 (select / * / from / where 클릭 삽입) -->
+  <Style Selector="Button.qcell">
+    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="BorderBrush" Value="{StaticResource GridLineBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+    <Setter Property="CornerRadius" Value="0"/>
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="Padding" Value="8,2"/>
+    <Setter Property="MinHeight" Value="24"/>
+    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+    <Setter Property="HorizontalContentAlignment" Value="Left"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.qcell:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource ToolHoverBrush}"/>
+  </Style>
+
+  <!-- 상태바 -->
+  <Style Selector="TextBlock.status">
+    <Setter Property="FontSize" Value="11.5"/>
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+</Styles>

@@ -1,0 +1,387 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        xmlns:core="using:PrismOne.Db.Core"
+        x:Class="PrismOne.Studio.MainWindow"
+        Title="Disconnected - IAP Database Manager"
+        Width="1280" Height="840"
+        WindowStartupLocation="CenterScreen">
+  <DockPanel>
+
+    <!-- 메뉴바 (Golden: File Edit Script Results View Tools Tabs Help) -->
+    <Menu DockPanel.Dock="Top">
+      <MenuItem Header="File">
+        <MenuItem Header="New Query Tab" InputGesture="Ctrl+T" Click="OnMenuNewTab"/>
+        <MenuItem Header="Close Tab" InputGesture="Ctrl+W" Click="OnMenuCloseTab"/>
+        <Separator/>
+        <MenuItem Header="Open Script…" InputGesture="Ctrl+O" Click="OnMenuOpen"/>
+        <MenuItem Header="Save Script As…" InputGesture="Ctrl+S" Click="OnMenuSave"/>
+        <Separator/>
+        <MenuItem Header="Exit" Click="OnMenuExit"/>
+      </MenuItem>
+      <MenuItem Header="Edit">
+        <MenuItem Header="Undo" InputGesture="Ctrl+Z" Click="OnMenuUndo"/>
+        <MenuItem Header="Redo" InputGesture="Ctrl+Y" Click="OnMenuRedo"/>
+        <Separator/>
+        <MenuItem Header="Cut" InputGesture="Ctrl+X" Click="OnMenuCut"/>
+        <MenuItem Header="Copy" InputGesture="Ctrl+C" Click="OnMenuCopy"/>
+        <MenuItem Header="Paste" InputGesture="Ctrl+V" Click="OnMenuPaste"/>
+      </MenuItem>
+      <MenuItem Header="Script">
+        <MenuItem Header="Run Statement" InputGesture="F9" Click="OnMenuExecute"/>
+        <MenuItem Header="Run Script" InputGesture="F5" Click="OnMenuRunScript"/>
+        <MenuItem Header="Explain Statement" Click="OnMenuExplain"/>
+        <MenuItem Header="Cancel" Click="OnMenuCancel"/>
+      </MenuItem>
+      <MenuItem Header="Results">
+        <MenuItem Header="Fetch All Records" InputGesture="Ctrl+End" Click="OnMenuFetchAll"/>
+        <MenuItem Header="Export Grid As CSV…" Click="OnMenuExport"/>
+      </MenuItem>
+      <MenuItem Header="View">
+        <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
+      </MenuItem>
+      <MenuItem Header="Tools">
+        <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
+      </MenuItem>
+      <MenuItem Header="Help">
+        <MenuItem Header="About IAP Database Manager" Click="OnMenuAbout"/>
+      </MenuItem>
+    </Menu>
+
+    <!-- 툴바 (Golden 8 아이콘 열) -->
+    <Border DockPanel.Dock="Top" Padding="8,4" BorderThickness="0,1,0,1"
+            BorderBrush="{DynamicResource ChromeBorderBrush}"
+            Background="{DynamicResource ChromeBgBrush}">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+
+        <Button Name="NewTabButton" Classes="tool" Click="OnMenuNewTab" IsEnabled="False" ToolTip.Tip="New Query Tab (Ctrl+T)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconPage}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.4"/>
+            <Path Data="{StaticResource IconPlus}" Fill="{StaticResource ExportGreenBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="OpenButton" Classes="tool" Click="OnMenuOpen" ToolTip.Tip="Open Script… (Ctrl+O)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconFolder}" Fill="{StaticResource FolderYellowBrush}"
+                  Stroke="{StaticResource FolderOutlineBrush}" StrokeThickness="1"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="SaveButton" Classes="tool" Click="OnMenuSave" ToolTip.Tip="Save Script As… (Ctrl+S)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconFloppyBody}" Fill="{StaticResource FloppyBlueBrush}"/>
+            <Path Data="{StaticResource IconFloppySlot}" Fill="White"/>
+            <Path Data="{StaticResource IconFloppyLabel}" Fill="White"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Print (준비 중)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconPrintPaperTop}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.2"/>
+            <Path Data="{StaticResource IconPrintBody}" Fill="{StaticResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconPrintPaperOut}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.2"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="18" Background="#C8C8C8" Margin="7,0"/>
+
+        <Button Name="CutButton" Classes="tool" Click="OnMenuCut" ToolTip.Tip="Cut (Ctrl+X)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconCutLines}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="1.8"/>
+            <Path Data="{StaticResource IconCutCircles}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="1.6"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="CopyButton" Classes="tool" Click="OnMenuCopy" ToolTip.Tip="Copy (Ctrl+C)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconCopyBack}" Fill="White" Stroke="#666" StrokeThickness="1.3"/>
+            <Path Data="{StaticResource IconCopyFront}" Fill="White" Stroke="#666" StrokeThickness="1.3"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="PasteButton" Classes="tool" Click="OnMenuPaste" ToolTip.Tip="Paste (Ctrl+V)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconPasteBoard}" Fill="{StaticResource PasteTanBrush}" Stroke="#8A6D3B" StrokeThickness="1"/>
+            <Path Data="{StaticResource IconPasteClip}" Fill="{StaticResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconPastePaper}" Fill="White"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="18" Background="#C8C8C8" Margin="7,0"/>
+
+        <Button Name="RedoButton" Classes="tool" Click="OnMenuRedo" ToolTip.Tip="Redo (Ctrl+Y)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconRedoArc}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconRedoHead}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="UndoButton" Classes="tool" Click="OnMenuUndo" ToolTip.Tip="Undo (Ctrl+Z)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconUndoArc}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoHead}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Find (준비 중)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconSearchCircle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2"/>
+            <Path Data="{StaticResource IconSearchHandle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2.4"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="18" Background="#C8C8C8" Margin="7,0"/>
+
+        <Button Name="ExecuteButton" Classes="tool" Click="OnMenuExecute" IsEnabled="False" ToolTip.Tip="Run Statement (F9)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBolt}" Fill="{StaticResource BoltYellowBrush}"
+                  Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="RunScriptButton" Classes="tool" Click="OnMenuRunScript" IsEnabled="False" ToolTip.Tip="Run Script (F5 / Shift+Enter) — 커서부터 끝까지">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBolt}" Fill="{StaticResource BoltYellowBrush}"
+                  Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1"/>
+            <TextBlock Canvas.Left="13" Canvas.Top="8" Text="1" FontSize="14" FontWeight="Bold" Foreground="#1A1A1A"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="ExplainButton" Classes="tool" Click="OnMenuExplain" IsEnabled="False" ToolTip.Tip="Explain Statement">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBolt}" Fill="{StaticResource BoltYellowBrush}"
+                  Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1"/>
+            <TextBlock Canvas.Left="13" Canvas.Top="8" Text="E" FontSize="14" FontWeight="Bold" Foreground="#1A1A1A"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="StopButton" Classes="tool" Click="OnMenuCancel" IsEnabled="False" ToolTip.Tip="Cancel">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconCancelCircle}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2"/>
+            <Path Data="{StaticResource IconCancelSlash}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Bind Variables (준비 중)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconOval}" Fill="{StaticResource BoltYellowBrush}"
+                  Stroke="{StaticResource BoltOutlineBrush}" StrokeThickness="1.2"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Format SQL (준비 중)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconWandLine}" Stroke="{StaticResource WandPurpleBrush}" StrokeThickness="2.4"/>
+            <Path Data="{StaticResource IconSparkle}" Fill="{StaticResource BoltYellowBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="18" Background="#C8C8C8" Margin="7,0"/>
+
+        <Button Name="FetchAllButton" Classes="tool" Click="OnMenuFetchAll" IsEnabled="False" ToolTip.Tip="Fetch All Records (Ctrl+End)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconFetchAll}" Fill="{StaticResource ExportGreenBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="ExportButton" Classes="tool" Click="OnMenuExport" IsEnabled="False" ToolTip.Tip="Export Grid As CSV…">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconExportArrow}" Fill="{StaticResource ExportGreenBrush}"/>
+            <Path Data="{StaticResource IconExportTray}" Fill="#8A8A8A"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="18" Background="#C8C8C8" Margin="7,0"/>
+
+        <Button Name="BrowserToggleButton" Classes="tool" Click="OnMenuToggleBrowser" ToolTip.Tip="Object Browser (F8)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBars}" Fill="{StaticResource PlugBlueBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Name="ConnectButton" Classes="tool" Click="OnMenuConnect" ToolTip.Tip="Logon… (Ctrl+L)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconPlugBody}" Fill="{StaticResource PlugBlueBrush}"/>
+            <Path Data="{StaticResource IconPlugProngs}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
+            <Path Data="{StaticResource IconPlugCord}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Options (준비 중)">
+          <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconWrench}" Fill="{StaticResource IconGrayBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+      </StackPanel>
+    </Border>
+
+    <!-- 상태바: [그리드 아이콘] message | Ln : Col | Fetched N records | Script: Xs -->
+    <Border DockPanel.Dock="Bottom" Padding="0" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource ChromeBorderBrush}"
+            Background="{DynamicResource ChromeBgBrush}">
+      <Grid ColumnDefinitions="*,88,196,124" Height="24">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0" Spacing="6">
+          <Viewbox Width="12" Height="12" VerticalAlignment="Center"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconBars}" Fill="{StaticResource IconGrayBrush}"/>
+          </Canvas></Viewbox>
+          <TextBlock Name="StatusLabel" Classes="status" Text="Not connected"/>
+        </StackPanel>
+        <Border Grid.Column="1" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
+          <TextBlock Name="CaretLabel" Classes="status" Text="" HorizontalAlignment="Center"/>
+        </Border>
+        <Border Grid.Column="2" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+          <TextBlock Name="RowsLabel" Classes="status" Text=""/>
+        </Border>
+        <Border Grid.Column="3" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+          <TextBlock Name="TimeLabel" Classes="status" Text=""/>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- 본문: 쿼리 탭(탭줄 오른쪽 ✕) | 오른쪽 스키마 패널 -->
+    <!-- Golden 6 기본: 브라우저 패널 없음. View > Object Browser 로 토글 -->
+    <Grid Name="MainGrid" ColumnDefinitions="*,0,0">
+
+      <Grid Grid.Column="0">
+        <TabControl Name="QueryTabs" SelectionChanged="OnTabSelectionChanged" Padding="0"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,4,0">
+          <Button Name="TabListButton" Classes="tool"
+                  Content="▾" FontSize="11" Padding="7,3"
+                  Click="OnTabListClick" ToolTip.Tip="Tab List"/>
+          <Button Name="CloseTabButton" Classes="tool"
+                  Content="✕" FontSize="11" Padding="7,3"
+                  Click="OnMenuCloseTab" ToolTip.Tip="Close Tab (Ctrl+W)"/>
+        </StackPanel>
+      </Grid>
+
+      <GridSplitter Name="BrowserSplitter" Grid.Column="1" IsVisible="False"
+                    Background="{DynamicResource ChromeBorderBrush}" ResizeDirection="Columns"/>
+
+      <Border Name="BrowserPanel" Grid.Column="2" IsVisible="False"
+              Background="{DynamicResource ChromeBgBrush}"
+              BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,1.2*,Auto" Margin="10">
+
+          <Grid Grid.Row="0" ColumnDefinitions="55,*,32" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Classes="panelLabel" Text="Schema:"/>
+            <ComboBox Grid.Column="1" Name="SchemaCombo" Classes="panel" Margin="0,0,4,0"
+                      HorizontalAlignment="Stretch" SelectionChanged="OnBrowserFilterChanged"/>
+            <Button Grid.Column="2" Classes="tool" IsEnabled="False" HorizontalAlignment="Center" ToolTip.Tip="Browser Options (준비 중)">
+              <Viewbox Width="13" Height="13"><Canvas Width="24" Height="24">
+                <Path Data="{StaticResource IconWrench}" Fill="{StaticResource IconGrayBrush}"/>
+              </Canvas></Viewbox>
+            </Button>
+          </Grid>
+
+          <Grid Grid.Row="1" ColumnDefinitions="55,*,66" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Classes="panelLabel" Text="Show:"/>
+            <ComboBox Grid.Column="1" Name="ShowCombo" Classes="panel" Margin="0,0,4,0"
+                      HorizontalAlignment="Stretch" SelectionChanged="OnBrowserFilterChanged"/>
+            <CheckBox Grid.Column="2" Content="Sql" FontSize="12" Margin="8,0,0,0"
+                      VerticalAlignment="Center" IsEnabled="False"/>
+          </Grid>
+
+          <!-- quick SQL 그리드 (Golden: 클릭해서 쿼리에 삽입) -->
+          <Border Grid.Row="2" BorderBrush="{DynamicResource GridLineBrush}" BorderThickness="1,1,0,0" Margin="0,0,0,6">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto">
+              <Button Grid.Row="0" Grid.Column="0" Classes="qcell" Content="select" Click="OnQuickCell"/>
+              <Button Grid.Row="0" Grid.Column="1" Classes="qcell" Content="*" Click="OnQuickCell"/>
+              <Button Grid.Row="1" Grid.Column="0" Classes="qcell" Content="from" Click="OnQuickCell"/>
+              <Button Grid.Row="1" Grid.Column="1" Classes="qcell" Content="where" Click="OnQuickCell"/>
+            </Grid>
+          </Border>
+
+          <DataGrid Grid.Row="3" Name="ObjectsGrid"
+                    x:DataType="local:ObjectRow"
+                    IsReadOnly="True" HeadersVisibility="Column"
+                    GridLinesVisibility="Horizontal" RowHeight="22"
+                    CanUserSortColumns="False"
+                    SelectionChanged="OnObjectSelected"
+                    DoubleTapped="OnObjectDoubleTapped">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+              <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="80"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,6">
+            <CheckBox Grid.Column="0" Name="UseSchemaBox" Content="Use Schema" FontSize="12"
+                      Margin="0,0,6,0" IsChecked="False"/>
+            <TextBox Grid.Column="1" Name="SearchBox" Classes="search"
+                     PlaceholderText="TableSearch" TextChanged="OnBrowserFilterChanged"/>
+            <Button Grid.Column="2" Classes="tool" Margin="2,0,0,0" Click="OnBrowserFilterChanged" ToolTip.Tip="Search">
+              <Viewbox Width="13" Height="13"><Canvas Width="24" Height="24">
+                <Path Data="{StaticResource IconSearchCircle}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.4"/>
+                <Path Data="{StaticResource IconSearchHandle}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.8"/>
+              </Canvas></Viewbox>
+            </Button>
+          </Grid>
+
+          <TextBlock Grid.Row="5" Name="DescribeTitle" Classes="panelLabel"
+                     FontWeight="SemiBold" Margin="0,2,0,4" Text=""/>
+
+          <DataGrid Grid.Row="6" Name="DescribeGrid"
+                    x:DataType="core:ColumnInfo"
+                    IsReadOnly="True" HeadersVisibility="Column"
+                    GridLinesVisibility="Horizontal" RowHeight="22"
+                    CanUserSortColumns="False">
+            <DataGrid.Columns>
+              <!-- 기본 TextColumn 은 좌우 12px 마진을 강제해 좁은 패널에서 잘린다 → 템플릿 컬럼 -->
+              <DataGridTemplateColumn Header="#" Width="26">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding No}" Margin="4,0" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Name" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding Name}" Margin="4,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Type" Width="84">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding Type}" Margin="4,0" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="N?" Width="34">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding Nullable}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="PK" Width="28">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding Pk}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="FK" Width="28">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate x:DataType="core:ColumnInfo">
+                    <TextBlock Text="{Binding Fk}" Margin="4,0" FontSize="12" VerticalAlignment="Center"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Grid Grid.Row="7" ColumnDefinitions="Auto,*" Margin="0,6,0,0">
+            <CheckBox Grid.Column="0" Content="Use Alias" FontSize="12" Margin="0,0,6,0" IsEnabled="False"/>
+            <TextBox Grid.Column="1" Classes="search" PlaceholderText="Alias" IsEnabled="False"/>
+          </Grid>
+
+        </Grid>
+      </Border>
+    </Grid>
+
+  </DockPanel>
+</Window>

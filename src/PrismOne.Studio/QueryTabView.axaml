@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+             x:Class="PrismOne.Studio.QueryTabView">
+  <!-- Golden 쿼리 창: 위 SQL 에디터(키워드 하이라이팅), 아래 결과 그리드 -->
+  <Grid RowDefinitions="*,4,1.6*" Background="{DynamicResource ContentBgBrush}">
+
+    <ae:TextEditor Name="Editor" Grid.Row="0"
+                   Background="{DynamicResource ContentBgBrush}"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   FontFamily="{OnPlatform 'Consolas', macOS='Menlo', Linux='DejaVu Sans Mono'}"
+                   FontSize="13"
+                   ShowLineNumbers="False"
+                   HorizontalScrollBarVisibility="Auto"
+                   VerticalScrollBarVisibility="Auto"
+                   Padding="8,6"/>
+
+    <GridSplitter Grid.Row="1" Background="{DynamicResource ChromeBorderBrush}" ResizeDirection="Rows"/>
+
+    <Panel Grid.Row="2">
+      <DataGrid Name="ResultGrid"
+                IsReadOnly="True"
+                CanUserSortColumns="False"
+                CanUserReorderColumns="True"
+                CanUserResizeColumns="True"
+                ClipboardCopyMode="IncludeHeader"
+                GridLinesVisibility="All"
+                HeadersVisibility="Column"
+                RowHeight="22"/>
+      <!-- Golden: 빈 결과 영역엔 "▸ 1  No Records" (그리드 위에 표시) -->
+      <StackPanel Name="NoRecordsPanel" Orientation="Horizontal"
+                  HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,4,0,0">
+        <TextBlock Text="▸ 1" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
+                   Margin="6,2,8,0"/>
+        <Border Background="{DynamicResource HeaderBgBrush}"
+                BorderBrush="{DynamicResource GridLineBrush}" BorderThickness="1" Padding="8,2">
+          <TextBlock Text="No Records" FontSize="12"/>
+        </Border>
+      </StackPanel>
+      <ScrollViewer Name="ErrorPane" IsVisible="False" Background="{DynamicResource ContentBgBrush}">
+        <SelectableTextBlock Name="ErrorText" Margin="12" TextWrapping="Wrap"
+                             FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12.5"
+                             Foreground="{DynamicResource ErrorRedBrush}"/>
+      </ScrollViewer>
+    </Panel>
+
+  </Grid>
+</UserControl>

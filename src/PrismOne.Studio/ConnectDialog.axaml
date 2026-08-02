@@ -1,0 +1,91 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:PrismOne.Db.Core"
+        x:Class="PrismOne.Studio.ConnectDialog"
+        Title="Database Login - IAP Database Manager"
+        Width="640" Height="700" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <!-- Golden 6 "Database Login" 재현:
+       위 Login 그룹(동적 헤더 Login: user@host/db, Database 는 host[:port]/db 콤보) + 오른쪽 버튼,
+       아래 Login List 그룹(그리드) + New/Edit/Delete/Filter/Import,Export -->
+  <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,118" Margin="14">
+
+    <!-- Login 그룹 -->
+    <Border Grid.Row="0" Grid.Column="0"
+            BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1"
+            CornerRadius="2" Padding="14,14,14,10" Margin="0,8,12,0">
+      <StackPanel>
+        <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto">
+          <Grid.Styles>
+            <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13.5"/></Style>
+            <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="32"/><Setter Property="FontSize" Value="13.5"/></Style>
+          </Grid.Styles>
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Username:"/>
+          <TextBox   Grid.Row="0" Grid.Column="1" Name="UsernameBox" TextChanged="OnLoginFieldChanged"/>
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Password:"/>
+          <TextBox   Grid.Row="1" Grid.Column="1" Name="PasswordBox" PasswordChar="●"
+                     TextChanged="OnPasswordChanged"/>
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Database:"/>
+          <ComboBox  Grid.Row="2" Grid.Column="1" Name="DatabaseCombo" IsEditable="True"
+                     MinHeight="32" FontSize="13.5" Margin="0,4"
+                     HorizontalAlignment="Stretch"
+                     PlaceholderText="host[:port]/database"/>
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="18" Margin="88,6,0,0">
+          <CheckBox Name="ReadOnlyBox" Content="Read Only" FontSize="13"/>
+          <CheckBox Name="SavePasswordBox" Content="Save password (encrypted)" FontSize="13" IsChecked="True"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+    <TextBlock Grid.Row="0" Grid.Column="0" Name="LoginGroupHeader" Text=" Login " FontSize="13"
+               Background="{DynamicResource ChromeBgBrush}"
+               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,0,0,0"/>
+
+    <!-- 오른쪽 세로 버튼 (Golden: Login / Close / Help / Options…) -->
+    <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8" Margin="0,16,0,0">
+      <Button Name="ConnectButton" Content="Login" Classes="accent" IsDefault="True" MinHeight="34" FontSize="13.5"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnConnect"/>
+      <Button Content="Close" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCancel"/>
+      <Button Content="Help" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
+      <Button Content="Options…" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
+    </StackPanel>
+
+    <!-- Login List 그룹 -->
+    <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+            BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1"
+            CornerRadius="2" Padding="10" Margin="0,20,0,0">
+      <DataGrid Name="SavedGrid"
+                x:DataType="core:SavedConnection"
+                IsReadOnly="True" HeadersVisibility="Column"
+                GridLinesVisibility="Horizontal" RowHeight="28" FontSize="13"
+                CanUserSortColumns="False"
+                SelectionChanged="OnSavedSelected" DoubleTapped="OnSavedDoubleTapped">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="96"/>
+          <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="112"/>
+          <DataGridTextColumn Header="Database" Binding="{Binding DisplayDatabase}" Width="*"/>
+          <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="96"/>
+          <DataGridTextColumn Header="Comment" Binding="{Binding Comment}" Width="100"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+    <TextBlock Grid.Row="1" Grid.Column="0" Text=" Login List " FontSize="13"
+               Background="{DynamicResource ChromeBgBrush}"
+               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,12,0,0"/>
+
+    <!-- 하단 버튼 (Golden: New Edit Delete | Filter Import/Export) -->
+    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="0,10,0,0">
+      <Grid.Styles>
+        <Style Selector="Button"><Setter Property="MinHeight" Value="30"/><Setter Property="MinWidth" Value="72"/><Setter Property="Margin" Value="0,0,8,0"/></Style>
+      </Grid.Styles>
+      <Button Grid.Column="0" Name="NewButton" Content="New" Click="OnNewLogin"/>
+      <Button Grid.Column="1" Content="Edit" IsEnabled="False"/>
+      <Button Grid.Column="2" Name="DeleteButton" Content="Delete" Click="OnDeleteSaved"/>
+      <TextBlock Grid.Column="3" Name="ErrorText" Foreground="OrangeRed" TextWrapping="Wrap"
+                 FontSize="12.5" VerticalAlignment="Center" Margin="6,0" IsVisible="False"/>
+      <Button Grid.Column="4" Content="Filter ▾" IsEnabled="False"/>
+      <Button Grid.Column="5" Content="Import/Export ▾" IsEnabled="False" Margin="0"/>
+    </Grid>
+
+  </Grid>
+</Window>
