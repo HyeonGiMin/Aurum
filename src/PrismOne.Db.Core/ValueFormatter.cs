@@ -3,13 +3,17 @@ using System.Text;
 
 namespace PrismOne.Db.Core;
 
-/// <summary>DB 값 → 그리드/CSV 공용 표시 문자열. NULL 은 null 유지.</summary>
+/// <summary>DB 값 → 그리드/CSV 공용 표시 문자열. NULL 은 null 유지.
+/// 거대한 값(JSONB DICOM Data Set 등)은 그리드 렌더링을 마비시키므로 표시용으로 자른다.</summary>
 public static class ValueFormatter
 {
+    /// <summary>셀 표시 상한 (Golden 도 그리드엔 잘라 보여주고 상세는 cell detail 로).</summary>
+    public const int MaxDisplayChars = 500;
+
     public static string? Format(object v) => v switch
     {
         null or DBNull => null,
-        string s => s,
+        string s => Truncate(s),
         bool b => b ? "true" : "false",
         DateTime dt => dt.ToString(dt.TimeOfDay == TimeSpan.Zero ? "yyyy-MM-dd" : "yyyy-MM-dd HH:mm:ss.FFF", CultureInfo.InvariantCulture),
         DateTimeOffset dto => dto.ToString("yyyy-MM-dd HH:mm:ss.FFFzzz", CultureInfo.InvariantCulture),
@@ -34,6 +38,9 @@ public static class ValueFormatter
     {
         var parts = new List<string?>(a.Length);
         foreach (var item in a) parts.Add(Format(item!) ?? "NULL");
-        return "{" + string.Join(",", parts) + "}";
+        return Truncate("{" + string.Join(",", parts) + "}");
     }
+
+    private static string Truncate(string s) =>
+        s.Length <= MaxDisplayChars ? s : s[..MaxDisplayChars] + $"… (+{s.Length - MaxDisplayChars:N0} chars)";
 }

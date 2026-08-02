@@ -303,6 +303,8 @@ public partial class QueryTabView : UserControl
                     Header = columns[i],
                     Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]"),
                     Width = DataGridLength.Auto,
+                    // 거대한 값(JSONB 등)이 컬럼 폭 계산을 망가뜨리지 않게 상한
+                    MaxWidth = 420,
                 });
             }
         }
