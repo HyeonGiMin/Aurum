@@ -79,17 +79,30 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
   참고 대상. 드라이버는 공식 MongoDB.Driver(.NET)
 - 아직 미착수 — §2·3 CLI 이후, 별도 계획 문서로 시작한다
 
-## 2·3. CLI (다음 큰 작업)
+## 2·3. CLI
 
-`src/PrismOne.Db.Cli` 는 아직 빈 스캐폴드다. 설계 방향은 `../README.md` 와
-`STUDIO_PLAN.md` 에 적힌 대로:
+**`iapdb install` 구현·검증 완료** (2026-08-03):
 
-- `iapdb install` — 리포 루트의 `manifest.txt` 순서대로 `sql/*.sql` 실행
-  (psql 없이 Npgsql 로. **주의: SQL 파일이 psql 메타커맨드를 쓴다** — `\set`, `\gexec`,
-  `\if :{?var}`, `:'var'` 치환. mini-psql 프리프로세서를 Core 에 구현하는 A안 권장)
+- Core `PsqlScript`(mini-psql, A안) — `\set` · `\if :{?var}`/`\else`/`\endif` · `\gexec`(줄 끝) ·
+  `:'v'`/`:"v"`/`:v` 치환(따옴표·달러쿼팅·주석 안은 psql 처럼 제외, `::` 캐스트 무시).
+  지원 밖 메타커맨드는 조용히 넘기지 않고 예외. `PsqlScriptRunner` 가 Npgsql 로 실행
+  (gexec 는 결과 셀을 SQL 로 재실행). 실제 sql/ 13파일 전부 파싱 테스트 포함 (테스트 158개)
+- `iapdb install` — manifest.txt 순서 실행. run_all.sh 와 같은 env(PGHOST·PG_SUPER·DB_NAME…)
+  + `--host/--port/--super/--db-*/--ts-*/--dry-run/--verbose`.
+  **초기 비밀번호 부트스트랩**: 비밀번호 없이 접속되는 초기 상태(trust)를 감지하면
+  `ALTER ROLE … PASSWORD` 로 초기 비밀번호 설정부터 진행(`--set-superpass` 또는 프롬프트).
+  인증 실패 시 대화형이면 3회 재입력, 비대화형이면 명확한 오류
+- **검증** (로컬 brew postgresql@16 스크래치 클러스터, vendored pgmq 복사):
+  trust → 비밀번호 설정 → 13단계 5,256문장 전체 성공(테이블 441·pgcrypto/pgmq·
+  테이블스페이스 2, prismone/***REMOVED*** 접속·시드 확인) · scram 전환 후 오답 실패(exit 2)/
+  정답 신규 설치 성공. **주의: 40_schema 부터는 신규 설치 전용**(CREATE TABLE 에
+  IF NOT EXISTS 없음 — psql 로 돌려도 동일). 재실행 업그레이드는 patch 명령의 몫
+
+**남은 것**:
+
 - `iapdb patch apply|status|--dry-run|--baseline` — `patches/` 델타 + `PRISMONE.schema_version`
   (`patches/apply.sh` 의 시맨틱을 그대로 포팅)
-- macOS bash 3.2 에서 `run_all.sh` 가 안 도는 것(`mapfile` 없음)도 CLI 필요성의 근거
+- 배포 패키징(단일 실행 파일) 및 Windows 검증
 
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
