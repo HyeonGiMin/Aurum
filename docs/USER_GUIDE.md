@@ -19,6 +19,11 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 - **Database 는 `host[:port]/database` 한 칸**입니다. 예: `<dev-host>/prismone`,
   `stg-ihp5022:5433/prismone`, 포트 생략 시 5432, `prismone` 만 쓰면 localhost.
 - 아래 **Login List** 에서 클릭=필드 채움, **더블클릭=바로 로그인**. New/Delete 로 관리.
+- **Edit** — 선택한 항목의 표시 이름(Name)·**Category**·Comment 를 고칩니다
+  (접속 정보 자체는 필드에서 고쳐 다시 로그인하면 갱신).
+- **Filter ▾** — 목록 위에 필터 행이 열리고 **Username / Database / Category** 로
+  즉시 걸러집니다(부분 일치, 대소문자 무시). 접속 대상이 많을 때 Category 를
+  운영/스테이징 등으로 달아두면 빠르게 찾을 수 있습니다.
 - **비밀번호는 항상 AES-256 으로 암호화되어 저장**됩니다 (`~/.prismone-studio/`,
   키는 이 계정 전용). 비밀번호에 한글이 들어오면 두벌식 기준 영문키로 자동 변환됩니다
   (`암호` → `dkagh` — IME 끄는 걸 잊어도 안전).
@@ -199,12 +204,16 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 ## 10. 파일 · 내보내기 · 탭
 
 - **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장.
-- Results 메뉴의 내보내기 3종:
+- Results 메뉴의 내보내기 4종:
   - **Export All Rows As CSV… (COPY)** — 마지막 실행 쿼리를 서버에서 `COPY … TO STDOUT`
     으로 다시 실행해 **전체 행을 잘림 없이 고속으로**. COPY 불가 문장이면 로드된 행 폴백.
   - **Save Grid As TSV…** — 로드된 행을 탭 구분 텍스트로 (엑셀 붙여넣기용).
   - **Save Grid As INSERT…** — 로드된 행을 `INSERT INTO …` 문으로. 대상 테이블명은
     쿼리의 FROM 절에서 추정합니다. 숫자/boolean 은 그대로, NULL 은 NULL 로.
+  - **Save Grid As xlsx…** — 로드된 행을 Excel 통합문서로. 헤더는 굵게, 숫자는 숫자
+    셀로(단 `007` 처럼 표기가 바뀌는 값은 문자열 유지), NULL 은 빈 셀.
+    시트 이름은 대상 테이블명. 외부 라이브러리 없이 직접 생성하므로 가볍고 빠릅니다
+    (10만 행 × 10컬럼 ≈ 0.2초). Excel 행 상한(약 105만)을 넘으면 잘라내고 알립니다.
 - **Ctrl+T** 새 탭 / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
 
 ### 인쇄 (Golden 의 Print / Print Preview)

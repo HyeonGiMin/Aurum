@@ -45,9 +45,63 @@ public partial class ConnectDialog : Window
     private void RefreshSavedList()
     {
         _saved = ConnectionStore.Load();
-        SavedGrid.ItemsSource = _saved;
         DatabaseCombo.ItemsSource = _saved.Select(c => c.DisplayDatabase).Distinct().ToList();
-        DeleteButton.IsEnabled = _saved.Count > 0;
+        ApplyFilter();
+    }
+
+    /// <summary>Golden: Login List 를 Username / Database / Category 로 필터.</summary>
+    private void ApplyFilter()
+    {
+        IEnumerable<SavedConnection> shown = _saved;
+        if (FilterRow.IsVisible)
+        {
+            var user = FilterUserBox.Text?.Trim() ?? "";
+            var db = FilterDbBox.Text?.Trim() ?? "";
+            var category = FilterCategoryBox.Text?.Trim() ?? "";
+            if (user.Length > 0)
+                shown = shown.Where(c => c.Username.Contains(user, StringComparison.OrdinalIgnoreCase));
+            if (db.Length > 0)
+                shown = shown.Where(c => c.DisplayDatabase.Contains(db, StringComparison.OrdinalIgnoreCase));
+            if (category.Length > 0)
+                shown = shown.Where(c => c.Category?.Contains(category, StringComparison.OrdinalIgnoreCase) == true);
+        }
+        var list = shown.ToList();
+        SavedGrid.ItemsSource = list;
+        DeleteButton.IsEnabled = list.Count > 0;
+        EditButton.IsEnabled = list.Count > 0;
+    }
+
+    private void OnFilterChanged(object? sender, TextChangedEventArgs e) => ApplyFilter();
+
+    /// <summary>자가 스크린샷 하니스 전용 — 필터 행을 연 상태로 만든다.</summary>
+    public void ShowFilterForShot()
+    {
+        FilterRow.IsVisible = true;
+        FilterButton.Content = "Filter ▴";
+        ApplyFilter();
+    }
+
+    private void OnToggleFilter(object? sender, RoutedEventArgs e)
+    {
+        FilterRow.IsVisible = !FilterRow.IsVisible;
+        FilterButton.Content = FilterRow.IsVisible ? "Filter ▴" : "Filter ▾";
+        if (FilterRow.IsVisible)
+            FilterUserBox.Focus();
+        ApplyFilter();
+    }
+
+    /// <summary>Golden 의 "Editing existing Login Item" — Name/Category/Comment 메타 편집.</summary>
+    private async void OnEditSaved(object? sender, RoutedEventArgs e)
+    {
+        if (SavedGrid.SelectedItem is not SavedConnection c)
+        {
+            ShowError("Select a login item to edit.");
+            return;
+        }
+        var dialog = new LoginItemDialog(c);
+        await dialog.ShowDialog(this);
+        if (dialog.Saved)
+            RefreshSavedList();
     }
 
     private void OnSavedSelected(object? sender, SelectionChangedEventArgs e)

@@ -15,7 +15,9 @@
 구현 완료 (근거: `GOLDEN_BEHAVIOR.md` 의 바이너리 추출 명세):
 
 - 시작 시 메인 창(Query1 탭) 위로 **로그온 창 자동 표시**(Golden 동작) · Ctrl+L 재로그온
-  (`host[:port]/db`, Login List). 취소하면 미접속 상태로 남는다
+  (`host[:port]/db`, Login List). 취소하면 미접속 상태로 남는다.
+  **Login List 에 Edit(Name/Category/Comment 편집)·Filter ▾(Username/Database/Category
+  필터)** — Golden 의 로그인 항목 Category 대응
 - F9 문장 / F5·Shift+Enter 스크립트(커서부터 끝까지) / Explain / Explain Analyze / Cancel
 - **점진 fetch**(기본 100행, 스크롤 시 이어서, Ctrl+End 전체), Fetch 상한 옵션
 - **공유 세션 모델** + New Private Tab(Ctrl+Shift+T)
@@ -29,7 +31,8 @@
 - Object Browser(F8) + describe, **Ctrl+D describe**, 이름 붙여넣기
 - 그리드: 행번호, Transpose(Ctrl+Shift+X), Size Columns to Fit, Filter Like Cell,
   Cell Detail(더블클릭, jsonb pretty-print)
-- 내보내기: CSV(COPY 전체 행) / TSV / INSERT 문
+- 내보내기: CSV(COPY 전체 행) / TSV / INSERT 문 / **xlsx**(외부 라이브러리 없이
+  OOXML 직접 생성 — 헤더 굵게, 숫자 셀, 10만 행 ≈ 0.2초, Excel 행 상한 시 잘라내고 안내)
 - 워크스페이스 저장·복원(`.iapws`), 옵션 다이얼로그, Session Monitor
 - **Favorites**(Ctrl+Shift+F 추가 · 메뉴에서 바로 실행 · 관리 창 필터/수정/삭제 ·
   SELECT 이외 차단 옵션) — `~/.prismone-studio/favorites.json`

@@ -54,7 +54,20 @@
     <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
             BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1"
             CornerRadius="2" Padding="10" Margin="0,20,0,0">
-      <DataGrid Name="SavedGrid"
+      <Grid RowDefinitions="Auto,*">
+      <!-- Filter ▾ 로 여닫는 필터 행 — Golden: Username / Database / Category 로 필터 -->
+      <Grid Grid.Row="0" Name="FilterRow" ColumnDefinitions="*,*,*" IsVisible="False" Margin="0,0,0,8">
+        <Grid.Styles>
+          <Style Selector="TextBox"><Setter Property="MinHeight" Value="28"/><Setter Property="FontSize" Value="12.5"/></Style>
+        </Grid.Styles>
+        <TextBox Grid.Column="0" Name="FilterUserBox" PlaceholderText="Filter Username"
+                 Margin="0,0,6,0" TextChanged="OnFilterChanged"/>
+        <TextBox Grid.Column="1" Name="FilterDbBox" PlaceholderText="Filter Database"
+                 Margin="0,0,6,0" TextChanged="OnFilterChanged"/>
+        <TextBox Grid.Column="2" Name="FilterCategoryBox" PlaceholderText="Filter Category"
+                 TextChanged="OnFilterChanged"/>
+      </Grid>
+      <DataGrid Grid.Row="1" Name="SavedGrid"
                 x:DataType="core:SavedConnection"
                 IsReadOnly="True" HeadersVisibility="Column"
                 GridLinesVisibility="Horizontal" RowHeight="28" FontSize="13"
@@ -68,6 +81,7 @@
           <DataGridTextColumn Header="Comment" Binding="{Binding Comment}" Width="100"/>
         </DataGrid.Columns>
       </DataGrid>
+      </Grid>
     </Border>
     <TextBlock Grid.Row="1" Grid.Column="0" Text=" Login List " FontSize="13"
                Background="{DynamicResource ChromeBgBrush}"
@@ -79,11 +93,11 @@
         <Style Selector="Button"><Setter Property="MinHeight" Value="30"/><Setter Property="MinWidth" Value="72"/><Setter Property="Margin" Value="0,0,8,0"/></Style>
       </Grid.Styles>
       <Button Grid.Column="0" Name="NewButton" Content="New" Click="OnNewLogin"/>
-      <Button Grid.Column="1" Content="Edit" IsEnabled="False"/>
+      <Button Grid.Column="1" Name="EditButton" Content="Edit" Click="OnEditSaved"/>
       <Button Grid.Column="2" Name="DeleteButton" Content="Delete" Click="OnDeleteSaved"/>
       <TextBlock Grid.Column="3" Name="ErrorText" Foreground="OrangeRed" TextWrapping="Wrap"
                  FontSize="12.5" VerticalAlignment="Center" Margin="6,0" IsVisible="False"/>
-      <Button Grid.Column="4" Content="Filter ▾" IsEnabled="False"/>
+      <Button Grid.Column="4" Name="FilterButton" Content="Filter ▾" Click="OnToggleFilter"/>
       <Button Grid.Column="5" Content="Import/Export ▾" IsEnabled="False" Margin="0"/>
     </Grid>
 

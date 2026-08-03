@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.LoginItemDialog"
+        Title="Editing existing Login Item"
+        Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner">
+  <!-- Golden 의 "Editing existing Login Item" — 접속 정보(호스트·계정)는 그대로 두고
+       리스트 표시용 메타(Name / Category / Comment)만 고친다 -->
+  <StackPanel Margin="16" Spacing="4">
+    <TextBlock Name="TargetText" FontSize="12.5" Opacity="0.65" Margin="0,0,0,8"/>
+    <Grid ColumnDefinitions="84,*" RowDefinitions="Auto,Auto,Auto">
+      <Grid.Styles>
+        <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>
+        <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="30"/><Setter Property="FontSize" Value="13"/></Style>
+      </Grid.Styles>
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:"/>
+      <TextBox   Grid.Row="0" Grid.Column="1" Name="NameBox"/>
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Category:"/>
+      <TextBox   Grid.Row="1" Grid.Column="1" Name="CategoryBox"/>
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Comment:"/>
+      <TextBox   Grid.Row="2" Grid.Column="1" Name="CommentBox"/>
+    </Grid>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+      <Button Content="OK" Classes="accent" IsDefault="True" MinWidth="80" Click="OnOk"/>
+      <Button Content="Cancel" IsCancel="True" MinWidth="80" Click="OnCancel"/>
+    </StackPanel>
+  </StackPanel>
+</Window>
