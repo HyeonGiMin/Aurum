@@ -699,6 +699,52 @@ public partial class QueryTabView : UserControl
     public void EditorUndo() => Editor.Undo();
     public void EditorRedo() => Editor.Redo();
 
+    /// <summary>Golden: Replace (Ctrl+H) — 검색 패널을 치환 모드로 연다.</summary>
+    public void OpenReplace()
+    {
+        _search.IsReplaceMode = true;
+        _search.Open();
+    }
+
+    /// <summary>Golden: Toggle Between Edit And Results (Ctrl+R).</summary>
+    public void ToggleEditResultsFocus()
+    {
+        if (Editor.TextArea.IsKeyboardFocusWithin)
+            ResultGrid.Focus();
+        else
+            FocusEditor();
+    }
+
+    /// <summary>
+    /// Golden: Comment Out (Ctrl+-) / Uncomment (Shift+Ctrl+-) — 선택 영역(없으면 커서 줄)의
+    /// 각 줄 앞에 "-- " 를 넣거나 제거한다.
+    /// </summary>
+    public void CommentSelection(bool uncomment)
+    {
+        var doc = Editor.Document;
+        var start = doc.GetLineByOffset(Editor.SelectionStart);
+        var end = doc.GetLineByOffset(Editor.SelectionStart + Math.Max(0, Editor.SelectionLength));
+        using (doc.RunUpdate())
+        {
+            for (var line = start; line is not null && line.LineNumber <= end.LineNumber; line = line.NextLine)
+            {
+                var text = doc.GetText(line.Offset, line.Length);
+                if (uncomment)
+                {
+                    var i = text.TakeWhile(char.IsWhiteSpace).Count();
+                    if (text[i..].StartsWith("-- ", StringComparison.Ordinal))
+                        doc.Remove(line.Offset + i, 3);
+                    else if (text[i..].StartsWith("--", StringComparison.Ordinal))
+                        doc.Remove(line.Offset + i, 2);
+                }
+                else if (text.Trim().Length > 0)
+                {
+                    doc.Insert(line.Offset, "-- ");
+                }
+            }
+        }
+    }
+
     public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) Snapshot()
         => (_columns, _rows.Select(r => r.Cells).ToList());
 

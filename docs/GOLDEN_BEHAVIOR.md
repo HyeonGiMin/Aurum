@@ -47,6 +47,28 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 | 상태 표시 | "Done, ran %s of %s statements in %s." / "Done, ran single statement in ..." / "Running statement ...", "Running single statement at cursor." | |
 | 핫키 | 사용자 정의 가능: "Enter Hotkey \| Press the hotkey you'd like to use.", "Hotkey must be a function key or include Ctrl or Alt." | 옵션에서 재배치 |
 
+### 4.1 공식 키맵 (Golden 매뉴얼 §4.3 Keyboard shortcuts — ondoc.logand.com/d/368/pdf)
+
+✅ 구현됨 (2026-08-03). 충돌 판정 원칙: Golden 키를 우선하되, 현대 관행 키는 별칭으로 공존.
+
+| Golden | 키 | 우리 구현 |
+|---|---|---|
+| Run Script | F5 / Shift+Enter | ✅ 동일 |
+| Run Script From Cursor | F6 | ✅ F6 (우리 F5 도 커서부터 — Golden 8 시맨틱) |
+| Run One Statement At Cursor | F7 / Ctrl+Enter | ✅ + F9 (Golden 8 기준) |
+| **Run Script And Go To Edit Mode** | **Ctrl+E** | ✅ + F11 별칭 |
+| Commit / Rollback | Ctrl+F5 / Ctrl+F6 | ✅ 동일 |
+| Login | Ctrl+L / Ctrl+J | ✅ 동일 |
+| New Tab / Private | Ctrl+N / Shift+Ctrl+Alt+N | ✅ Ctrl+N·T / +Shift |
+| Close Tab | Ctrl+F4 | ✅ + Ctrl+W(관행) |
+| Goto Next/Prior Tab | Ctrl+Tab / Shift+Ctrl+Tab | ✅ 동일 |
+| Save Workspace | Shift+Ctrl+W | ✅ 동일 (Open Workspace 의 Ctrl+W 는 탭 닫기 관행과 충돌 → 메뉴로) |
+| Find / Find Next / Replace | Ctrl+F / F3 / Ctrl+H | ✅ 동일 (F3 는 에디터 내장) |
+| Comment / Uncomment | Ctrl+- / Shift+Ctrl+- | ✅ 동일 |
+| Toggle Edit↔Results | Ctrl+R / F8 | ✅ Ctrl+R (F8 은 우리 Object Browser) |
+| Show Execution Plan | Ctrl+P | ❌ 우리 Ctrl+P 는 Print(관행) — Explain 은 툴바/메뉴 |
+| Block Indent/Unindent | Tab / Shift+Tab (선택 시) | ✅ 에디터 내장 |
+
 ## 5. Fetch (점진 로딩)
 
 - **초기 100행**: "This is the initial record count for a query. Default is 100."

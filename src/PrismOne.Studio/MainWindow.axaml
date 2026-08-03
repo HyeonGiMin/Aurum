@@ -44,11 +44,11 @@
         <MenuItem Header="Print SQL…" InputGesture="Ctrl+P" Click="OnMenuPrintSql"/>
         <MenuItem Header="Print Preview (SQL)" Click="OnMenuPreviewSql"/>
         <Separator/>
-        <MenuItem Header="Commit" Click="OnMenuCommit"/>
-        <MenuItem Header="Rollback" Click="OnMenuRollback"/>
+        <MenuItem Header="Commit" InputGesture="Ctrl+F5" Click="OnMenuCommit"/>
+        <MenuItem Header="Rollback" InputGesture="Ctrl+F6" Click="OnMenuRollback"/>
         <Separator/>
         <!-- Golden 의 Run and Edit — 결과 그리드에서 직접 수정/삭제/삽입 -->
-        <MenuItem Header="Run and Edit (편집 모드로 실행)" InputGesture="F11" Click="OnMenuRunAndEdit"/>
+        <MenuItem Header="Run and Edit (편집 모드로 실행)" InputGesture="Ctrl+E" Click="OnMenuRunAndEdit"/>
         <MenuItem Header="Submit Edits" InputGesture="Ctrl+Shift+S" Click="OnMenuSubmitEdits"/>
         <MenuItem Header="Add Row" Click="OnMenuAddRow"/>
         <MenuItem Header="Paste Rows (클립보드 표 → 새 행)" Click="OnMenuPasteRows"/>
@@ -228,14 +228,14 @@
 
         <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
 
-        <Button Name="CommitButton" Classes="tool" Click="OnMenuCommit" IsEnabled="False" ToolTip.Tip="Commit — 현재 트랜잭션 확정">
+        <Button Name="CommitButton" Classes="tool" Click="OnMenuCommit" IsEnabled="False" ToolTip.Tip="Commit (Ctrl+F5) — 현재 트랜잭션 확정">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="M4,13 L10,19 L20,5" Stroke="{StaticResource ExportGreenBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Button Name="RollbackButton" Classes="tool" Click="OnMenuRollback" IsEnabled="False" ToolTip.Tip="Rollback — 현재 트랜잭션 되돌리기">
+        <Button Name="RollbackButton" Classes="tool" Click="OnMenuRollback" IsEnabled="False" ToolTip.Tip="Rollback (Ctrl+F6) — 현재 트랜잭션 되돌리기">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconUndoArc}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
             <Path Data="{StaticResource IconUndoHead}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>

@@ -112,7 +112,10 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 
 **이 repo 의 남은 것**:
 
-- Golden 핫키 파리티 (Ctrl+E = Run and Edit 등 — 사용자 확인 기반) · 핫키 사용자 재배치 옵션
+- ~~Golden 핫키 파리티~~ ✅ 구현됨 (2026-08-03) — Golden 매뉴얼 §4.3 공식 키맵 기준
+  (Ctrl+E=Run and Edit · Ctrl+F5/F6=Commit/Rollback · Ctrl+H=Replace ·
+  Ctrl+-=주석 토글 · Ctrl+R=에디터↔결과 · Ctrl+Tab=탭 이동 등,
+  GOLDEN_BEHAVIOR.md §4.1 대조표). 핫키 사용자 재배치 옵션은 후순위
 - §1.5 방향: Studio3T 기능 흡수 + DataGrip 급, MongoDB provider 추상화
 
 ## 개발 메모 (다른 환경에서 이어받을 때)

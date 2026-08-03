@@ -252,10 +252,10 @@ public partial class MainWindow : Window
             Item("Cancel", () => OnMenuCancel(this, args)),
             new NativeMenuItemSeparator(),
             Item("Describe (⌘D)", () => OnMenuDescribe(this, args)),
-            Item("Commit", () => OnMenuCommit(this, args)),
-            Item("Rollback", () => OnMenuRollback(this, args)),
+            Item("Commit (Ctrl+F5)", () => OnMenuCommit(this, args)),
+            Item("Rollback (Ctrl+F6)", () => OnMenuRollback(this, args)),
             new NativeMenuItemSeparator(),
-            Item("Run and Edit (F11)", () => OnMenuRunAndEdit(this, args)),
+            Item("Run and Edit (Ctrl+E)", () => OnMenuRunAndEdit(this, args)),
             Item("Submit Edits (⇧⌘S)", () => OnMenuSubmitEdits(this, args)),
             Item("Add Row", () => OnMenuAddRow(this, args)),
             Item("Delete Selected Records…", () => OnMenuDeleteRows(this, args)),
@@ -441,16 +441,36 @@ public partial class MainWindow : Window
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         var cmdOrCtrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
-        if (e.Key == Key.F9 || (e.Key == Key.Enter && cmdOrCtrl))
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        // Ctrl+F5/F6 은 무수식 F5/F6 보다 먼저 판정해야 한다 (Golden 키맵)
+        if (e.Key == Key.F5 && cmdOrCtrl)
         {
+            e.Handled = true;
+            OnMenuCommit(sender, e);
+        }
+        else if (e.Key == Key.F6 && cmdOrCtrl)
+        {
+            e.Handled = true;
+            OnMenuRollback(sender, e);
+        }
+        else if (e.Key == Key.F9 || e.Key == Key.F7 || (e.Key == Key.Enter && cmdOrCtrl))
+        {
+            // Golden: F7/Ctrl+Enter = Run One Statement At Cursor (F9 는 Golden 8)
             e.Handled = true;
             _ = ActiveView?.ExecuteAtCaretAsync();
         }
-        else if (e.Key == Key.F5 || (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Shift)))
+        else if (e.Key == Key.F5 || e.Key == Key.F6 || (e.Key == Key.Enter && shift))
         {
-            // Golden: F5/Shift+Enter = Run Script (커서부터 끝까지)
+            // Golden: F5/Shift+Enter = Run Script, F6 = Run Script From Cursor —
+            // 우리 RunScript 는 이미 커서부터 끝까지(Golden 8 시맨틱)라 둘 다 여기로
             e.Handled = true;
             _ = ActiveView?.RunScriptAsync();
+        }
+        else if (e.Key == Key.E && cmdOrCtrl)
+        {
+            // Golden: Ctrl+E = Run Script And Go To Edit Mode
+            e.Handled = true;
+            OnMenuRunAndEdit(sender, e);
         }
         else if (e.Key == Key.End && cmdOrCtrl)
         {
@@ -460,26 +480,63 @@ public partial class MainWindow : Window
                 _ = view.FetchAllAsync();
             }
         }
-        else if (e.Key == Key.T && cmdOrCtrl)
+        else if ((e.Key == Key.T || e.Key == Key.N) && cmdOrCtrl)
         {
+            // Ctrl+T(관행) · Ctrl+N(Golden "New Tab") — Shift 붙으면 Private Tab
             e.Handled = true;
-            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            if (shift)
                 OnMenuNewPrivateTab(sender, e);
             else
                 _ = NewTabAsync(_profile);
         }
-        else if (e.Key == Key.W && cmdOrCtrl)
+        else if (e.Key == Key.W && cmdOrCtrl && shift)
         {
+            // Golden: Shift+Ctrl+W = Save Workspace
+            e.Handled = true;
+            OnMenuSaveWorkspace(sender, e);
+        }
+        else if ((e.Key == Key.W || e.Key == Key.F4) && cmdOrCtrl)
+        {
+            // Ctrl+W(관행) · Ctrl+F4(Golden "Close Tab")
             if (QueryTabs.SelectedItem is TabItem item && item.Content is QueryTabView view)
             {
                 e.Handled = true;
                 _ = CloseTabAsync(item, view);
             }
         }
-        else if (e.Key == Key.L && cmdOrCtrl)
+        else if (e.Key == Key.Tab && cmdOrCtrl)
         {
+            // Golden: Ctrl+Tab / Shift+Ctrl+Tab = 다음/이전 탭
+            var count = _tabs.Count;
+            if (count > 1)
+            {
+                e.Handled = true;
+                QueryTabs.SelectedIndex = (QueryTabs.SelectedIndex + (shift ? count - 1 : 1)) % count;
+            }
+        }
+        else if ((e.Key == Key.L || e.Key == Key.J) && cmdOrCtrl)
+        {
+            // Golden: Login = Ctrl+L or Ctrl+J
             e.Handled = true;
             _ = ShowLogonAsync();
+        }
+        else if (e.Key == Key.H && cmdOrCtrl)
+        {
+            // Golden: Ctrl+H = Replace
+            e.Handled = true;
+            ActiveView?.OpenReplace();
+        }
+        else if (e.Key == Key.R && cmdOrCtrl)
+        {
+            // Golden: Ctrl+R = Toggle Between Edit And Results
+            e.Handled = true;
+            ActiveView?.ToggleEditResultsFocus();
+        }
+        else if ((e.Key == Key.OemMinus || e.Key == Key.Subtract) && cmdOrCtrl)
+        {
+            // Golden: Ctrl+- = Comment Out, Shift+Ctrl+- = Uncomment
+            e.Handled = true;
+            ActiveView?.CommentSelection(uncomment: shift);
         }
         else if (e.Key == Key.X && cmdOrCtrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {

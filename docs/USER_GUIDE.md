@@ -240,17 +240,22 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 
 ## 11. 단축키 요약
 
+Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으로 함께 둡니다.
+
 | 키 | 동작 | | 키 | 동작 |
 |---|---|---|---|---|
-| Ctrl+L | 로그온 | | F9 | 문장 실행 |
-| F5 / Shift+Enter | 스크립트 실행 | | Ctrl+End | 전체 fetch |
-| Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F | 찾기 |
+| Ctrl+L / Ctrl+J | 로그온 | | F9 / F7 / Ctrl+Enter | 문장 실행 |
+| F5 / F6 / Shift+Enter | 스크립트 실행 (커서부터) | | Ctrl+End | 전체 fetch |
+| **Ctrl+E** / F11 | **Run and Edit (편집 모드)** | | Ctrl+Shift+S | Submit Edits |
+| **Ctrl+F5** | **Commit** | | **Ctrl+F6** | **Rollback** |
+| Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F / Ctrl+H | 찾기 / 바꾸기 |
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
-| Ctrl+T / ⇧T / W | 탭 / 전용탭 / 닫기 |
-| Ctrl+D | Describe | | Ctrl+Shift+X | Transpose | | Ctrl+Z / Y | Undo / Redo |
+| Ctrl+T · Ctrl+N / +⇧ | 새 탭 / 전용 탭 | | Ctrl+W · Ctrl+F4 | 탭 닫기 |
+| Ctrl+Tab / +⇧ | 다음 / 이전 탭 | | Ctrl+Shift+W | 워크스페이스 저장 |
+| Ctrl+D | Describe | | Ctrl+Shift+X | Transpose |
 | Ctrl+O / S | 열기 / 저장 | | Ctrl+Shift+F | 즐겨찾기에 추가 |
-| F11 | Run and Edit | | Ctrl+Shift+S | Submit Edits |
-| Ctrl+P | Print SQL | | | |
+| Ctrl+- / +⇧ | 주석 처리 / 해제 | | Ctrl+R | 에디터 ↔ 결과 포커스 |
+| Ctrl+P | Print SQL | | Ctrl+Z / Y | Undo / Redo |
 
 (macOS 에선 Ctrl 대신 Cmd 도 동작)
 
