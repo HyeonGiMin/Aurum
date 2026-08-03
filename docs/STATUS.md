@@ -92,11 +92,16 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
   **초기 비밀번호 부트스트랩**: 비밀번호 없이 접속되는 초기 상태(trust)를 감지하면
   `ALTER ROLE … PASSWORD` 로 초기 비밀번호 설정부터 진행(`--set-superpass` 또는 프롬프트).
   인증 실패 시 대화형이면 3회 재입력, 비대화형이면 명확한 오류
-- **검증** (로컬 brew postgresql@16 스크래치 클러스터, vendored pgmq 복사):
-  trust → 비밀번호 설정 → 13단계 5,256문장 전체 성공(테이블 441·pgcrypto/pgmq·
-  테이블스페이스 2, prismone/***REMOVED*** 접속·시드 확인) · scram 전환 후 오답 실패(exit 2)/
-  정답 신규 설치 성공. **주의: 40_schema 부터는 신규 설치 전용**(CREATE TABLE 에
-  IF NOT EXISTS 없음 — psql 로 돌려도 동일). 재실행 업그레이드는 patch 명령의 몫
+- **검증 2종** (모두 vendored pgmq 를 extension 디렉터리에 복사):
+  1. 로컬 brew postgresql@16 스크래치 클러스터 — trust → 비밀번호 설정 → 13단계
+     5,256문장 전체 성공(테이블 441·pgcrypto/pgmq·테이블스페이스 2,
+     prismone/***REMOVED*** 접속·시드 확인) · scram 전환 후 오답 실패(exit 2)/정답 성공
+  2. **Docker**(colima) `postgres:16` 컨테이너, `POSTGRES_HOST_AUTH_METHOD=trust` —
+     무비밀번호 감지 → 초기 비밀번호 설정 → 전체 설치 성공(동일 지표 + SCRAM 확인).
+     테이블스페이스 디렉터리는 컨테이너 안에 미리 생성(`/data/pg_ts/*`,
+     compose 의 db-init 서비스와 같은 방식)
+  **주의: 40_schema 부터는 신규 설치 전용**(CREATE TABLE 에 IF NOT EXISTS 없음 —
+  psql 로 돌려도 동일). 재실행 업그레이드는 patch 명령의 몫
 
 **남은 것**:
 
