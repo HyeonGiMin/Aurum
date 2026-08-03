@@ -1,12 +1,12 @@
 # 진행 상황 · 다음 작업 (인수인계용)
 
-마지막 갱신: 2026-08-03 · 브랜치 `feat/tools-favorites-windows`
+마지막 갱신: 2026-08-03 · 브랜치 `main`
 
 ## 세 가지 목표 대비 현황
 
 | # | 목표 | 상태 |
 |---|---|---|
-| 1 | **Golden 대체 쿼리 툴** (PostgreSQL) | **기능 완료** — 아래 §1 (실접속 검증만 미완) |
+| 1 | **Golden 대체 쿼리 툴** (PostgreSQL) | **완료** — 기능·실접속 검증 모두 끝 (아래 §1) |
 | 2 | DB 초기 설치 (IAP 제품용) | **미착수** — CLI 스캐폴드만 존재 |
 | 3 | 설치된 DB 패치/업그레이드 | **미착수** |
 
@@ -39,7 +39,12 @@
 
 - **Run and Edit**(F11) — 단일 테이블 SELECT 를 ctid 붙여 재실행 → 셀 수정·행 추가·삭제 →
   Submit(Ctrl+Shift+S)에서 한 트랜잭션으로 반영, 영향 행 ≠ 1 이면 전체 롤백.
-  **실접속 검증 미완** (아래 참조)
+  **실접속 검증 완료** (2026-08-03, 전 항목 PASS — 아래 개발 메모 참조).
+  검증 과정에서 셀 편집이 아예 시작되지 않는 버그를 찾아 고쳤다:
+  DataGrid 는 바인딩 경로의 속성을 리플렉션으로 검사해 편집 가능 여부를 판정하는데,
+  CLR 배열엔 인덱서 PropertyInfo 가 없어 `Cells[i]` 경로가 읽기 전용으로 판정됐다
+  (BeginEdit 거부 → 더블클릭·F2 무반응). RowItem 에 진짜 인덱서 `this[int]` 를 두고
+  편집 모드 바인딩을 `[i]` 경로로 바꿔 해결
 
 - **Print / Print Preview** — SQL(Ctrl+P)·그리드 모두. Avalonia 에 인쇄 API 가 없어
   `%TEMP%/iap-dbm-print/*.html` 로 뽑아 OS 기본 브라우저에 넘긴다(용지·프린터는 브라우저 대화상자)
@@ -81,10 +86,14 @@ Studio3T(몽고 툴)에서 가져올 만한 것: 비주얼 쿼리 빌더, 결과
      Database Default 는 서버 기본값(read committed)으로 되돌아온다
   2. ✅ **즐겨찾기 실행 경로** — `live_favorite.png` 로 확인 (메뉴에서 실행 → 결과 표시)
   3. ✅ 로그온·describe·자동완성·쿼리·스크롤·EXPLAIN — 스크린샷 모드 7종 전부 정상
-  4. ⏳ **Run and Edit 전체 경로(셀 편집 → Submit → 커밋)는 여전히 미검증**.
-     공유 staging DB 에 데이터를 쓰게 되므로 확인하지 않았다.
-     **검증용 임시 테이블을 따로 만들어 그 위에서** 확인할 것 (DataGrid 셀의
-     `Cells[i]` TwoWay 바인딩이 실제로 값을 되쓰는지가 핵심)
+  4. ✅ **Run and Edit 전체 경로(셀 편집 → Submit → 커밋 → 재조회) 검증 완료**.
+     스크린샷 모드에 `IAPDM_SHOT_RAE=1` 을 추가하면 검증용 임시 테이블
+     `__iapdm_rae_verify` 를 만들어 실제 DataGrid 편집 경로(BeginEdit → TextBox →
+     CommitEdit)로 UPDATE 1·INSERT 1·DELETE 1 을 수행하고 새 SELECT 로 DB 반영을
+     확인한 뒤 테이블을 drop 한다. 결과는 `live_editmode_result.txt` (항목별
+     PASS/FAIL) · `live_editmode.png` · `live_editmode_after.png`.
+     의심하던 `Cells[i]` TwoWay 바인딩은 실제로 **안 써지고 있었고**(§1 의
+     Run and Edit 항목 참조) 인덱서 우회로 고친 뒤 전 항목 PASS
 - **실행**: 개발 중엔 `dotnet run --project src/PrismOne.Studio`,
   배포 확인은 macOS `sh packaging/macos/make-app.sh` → `dist/IAP Database Manager.app`,
   Windows `powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1`
@@ -99,7 +108,8 @@ Studio3T(몽고 툴)에서 가져올 만한 것: 비주얼 쿼리 빌더, 결과
   ```
   → `live_after_login.png` / `live_describe.png` / `live_completion.png` /
   `live_query.png` / `live_favorite.png` / `live_scrolled.png` / `live_explain.png`
-  생성 후 종료. 접속 없이 샘플 데이터만 볼 땐 `IAPDM_SHOT_CONN` 을 빼면
+  생성 후 종료. `IAPDM_SHOT_RAE=1` 을 함께 주면 Run and Edit 실접속 검증까지 수행한다
+  (임시 테이블을 만들어 편집·Submit 후 drop — 위 실접속 검증 4번 참조). 접속 없이 샘플 데이터만 볼 땐 `IAPDM_SHOT_CONN` 을 빼면
   `shot_main.png` / `shot_login.png` / `shot_favorites.png` 가 나온다.
   아이콘 재생성은 `IAPDM_RENDER_ICON=<경로>`.
 - **개발용 DB**: `<dev-host>/prismone` (계정 `prismone`/`***REMOVED***`). 공유 서버이므로
