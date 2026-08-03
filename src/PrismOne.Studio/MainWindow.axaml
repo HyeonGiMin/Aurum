@@ -316,6 +316,11 @@
               <TextBlock Name="ConnText" Text="Disconnected" FontSize="11.5" Foreground="#7B241C"/>
             </StackPanel>
           </Border>
+          <!-- PRISMONE 스키마 버전 (schema_version 조회 전용 — 패치 적용은 iapdb CLI 의 몫) -->
+          <Border Name="SchemaPill" Background="#DDE7F3" BorderBrush="#9AB4D8" BorderThickness="1"
+                  CornerRadius="9" Padding="8,1" VerticalAlignment="Center" IsVisible="False">
+            <TextBlock Name="SchemaText" Text="" FontSize="11.5" Foreground="#1F4E79"/>
+          </Border>
           <TextBlock Name="StatusLabel" Classes="status" Text="Ready"/>
         </StackPanel>
         <Border Grid.Column="1" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">

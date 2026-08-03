@@ -130,6 +130,7 @@ public partial class MainWindow : Window
         }
 
         UpdateConnectionPill();
+        await UpdateSchemaVersionPillAsync(profile);
 
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
         if (orphans.Count > 0)
@@ -1029,6 +1030,32 @@ public partial class MainWindow : Window
         ConnText.Foreground = new Avalonia.Media.SolidColorBrush(
             Avalonia.Media.Color.Parse(connected ? "#1E5B20" : "#7B241C"));
         ConnText.Text = connected ? _profile!.DisplayName : "Disconnected";
+        if (!connected)
+            SchemaPill.IsVisible = false;
+    }
+
+    /// <summary>
+    /// 상태바 스키마 버전 pill — PRISMONE.schema_version 을 읽어 마지막 적용 패치를 보여준다.
+    /// 조회 전용(설계 원칙: 패치 적용은 iapdb CLI 배포 키트의 몫). PRISMONE DB 가 아니면 숨긴다.
+    /// </summary>
+    private async Task UpdateSchemaVersionPillAsync(ConnectionProfile profile)
+    {
+        try
+        {
+            await using var conn = await profile.OpenAsync();
+            var info = await SchemaVersion.LoadAsync(conn);
+            SchemaPill.IsVisible = info is not null;
+            if (info is null)
+                return;
+            SchemaText.Text = $"Schema: {info.Label}";
+            ToolTip.SetTip(SchemaPill, info.LatestVersionId is null
+                ? "PRISMONE schema_version — 적용된 패치 기록 없음 (baseline)"
+                : $"마지막 패치: {info.LatestVersionId}\n적용 시각: {info.AppliedAt:yyyy-MM-dd HH:mm:ss}\n적용된 패치 {info.AppliedCount}건 — 적용은 iapdb CLI 로");
+        }
+        catch
+        {
+            SchemaPill.IsVisible = false;   // 조회 실패가 접속 흐름을 막으면 안 된다
+        }
     }
 
     /// <summary>Ctrl+D — 커서 위치 테이블을 브라우저 describe 로 보여준다 (Golden).</summary>
