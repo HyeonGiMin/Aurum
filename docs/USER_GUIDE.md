@@ -1,4 +1,4 @@
-# IAP Database Manager 사용법
+# Aurum 사용법
 
 Oracle 시절 Golden 을 대체하는 PRISMONE(PostgreSQL)용 쿼리 툴입니다.
 Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
@@ -7,8 +7,8 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 
 | 방법 | 용도 |
 |---|---|
-| `tools/dist/IAP Database Manager.app` | macOS 정식 실행 (독에 이름/아이콘 표시). `sh tools/packaging/macos/make-app.sh` 로 생성 |
-| `tools/dist/IAP Database Manager/IAP Database Manager.exe` | Windows 정식 실행 (.NET 설치 불필요한 단일 exe). `powershell -ExecutionPolicy Bypass -File tools/packaging/windows/make-app.ps1` 로 생성 |
+| `tools/dist/Aurum.app` | macOS 정식 실행 (독에 이름/아이콘 표시). `sh tools/packaging/macos/make-app.sh` 로 생성 |
+| `tools/dist/Aurum/Aurum.exe` | Windows 정식 실행 (.NET 설치 불필요한 단일 exe). `powershell -ExecutionPolicy Bypass -File tools/packaging/windows/make-app.ps1` 로 생성 |
 | `cd tools && dotnet run --project src/PrismOne.Studio` | 개발 실행 |
 
 앱을 켜면 빈 Query 1 탭이 있는 메인 창이 뜨고 그 위로 **로그온 창이 바로 열립니다**(Golden 과 동일).

@@ -10,6 +10,15 @@
 | 2 | DB 초기 설치 (IAP 제품용) | **미착수** — CLI 스캐폴드만 존재 |
 | 3 | 설치된 DB 패치/업그레이드 | **미착수** |
 
+## 0. 이름 (2026-08-03 확정)
+
+- **GUI = Aurum** (금 Au — "Golden 의 후계자"라는 서사. 어셈블리명·창 타이틀·.app/.exe·
+  아이콘까지 반영. 아이콘은 주기율표 타일: 다크 배경 + 금 그라데이션 Au + 원자번호 79,
+  `IAPDM_RENDER_ICON` 으로 재생성)
+- **CLI = iapdb**, 배포 키트(iapdb + sql/ + patches/) = **PrismOne DB Kit**
+- 네임스페이스·프로젝트 파일명은 PrismOne.Studio 유지 (외부 노출 없음),
+  사용자 데이터 디렉터리도 `~/.prismone-studio/` 유지 (기존 설정 호환)
+
 ## 1. Golden 파리티 현황
 
 구현 완료 (근거: `GOLDEN_BEHAVIOR.md` 의 바이너리 추출 명세):
@@ -141,9 +150,9 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
      의심하던 `Cells[i]` TwoWay 바인딩은 실제로 **안 써지고 있었고**(§1 의
      Run and Edit 항목 참조) 인덱서 우회로 고친 뒤 전 항목 PASS
 - **실행**: 개발 중엔 `dotnet run --project src/PrismOne.Studio`,
-  배포 확인은 macOS `sh packaging/macos/make-app.sh` → `dist/IAP Database Manager.app`,
+  배포 확인은 macOS `sh packaging/macos/make-app.sh` → `dist/Aurum.app`,
   Windows `powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1`
-  → `dist/IAP Database Manager/IAP Database Manager.exe` (self-contained 단일 exe, 약 48MB)
+  → `dist/Aurum/Aurum.exe` (self-contained 단일 exe, 약 48MB)
 - **Windows 주의**: PowerShell 5.1 은 BOM 없는 UTF-8 .ps1 을 CP949 로 읽어 한글 주석이
   깨지면서 파싱이 어긋난다. `packaging/windows/*.ps1` 은 **UTF-8 BOM 으로 저장**할 것
 - **자가 검증 (중요)**: 화면 회귀는 스크린샷 모드로 확인한다.

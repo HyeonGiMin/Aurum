@@ -1,7 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PrismOne.Studio.App"
-             Name="IAP Database Manager"
+             Name="Aurum"
              RequestedThemeVariant="Light">
     <!-- Golden(Benthic) 은 라이트 Windows 크롬 — 테마를 Light 로 고정한다 -->
 

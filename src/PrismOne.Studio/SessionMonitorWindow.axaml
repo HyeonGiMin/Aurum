@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="using:PrismOne.Db.Core"
         x:Class="PrismOne.Studio.SessionMonitorWindow"
-        Title="Session Monitor - IAP Database Manager"
+        Title="Session Monitor - Aurum"
         Width="920" Height="480"
         WindowStartupLocation="CenterOwner">
   <!-- pg_stat_activity — 공유 서버에서 누가 물고 있는지 보고 취소/종료 -->
