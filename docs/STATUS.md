@@ -67,6 +67,18 @@ Studio3T(몽고 툴)에서 가져올 만한 것: 비주얼 쿼리 빌더, 결과
 데이터 마이그레이션/내보내기 파이프라인, 쿼리 성능 뷰. **아직 후순위** — 착수 전에
 어떤 기능을 어느 순서로 가져올지 별도 계획을 세운다.
 
+**MongoDB 지원** (2026-08-03 사용자 방향 제시): DataGrip 처럼 **MongoDB 를 접속 대상
+DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
+
+- 현재 Core 는 Npgsql 전제(QuerySession·StatementSplitter·EXPLAIN 트리·ctid 편집이
+  전부 PG 종속). 멀티 DB 로 가려면 DataGrip 의 dialect/driver 층처럼
+  **세션·문장·결과·카탈로그를 provider 인터페이스로 추상화**한 뒤 PG/Mongo 구현을
+  나눠야 한다 — PG 코드가 더 굳기 전에 추상화 경계만 미리 잡아두는 게 싸게 먹힌다
+- Mongo 는 SQL 이 아니라 문서·파이프라인 모델이라 에디터(쿼리 언어)·그리드(중첩 문서
+  표시)·자동완성(컬렉션/필드)·편집(_id 기준) 모두 별도 UX 가 필요 — Studio3T 가
+  참고 대상. 드라이버는 공식 MongoDB.Driver(.NET)
+- 아직 미착수 — §2·3 CLI 이후, 별도 계획 문서로 시작한다
+
 ## 2·3. CLI (다음 큰 작업)
 
 `src/PrismOne.Db.Cli` 는 아직 빈 스캐폴드다. 설계 방향은 `../README.md` 와
