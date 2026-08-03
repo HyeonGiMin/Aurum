@@ -32,6 +32,10 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 - 로그인하면 열려 있던 빈 탭들에 세션이 붙습니다.
 - 상태바 왼쪽 **접속 pill** 로 상태를 알 수 있습니다 — 미접속이면 빨강 `Disconnected`,
   접속되면 초록 `user@host:port/db`.
+- 접속한 DB 가 PRISMONE 설치본이면 그 옆에 파란 **Schema pill** 이 나타납니다 —
+  `schema_version` 에 기록된 마지막 적용 패치(예: `Schema: 20260718_01`, 기록이 없으면
+  `Schema: baseline`)이고, 툴팁에 적용 시각·건수가 보입니다. **조회 전용**입니다 —
+  패치 적용은 `iapdb` CLI 로 합니다 (schema_version 테이블이 없는 DB 에선 숨겨집니다).
 
 ## 3. 쿼리 실행
 

@@ -103,6 +103,19 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
   **주의: 40_schema 부터는 신규 설치 전용**(CREATE TABLE 에 IF NOT EXISTS 없음 —
   psql 로 돌려도 동일). 재실행 업그레이드는 patch 명령의 몫
 
+**설계 원칙 (2026-08-03 확정)** — 초기화·패치와 관리 도구의 역할 분리:
+
+- **초기 설치·패치 적용 = `iapdb` CLI** (배포 키트: `iapdb + sql/ + patches/` 를 한 덩어리로).
+  버전 종속성은 배포 키트에 내재하는 게 정상 — 키트 버전 = 스키마 목표 버전.
+  자동화·감사·재현성(사일런트 설치, ssh 원격 실행) 요건도 CLI 가 맞다.
+  TUI 가 필요해지면 CLI 위에 대화형 마법사로 얹는다 (코어 공유)
+- **Studio(GUI) = 조회·관리 전용, 스키마 버전에 비종속**. 패치 Apply 버튼 없음.
+  빈 비밀번호 접속 차단(운영 DB 전제)도 유지 — trust 서버는 "아직 초기화 안 된 서버"
+- Studio 상태바에 **스키마 버전 pill** 구현됨 — 접속 시 `PRISMONE.schema_version` 을
+  읽어 마지막 적용 패치(예: `Schema: 20260718_01`, 기록 없으면 `Schema: baseline`)를
+  표시, 툴팁에 적용 시각·건수. 테이블이 없으면(비 PRISMONE DB) 자동 숨김.
+  개발 서버(<dev-host>)에는 schema_version 이 없어 안 보이는 게 정상
+
 **남은 것**:
 
 - `iapdb patch apply|status|--dry-run|--baseline` — `patches/` 델타 + `PRISMONE.schema_version`
