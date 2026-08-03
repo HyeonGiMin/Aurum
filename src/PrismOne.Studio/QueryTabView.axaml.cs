@@ -26,6 +26,21 @@ public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
 
     /// <summary>편집 모드 진입 시점의 값 — 무엇이 바뀌었는지 판별한다.</summary>
     public string?[]? Original { get; init; }
+
+    /// <summary>
+    /// 편집 모드 바인딩 경로. DataGrid 는 바인딩 경로의 속성을 리플렉션으로 검사해
+    /// 편집 가능 여부를 판정하는데, CLR 배열에는 인덱서 PropertyInfo 가 없어
+    /// Cells[i] 경로가 읽기 전용으로 판정된다(BeginEdit 거부). 진짜 인덱서로 우회한다.
+    /// </summary>
+    public string? this[int index]
+    {
+        get => index >= 0 && index < Cells.Length ? Cells[index] : null;
+        set
+        {
+            if (index >= 0 && index < Cells.Length)
+                Cells[index] = value;
+        }
+    }
 }
 
 /// <summary>
@@ -687,6 +702,66 @@ public partial class QueryTabView : UserControl
     public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) Snapshot()
         => (_columns, _rows.Select(r => r.Cells).ToList());
 
+    // ---------- 자가 스크린샷 하니스 전용 (Run and Edit 실접속 검증) ----------
+
+    /// <summary>
+    /// 하니스 전용 — 실제 DataGrid 편집 경로(BeginEdit → TextBox 입력 → CommitEdit)로 셀 하나를
+    /// 고친다. Cells[i] TwoWay 바인딩이 배열에 값을 되쓰는지가 검증 대상이라 배열을 직접 쓰지 않는다.
+    /// </summary>
+    public async Task<string> EditCellForShotAsync(int rowIndex, int cellIndex, string value)
+    {
+        if (!IsEditing || rowIndex >= _rows.Count || cellIndex >= _columns.Count)
+            return "not editing / index out of range";
+        var row = _rows[rowIndex];
+        var column = ResultGrid.Columns.FirstOrDefault(c => Equals(c.Header, _columns[cellIndex]));
+        if (column is null)
+            return $"column '{_columns[cellIndex]}' not found";
+
+        ResultGrid.Focus();
+        ResultGrid.SelectedItem = row;
+        ResultGrid.CurrentColumn = column;
+        ResultGrid.ScrollIntoView(row, column);
+        await Task.Delay(150);
+
+        TextBox? editor = null;
+        void OnPreparing(object? _, DataGridPreparingCellForEditEventArgs e)
+            => editor = e.EditingElement as TextBox;
+        ResultGrid.PreparingCellForEdit += OnPreparing;
+        try
+        {
+            var began = ResultGrid.BeginEdit();
+            await Task.Delay(150);
+            if (editor is null)
+                return $"no editing TextBox (BeginEdit={began}, CurrentColumn={ResultGrid.CurrentColumn?.Header})";
+            editor.Text = value;
+            var committed = ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            await Task.Delay(150);
+            return row.Cells[cellIndex] == value
+                ? "ok"
+                : $"cell not written back (CommitEdit={committed}, cell='{row.Cells[cellIndex]}')";
+        }
+        finally
+        {
+            ResultGrid.PreparingCellForEdit -= OnPreparing;
+        }
+    }
+
+    /// <summary>하니스 전용 — 새로 추가한 행(insert row)의 셀을 채운다.</summary>
+    public void SetCellForShot(int rowIndex, int cellIndex, string? value)
+    {
+        if (rowIndex < _rows.Count && cellIndex < _rows[rowIndex].Cells.Length)
+            _rows[rowIndex].Cells[cellIndex] = value;
+    }
+
+    /// <summary>하니스 전용 — 그리드 행 하나를 선택한다 (삭제 표시용).</summary>
+    public void SelectRowForShot(int rowIndex)
+    {
+        if (rowIndex >= _rows.Count)
+            return;
+        ResultGrid.SelectedItem = _rows[rowIndex];
+        ResultGrid.ScrollIntoView(_rows[rowIndex], null);
+    }
+
     public bool HasResult => _columns.Count > 0 && _rows.Count > 0;
 
     // ---------- Execute ----------
@@ -1267,7 +1342,9 @@ public partial class QueryTabView : UserControl
                 ResultGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = columns[i],
-                    Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]")
+                    // 편집 모드는 RowItem 인덱서 경로 — Cells[i](배열 인덱서)는 DataGrid 가
+                    // 읽기 전용으로 판정해 셀 편집이 시작되지 않는다 (RowItem 인덱서 주석 참조)
+                    Binding = new Binding(IsEditing ? $"[{i}]" : $"{nameof(RowItem.Cells)}[{i}]")
                     {
                         Mode = IsEditing ? BindingMode.TwoWay : BindingMode.OneWay,
                     },

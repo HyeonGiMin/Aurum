@@ -1355,6 +1355,11 @@ public partial class MainWindow : Window
                 await view.ExecuteExplainAsync(analyze: true);
                 await Task.Delay(400);
                 SaveShot(this, System.IO.Path.Combine(dir, "live_explain.png"));
+
+                // Run and Edit 전체 경로 검증 — DB 에 쓰기가 발생하므로 옵트인(IAPDM_SHOT_RAE=1).
+                // 검증용 임시 테이블을 만들어 그 위에서만 수정·추가·삭제한다.
+                if (Environment.GetEnvironmentVariable("IAPDM_SHOT_RAE") == "1")
+                    await VerifyRunAndEditAsync(dir, view);
             }
         }
         catch (Exception ex)
@@ -1364,6 +1369,87 @@ public partial class MainWindow : Window
         finally
         {
             Environment.Exit(0);
+        }
+    }
+
+    /// <summary>
+    /// Run and Edit 전체 경로(셀 편집 → Submit → 커밋 → 재조회) 실접속 검증.
+    /// 핵심은 DataGrid 셀의 Cells[i] TwoWay 바인딩이 실제로 값을 되쓰는지 —
+    /// EditCellForShotAsync 가 진짜 편집 경로(BeginEdit → TextBox → CommitEdit)를 탄다.
+    /// 결과는 live_editmode_result.txt (PASS/FAIL 항목별) 로 남긴다.
+    /// </summary>
+    private async Task VerifyRunAndEditAsync(string dir, QueryTabView view)
+    {
+        const string table = "__iapdm_rae_verify";
+        var log = new System.Text.StringBuilder();
+        var pass = true;
+        void Check(string name, bool ok)
+        {
+            pass &= ok;
+            log.AppendLine($"{(ok ? "PASS" : "FAIL")}  {name}");
+        }
+
+        var prevAuto = view.AutoCommit;
+        view.AutoCommit = true;
+        try
+        {
+            view.SetSql(
+                $"drop table if exists {table};\n" +
+                $"create table {table}(id int primary key, name text, note text);\n" +
+                $"insert into {table} values (1, 'alpha', 'one'), (2, 'beta', 'two'), (3, 'gamma', 'three');");
+            await view.RunScriptAsync();
+            await Task.Delay(300);
+
+            view.SetSql($"select * from {table} order by id");
+            Check("Run and Edit 진입", await view.RunAndEditAsync());
+            await Task.Delay(600);
+
+            // 1) 셀 수정 — 실제 DataGrid 편집 경로 (컬럼: [0]=ctid, [1]=id, [2]=name, [3]=note)
+            var editResult = await view.EditCellForShotAsync(0, 2, "alpha-edited");
+            Check($"DataGrid 셀 편집 — Cells[i] TwoWay 바인딩 ({editResult})", editResult == "ok");
+            SaveShot(this, System.IO.Path.Combine(dir, "live_editmode.png"));
+
+            // 2) 행 추가 (id=4)
+            view.AddInsertRow();
+            view.SetCellForShot(3, 1, "4");
+            view.SetCellForShot(3, 2, "delta");
+            view.SetCellForShot(3, 3, "four");
+
+            // 3) 행 삭제 (id=3)
+            view.SelectRowForShot(2);
+            Check("행 삭제 표시", view.MarkSelectedRowsDeleted() == 1);
+
+            await view.SubmitEditsAsync();
+            await Task.Delay(600);
+            SaveShot(this, System.IO.Path.Combine(dir, "live_editmode_after.png"));
+
+            // 편집 모드 밖의 새 SELECT 로 DB 최종 상태 확인
+            view.SetSql($"select id, name, note from {table} order by id");
+            await view.ExecuteAtCaretAsync();
+            await Task.Delay(400);
+            var (_, rows) = view.Snapshot();
+            Check("행 수 3 (1 update + 1 insert + 1 delete 반영)", rows.Count == 3);
+            Check("UPDATE 반영 — id=1 name=alpha-edited", rows.Count > 0 && rows[0][1] == "alpha-edited");
+            Check("DELETE 반영 — id=3 없음", rows.All(r => r[0] != "3"));
+            Check("INSERT 반영 — id=4 delta", rows.Any(r => r[0] == "4" && r[1] == "delta"));
+        }
+        catch (Exception ex)
+        {
+            pass = false;
+            log.AppendLine("EXCEPTION  " + ex);
+        }
+        finally
+        {
+            try
+            {
+                view.SetSql($"drop table if exists {table};");
+                await view.RunScriptAsync();
+                await Task.Delay(300);
+            }
+            catch { /* 뒷정리 실패는 결과 파일로만 남긴다 */ }
+            view.AutoCommit = prevAuto;
+            log.Insert(0, (pass ? "PASS" : "FAIL") + " — Run and Edit live verification\n");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "live_editmode_result.txt"), log.ToString());
         }
     }
 
