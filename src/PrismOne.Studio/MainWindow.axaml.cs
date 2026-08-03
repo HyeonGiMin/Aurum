@@ -664,6 +664,13 @@ public partial class MainWindow : Window
 
     private void OnMenuAddRow(object? sender, RoutedEventArgs e) => ActiveView?.AddInsertRow();
 
+    /// <summary>Golden 의 "EditMode: Paste inserted %d records." — 클립보드 표를 새 행으로.</summary>
+    private async void OnMenuPasteRows(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.PasteRowsAsync();
+    }
+
     private async void OnMenuRevertEdits(object? sender, RoutedEventArgs e)
     {
         if (ActiveView is { } view)

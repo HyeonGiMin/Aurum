@@ -50,6 +50,52 @@ public class GridEditorPrepareTests
         => Assert.Null(GridEditor.Prepare(sql));
 }
 
+public class GridEditorPasteTests
+{
+    // 편집 모드의 컬럼 배치: 0번은 ctid 자리라 비워 둔다
+    private static readonly string[] Columns = [GridEditor.RowIdColumn, "study_id", "modality"];
+
+    [Fact]
+    public void ParsesTabSeparatedLinesIntoRows()
+    {
+        var rows = GridEditor.ParsePaste("ST-1\tCT\nST-2\tMR\n", Columns, offset: 1);
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal<string?[]>([null, "ST-1", "CT"], rows[0]);
+        Assert.Equal<string?[]>([null, "ST-2", "MR"], rows[1]);
+    }
+
+    [Fact]
+    public void SkipsHeaderLineThatMatchesColumnNames()
+    {
+        var rows = GridEditor.ParsePaste("study_id\tmodality\nST-1\tCT", Columns, offset: 1);
+
+        Assert.Single(rows);
+        Assert.Equal("ST-1", rows[0][1]);
+    }
+
+    [Fact]
+    public void KeepsFirstLineWhenItIsData()
+    {
+        var rows = GridEditor.ParsePaste("ST-1\tCT", Columns, offset: 1);
+
+        Assert.Single(rows);
+    }
+
+    [Fact]
+    public void IgnoresExtraValuesAndBlankLines()
+    {
+        var rows = GridEditor.ParsePaste("ST-1\tCT\textra\n\nST-2\t\n", Columns, offset: 1);
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("", rows[1][2]);   // 빈 셀은 빈 문자열 → INSERT 에서 제외되어 기본값/NULL
+    }
+
+    [Fact]
+    public void EmptyClipboardYieldsNoRows()
+        => Assert.Empty(GridEditor.ParsePaste("", Columns, offset: 1));
+}
+
 public class GridEditorBuildTests
 {
     private const string Table = "prismone.study";

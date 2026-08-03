@@ -51,6 +51,7 @@
         <MenuItem Header="Run and Edit (편집 모드로 실행)" InputGesture="F11" Click="OnMenuRunAndEdit"/>
         <MenuItem Header="Submit Edits" InputGesture="Ctrl+Shift+S" Click="OnMenuSubmitEdits"/>
         <MenuItem Header="Add Row" Click="OnMenuAddRow"/>
+        <MenuItem Header="Paste Rows (클립보드 표 → 새 행)" Click="OnMenuPasteRows"/>
         <MenuItem Header="Delete Selected Records…" Click="OnMenuDeleteRows"/>
         <MenuItem Header="Revert Edits" Click="OnMenuRevertEdits"/>
       </MenuItem>

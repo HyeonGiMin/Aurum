@@ -6,7 +6,7 @@
 
 | # | 목표 | 상태 |
 |---|---|---|
-| 1 | **Golden 대체 쿼리 툴** (PostgreSQL) | **기능 완료** (붙여넣기 다중 insert 제외) — 아래 §1 |
+| 1 | **Golden 대체 쿼리 툴** (PostgreSQL) | **기능 완료** — 아래 §1 (실접속 검증만 미완) |
 | 2 | DB 초기 설치 (IAP 제품용) | **미착수** — CLI 스캐폴드만 존재 |
 | 3 | 설치된 DB 패치/업그레이드 | **미착수** |
 
@@ -47,8 +47,10 @@
 - **SQL Builder**(Tools) — 테이블·컬럼 선택 + WHERE(연산자 화이트리스트)·Order by·Limit,
   실시간 미리보기 → 에디터에 삽입(실행은 사용자가)
 
-**남은 Golden 기능**: EditMode 의 붙여넣기 다중 insert
-("EditMode: Paste inserted %d records.") 하나뿐. 그 외 Golden 파리티는 완료.
+- **EditMode 붙여넣기 다중 insert** — Script > Paste Rows. 클립보드의 탭 구분 표(엑셀·우리
+  TSV 내보내기)를 새 행으로 넣는다. 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뛴다
+
+**남은 Golden 기능**: 없음 — Golden 파리티 완료.
 
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
 
@@ -72,7 +74,7 @@ Studio3T(몽고 툴)에서 가져올 만한 것: 비주얼 쿼리 빌더, 결과
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
-- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 125개)
+- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 130개)
 - **미검증 (중요)**: 2026-08-03 작업 환경에서 개발 DB(`<dev-host>:5432`) 접속이 안 돼
   다음이 실접속으로 확인되지 않았다 — DB 되는 자리에서 먼저 확인할 것:
   1. Run and Edit 전체 경로(셀 편집 → Submit → 커밋). 특히 DataGrid 셀의 양방향 바인딩

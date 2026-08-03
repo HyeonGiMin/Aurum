@@ -90,6 +90,50 @@ public static class GridEditor
         return new EditableQuery(table, edited);
     }
 
+    /// <summary>
+    /// 클립보드 텍스트(탭 구분 — 엑셀·우리 TSV 내보내기 형식)를 붙여넣기용 행으로 바꾼다.
+    /// Golden 의 "EditMode: Paste inserted %d records." 에 대응.
+    /// 반환 행은 <paramref name="columns"/> 와 같은 길이이며 <paramref name="offset"/> 부터 채운다
+    /// (편집 모드에선 0번이 ctid 자리라 비워 둔다).
+    /// 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뛴다 — 우리 그리드 복사가 헤더를 포함하기 때문.
+    /// </summary>
+    public static List<string?[]> ParsePaste(string text, IReadOnlyList<string> columns, int offset = 0)
+    {
+        var rows = new List<string?[]>();
+        if (string.IsNullOrEmpty(text))
+            return rows;
+
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        var start = 0;
+        if (lines.Length > 0 && IsHeaderLine(lines[0], columns, offset))
+            start = 1;
+
+        for (var i = start; i < lines.Length; i++)
+        {
+            if (lines[i].Length == 0)
+                continue;   // 끝에 붙는 빈 줄
+            var values = lines[i].Split('\t');
+            var cells = new string?[columns.Count];
+            for (var c = 0; c < values.Length && offset + c < columns.Count; c++)
+                cells[offset + c] = values[c];
+            rows.Add(cells);
+        }
+        return rows;
+    }
+
+    private static bool IsHeaderLine(string line, IReadOnlyList<string> columns, int offset)
+    {
+        var values = line.Split('\t');
+        if (values.Length == 0 || offset + values.Length > columns.Count + 1)
+            return false;
+        for (var i = 0; i < values.Length && offset + i < columns.Count; i++)
+        {
+            if (!string.Equals(values[i].Trim(), columns[offset + i], StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+        return true;
+    }
+
     /// <summary>변경 목록을 실행 순서(수정 → 삭제 → 삽입)대로 문장으로 만든다.</summary>
     public static List<EditStatement> Build(string table, IEnumerable<GridChange> changes)
     {

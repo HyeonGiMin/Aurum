@@ -84,6 +84,9 @@ select * from prismone.study where study_key = :key and modality = :mod;
   편집 모드 SELECT 에 `ctid` 컬럼이 자동으로 붙지만 그리드에는 보이지 않습니다.
 - 셀을 직접 고치고, **Add Row** 로 새 행을 추가하고, 행을 선택해
   **Delete Selected Records…**(`Delete N selected records?` 확인) 로 삭제 표시합니다.
+- **Paste Rows** — 클립보드의 **탭 구분 표**(엑셀에서 복사한 범위, 우리 TSV 내보내기)를
+  새 행으로 한꺼번에 넣습니다. 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뜁니다.
+  붙여넣은 행도 Submit 해야 INSERT 됩니다.
 - **Submit Edits (Ctrl+Shift+S)** 를 눌러야 DB 로 나갑니다. 그전까지는 아무것도 반영되지 않습니다.
   - 변경분은 **한 트랜잭션**에서 UPDATE → DELETE → INSERT 순으로 실행됩니다.
   - 어느 한 문장이라도 **영향 행이 1 이 아니면 전부 롤백**합니다. 다른 사람이 먼저 고쳤거나

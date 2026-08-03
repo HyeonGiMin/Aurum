@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
+using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -502,6 +503,38 @@ public partial class QueryTabView : UserControl
         _rows.Add(new RowItem(_rows.Count + 1, cells));
         ResultGrid.ScrollIntoView(_rows[^1], null);
         SetInfo("EditMode: 새 행 추가 — 값을 넣고 Submit 하세요");
+    }
+
+    /// <summary>
+    /// 클립보드(탭 구분)를 새 행으로 붙여넣는다 — Golden 의
+    /// "EditMode: Paste inserted %d records." 엑셀에서 복사한 표를 그대로 넣을 수 있다.
+    /// </summary>
+    public async Task PasteRowsAsync()
+    {
+        if (!IsEditing)
+        {
+            SetInfo("Run and Edit (F11) 로 편집 모드에 들어간 뒤 사용하세요");
+            return;
+        }
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null)
+            return;
+
+        // Avalonia 12: IClipboard 는 DataTransfer 기반 — 텍스트는 확장 메서드로 꺼낸다
+        var text = await clipboard.TryGetTextAsync();
+        if (string.IsNullOrEmpty(text))
+        {
+            SetInfo("EditMode: 클립보드가 비어 있습니다");
+            return;
+        }
+
+        // 0번은 ctid 자리라 비워 두고 1번 컬럼부터 채운다
+        var pasted = GridEditor.ParsePaste(text, _columns, offset: 1);
+        foreach (var cells in pasted)
+            _rows.Add(new RowItem(_rows.Count + 1, cells));
+        if (pasted.Count > 0)
+            ResultGrid.ScrollIntoView(_rows[^1], null);
+        SetInfo($"EditMode: Paste inserted {pasted.Count} records. — Submit 하면 반영됩니다");
     }
 
     /// <summary>편집 내용을 되돌린다 — 원래 쿼리를 다시 실행.</summary>
