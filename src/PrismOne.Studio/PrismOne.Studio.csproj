@@ -3,6 +3,11 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
+    <!-- 제품명 Aurum (Golden 의 후계 — Au). 독/작업표시줄·실행파일 이름에 반영.
+         네임스페이스와 프로젝트 파일명은 PrismOne.Studio 유지 -->
+    <AssemblyName>Aurum</AssemblyName>
+    <Product>Aurum</Product>
+    <AssemblyTitle>Aurum</AssemblyTitle>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Windows 작업 표시줄·탐색기 아이콘 (packaging/windows/make-icon.ps1 로 생성) -->
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>

@@ -3,7 +3,7 @@
         xmlns:local="using:PrismOne.Studio"
         xmlns:core="using:PrismOne.Db.Core"
         x:Class="PrismOne.Studio.MainWindow"
-        Title="Disconnected - IAP Database Manager"
+        Title="Disconnected - Aurum"
         Icon="/Assets/icon.png"
         Width="1280" Height="840"
         WindowStartupLocation="CenterScreen">
@@ -86,7 +86,7 @@
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
       <MenuItem Header="Help">
-        <MenuItem Header="About IAP Database Manager" Click="OnMenuAbout"/>
+        <MenuItem Header="About Aurum" Click="OnMenuAbout"/>
       </MenuItem>
     </Menu>
 

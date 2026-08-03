@@ -1,4 +1,4 @@
-# PostgreSQL 고유 기능 · pgAdmin 기능 분석 → IAP Database Manager 적용 계획
+# PostgreSQL 고유 기능 · pgAdmin 기능 분석 → Aurum 적용 계획
 
 Golden 파리티(GOLDEN_BEHAVIOR.md)가 UI/UX 의 기준이라면, 이 문서는 **PostgreSQL 이라서
 가능한/필요한 것**과 **pgAdmin(사실상 PG 표준 GUI)이 제공하는 기능** 중 우리 툴에

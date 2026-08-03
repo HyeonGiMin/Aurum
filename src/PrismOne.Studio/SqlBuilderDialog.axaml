@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="using:PrismOne.Studio"
         x:Class="PrismOne.Studio.SqlBuilderDialog"
-        Title="SQL Builder - IAP Database Manager"
+        Title="SQL Builder - Aurum"
         Width="900" Height="640"
         WindowStartupLocation="CenterOwner">
   <Grid Margin="14" ColumnDefinitions="260,12,*" RowDefinitions="Auto,*,Auto">

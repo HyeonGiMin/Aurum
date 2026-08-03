@@ -41,7 +41,7 @@ public partial class FavoritesDialog : Window
 
         if (!string.IsNullOrWhiteSpace(seedSql))
         {
-            Title = "Add to Favorites - IAP Database Manager";
+            Title = "Add to Favorites - Aurum";
             SqlBox.Text = seedSql;
             NameBox.Text = SuggestName(seedSql);
             StatusText.Text = "이름을 확인하고 Save 를 누르세요.";

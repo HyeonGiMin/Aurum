@@ -1,16 +1,16 @@
 #!/bin/sh
 # ============================================================
-# macOS .app 번들 생성 — 독(Dock)에 "IAP Database Manager" 이름과
+# macOS .app 번들 생성 — 독(Dock)에 "Aurum" 이름과
 # 아이콘이 제대로 나오게 한다. (dotnet run 은 어셈블리명 + 기본 아이콘)
 #
 #   사용:  sh tools/packaging/macos/make-app.sh
-#   결과:  tools/dist/IAP Database Manager.app
+#   결과:  tools/dist/Aurum.app
 # ============================================================
 set -eu
 
 TOOLS_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-APP_NAME="IAP Database Manager"
-BUNDLE_ID="com.infinitt.iap-database-manager"
+APP_NAME="Aurum"
+BUNDLE_ID="com.infinitt.aurum"
 VERSION="0.1.0"
 RID="osx-arm64"          # Intel 맥 배포 시 osx-x64 로
 PUBLISH_DIR="$TOOLS_DIR/dist/publish-$RID"
@@ -46,7 +46,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key><string>$APP_NAME</string>
     <key>CFBundleDisplayName</key><string>$APP_NAME</string>
-    <key>CFBundleExecutable</key><string>PrismOne.Studio</string>
+    <key>CFBundleExecutable</key><string>Aurum</string>
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>

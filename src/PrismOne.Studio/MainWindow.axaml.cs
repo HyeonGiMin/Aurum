@@ -109,7 +109,7 @@ public partial class MainWindow : Window
         FetchAllButton.IsEnabled = true;
         ExportButton.IsEnabled = true;
         // Golden 타이틀 형식: user@db - Benthic Software: Golden7
-        Title = $"{profile.DisplayName} - IAP Database Manager";
+        Title = $"{profile.DisplayName} - Aurum";
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
         await LoadBrowserAsync(profile);
@@ -290,7 +290,7 @@ public partial class MainWindow : Window
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
-            Item("About IAP Database Manager", () => OnMenuAbout(this, args))));
+            Item("About Aurum", () => OnMenuAbout(this, args))));
         NativeMenu.SetMenu(this, root);
     }
 
@@ -630,7 +630,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iap-dbm-print");
+            var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "aurum-print");
             System.IO.Directory.CreateDirectory(dir);
             var path = System.IO.Path.Combine(dir, $"{kind}-{DateTime.Now:yyyyMMdd-HHmmss}.html");
             System.IO.File.WriteAllText(path, html, new UTF8Encoding(true));
@@ -704,7 +704,7 @@ public partial class MainWindow : Window
         var no = new Button { Content = "No", MinWidth = 80, MinHeight = 30, IsCancel = true };
         var dialog = new Window
         {
-            Title = "IAP Database Manager",
+            Title = "Aurum",
             Width = 380,
             SizeToContent = SizeToContent.Height,
             CanResize = false,
@@ -1586,51 +1586,68 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>앱 아이콘: IAP 로고 기반 — 검은 라운드 배경 + 파랑→보라 그라데이션 IAP 레터마크.</summary>
+    /// <summary>앱 아이콘: Aurum(Au, 금) — 주기율표 타일. 다크 배경 + 금 그라데이션 "Au" + 원자번호 79.</summary>
     private static void RenderAppIcon(string path)
     {
-        var background = Avalonia.Media.Color.Parse("#0A0C10");
+        var background = Avalonia.Media.Color.Parse("#17130C");
         var canvas = new Canvas { Width = 512, Height = 512 };
+
+        // 금 그라데이션 (밝은 금 → 진한 금, 대각선)
+        var gold = new Avalonia.Media.LinearGradientBrush
+        {
+            StartPoint = new Avalonia.RelativePoint(0, 0, Avalonia.RelativeUnit.Relative),
+            EndPoint = new Avalonia.RelativePoint(1, 1, Avalonia.RelativeUnit.Relative),
+            GradientStops =
+            {
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#F7DE8B"), 0.0),
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#E4B54A"), 0.55),
+                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#B9821F"), 1.0),
+            },
+        };
+
+        // 타일: 다크 배경 + 가는 금 테두리 (주기율표 원소 칸)
         canvas.Children.Add(new Border
         {
             Width = 512, Height = 512,
             CornerRadius = new Avalonia.CornerRadius(112),
             Background = new Avalonia.Media.SolidColorBrush(background),
         });
-
-        // 로고의 좌→우 그라데이션 (하늘색 → 파랑 → 보라)
-        var gradient = new Avalonia.Media.LinearGradientBrush
+        canvas.Children.Add(new Border
         {
-            StartPoint = new Avalonia.RelativePoint(0, 0.5, Avalonia.RelativeUnit.Relative),
-            EndPoint = new Avalonia.RelativePoint(1, 0.5, Avalonia.RelativeUnit.Relative),
-            GradientStops =
-            {
-                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#55B7F6"), 0.0),
-                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#3E6CEA"), 0.5),
-                new Avalonia.Media.GradientStop(Avalonia.Media.Color.Parse("#6C3BE9"), 1.0),
-            },
-        };
-
-        // I + A(counter 포함) + P(counter·왼발 포함) — 한 지오메트리(even-odd)라 그라데이션이 이어진다
-        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
-        {
-            Data = Avalonia.Media.Geometry.Parse(
-                // I
-                "M48,184 L90,184 L90,328 L48,328 Z " +
-                // A 외곽 + 삼각 카운터
-                "M120,328 L178,184 L210,184 L268,328 Z " +
-                "M194,236 L232,328 L156,328 Z " +
-                // P 외곽(넓고 얕은 볼, 스템은 베이스라인까지) + 둥근 카운터
-                "M300,184 L398,184 A66,54 0 0 1 464,238 A66,54 0 0 1 398,292 L342,292 L342,328 L300,328 Z " +
-                "M342,222 L398,222 A24,16 0 0 1 422,238 A24,16 0 0 1 398,254 L342,254 Z"),
-            Fill = gradient,
+            Width = 512 - 2 * 26, Height = 512 - 2 * 26,
+            [Canvas.LeftProperty] = 26.0,
+            [Canvas.TopProperty] = 26.0,
+            CornerRadius = new Avalonia.CornerRadius(88),
+            BorderBrush = gold,
+            BorderThickness = new Avalonia.Thickness(7),
         });
 
-        // A 의 슬래시 컷 — 왼쪽 다리는 남기고 안쪽만 비스듬히 잘라낸다
-        canvas.Children.Add(new Avalonia.Controls.Shapes.Path
+        var inter = new Avalonia.Media.FontFamily("fonts:Inter#Inter");
+
+        // 원자번호 79 — 타일 좌상단
+        canvas.Children.Add(new TextBlock
         {
-            Data = Avalonia.Media.Geometry.Parse("M170,334 L228,270 L246,292 L188,356 Z"),
-            Fill = new Avalonia.Media.SolidColorBrush(background),
+            Text = "79",
+            FontFamily = inter,
+            FontSize = 76,
+            FontWeight = Avalonia.Media.FontWeight.Medium,
+            Foreground = gold,
+            [Canvas.LeftProperty] = 78.0,
+            [Canvas.TopProperty] = 62.0,
+        });
+
+        // 원소기호 Au — 중앙보다 살짝 아래 (주기율표 배치)
+        canvas.Children.Add(new TextBlock
+        {
+            Text = "Au",
+            FontFamily = inter,
+            FontSize = 252,
+            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+            Foreground = gold,
+            Width = 512,
+            TextAlignment = Avalonia.Media.TextAlignment.Center,
+            [Canvas.LeftProperty] = 0.0,
+            [Canvas.TopProperty] = 148.0,
         });
 
         canvas.Measure(new Avalonia.Size(512, 512));
@@ -1665,7 +1682,7 @@ public partial class MainWindow : Window
     {
         var about = new Window
         {
-            Title = "About IAP Database Manager",
+            Title = "About Aurum",
             Width = 400,
             Height = 180,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -1676,7 +1693,7 @@ public partial class MainWindow : Window
                 Spacing = 6,
                 Children =
                 {
-                    new TextBlock { Text = "IAP Database Manager", FontSize = 16, FontWeight = Avalonia.Media.FontWeight.SemiBold },
+                    new TextBlock { Text = "Aurum", FontSize = 16, FontWeight = Avalonia.Media.FontWeight.SemiBold },
                     new TextBlock { Text = "Golden 스타일 PostgreSQL 쿼리 툴 (IAP/PrismOne)" },
                     new TextBlock
                     {
