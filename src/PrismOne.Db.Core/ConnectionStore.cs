@@ -83,6 +83,23 @@ public static class ConnectionStore
         return list;
     }
 
+    /// <summary>항목의 메타(Name/Category/Comment)를 갱신한다 — Golden 의 "Editing existing Login Item".</summary>
+    public static List<SavedConnection> UpdateMeta(
+        SavedConnection target, string? name, string? category, string? comment)
+    {
+        var list = Load();
+        var i = list.FindIndex(c => c.DisplayName == target.DisplayName);
+        if (i >= 0)
+            list[i] = list[i] with
+            {
+                Name = string.IsNullOrWhiteSpace(name) ? null : name.Trim(),
+                Category = string.IsNullOrWhiteSpace(category) ? null : category.Trim(),
+                Comment = string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(),
+            };
+        Save(list);
+        return list;
+    }
+
     public static List<SavedConnection> Remove(SavedConnection connection)
     {
         var list = Load();

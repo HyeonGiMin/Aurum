@@ -1096,6 +1096,38 @@ public partial class MainWindow : Window
     private async void OnMenuExportInsert(object? sender, RoutedEventArgs e)
         => await SaveGridAsAsync(GridExportFormat.Insert, "result.sql", "sql", "SQL script");
 
+    /// <summary>Golden 의 Save Grid As xlsx — 로드된 행을 Excel 통합문서로.</summary>
+    private async void OnMenuExportXlsx(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { HasResult: true } view)
+        {
+            StatusLabel.Text = "No result to export";
+            return;
+        }
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Grid As xlsx",
+            SuggestedFileName = "result.xlsx",
+            DefaultExtension = "xlsx",
+            FileTypeChoices = [new FilePickerFileType("Excel Workbook") { Patterns = ["*.xlsx"] }],
+        });
+        if (file is null) return;
+
+        try
+        {
+            var (columns, rows) = view.LoadedSnapshot();
+            await using var stream = await file.OpenWriteAsync();
+            var written = XlsxExporter.Write(stream, columns, rows, TableNameForInsert(view));
+            StatusLabel.Text = written < rows.Count
+                ? $"Saved {written:N0} of {rows.Count:N0} record(s) to {file.Name} (Excel row limit)"
+                : $"Saved {written:N0} loaded record(s) to {file.Name}";
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Save failed: {ex.Message}";
+        }
+    }
+
     /// <summary>Golden 의 Save Grid As — 로드된 행을 TSV / INSERT 문으로.</summary>
     private async Task SaveGridAsAsync(GridExportFormat format, string suggested, string ext, string label)
     {
@@ -1503,6 +1535,9 @@ public partial class MainWindow : Window
             dialog.Show(this);
             await Task.Delay(500);
             SaveShot(dialog, System.IO.Path.Combine(dir, "shot_login.png"));
+            dialog.ShowFilterForShot();
+            await Task.Delay(300);
+            SaveShot(dialog, System.IO.Path.Combine(dir, "shot_login_filter.png"));
             dialog.Close();
 
             var builder = new SqlBuilderDialog(_allTables, null);

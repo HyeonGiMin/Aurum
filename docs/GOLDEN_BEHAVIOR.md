@@ -21,7 +21,9 @@ UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.pn
 - Oracle 전용: AS SYSDBA 접속 옵션, 비밀번호 변경 유도("Would you like to change your password?").
 - "Simple Login" 모드 존재 (간단/상세 전환).
 
-→ PG 매핑: Category 필드 추가, 비밀번호 미저장 항목 더블클릭 시 비밀번호만 묻는 프롬프트.
+→ PG 매핑: ~~Category 필드 추가~~ ✅ 구현됨 (Edit 버튼으로 Name/Category/Comment 편집,
+Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목은 빈 비밀번호로
+로그인 시 "Enter password for %s:" 안내 후 비밀번호 입력만 받는다.
 
 ## 3. 세션 모델 (중요 — 우리 구현과 다름)
 
@@ -95,7 +97,8 @@ UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.pn
 5. ~~자동완성 팝업, Find~~ ✅ 구현됨 (Replace 는 검색 패널 내장)
 6. ~~히스토리~~ ✅ 구현됨 (Ctrl+↑↓). ~~Favorites~~ ✅ 구현됨 (Ctrl+Shift+F · Favorites 메뉴 ·
    Manage 창 · "SELECT 이외 실행 허용" 옵션)
-7. 그리드: transpose, 셀 상세, 컬럼 fit, xlsx/INSERT export (P4)
+7. ~~그리드: transpose, 셀 상세, 컬럼 fit, xlsx/INSERT export~~ ✅ 구현됨
+   (xlsx 는 외부 라이브러리 없이 OOXML 직접 생성 — xls(구형 바이너리)는 xlsx 로 대체)
 8. ~~Output 창 (RAISE NOTICE)~~ ✅ 구현됨 (Messages pane)
 9. 워크스페이스 저장/복원 (P5)
 10. ~~EditMode(그리드 편집)~~ ✅ 구현됨 — Run and Edit(F11). Golden 이 Oracle ROWID 로 행을
