@@ -8,7 +8,8 @@ PRISMONE(PostgreSQL) 데이터베이스를 다루는 데스크톱/CLI 도구 모
 - PostgreSQL·pgAdmin 기능 분석: [docs/PG_FEATURES.md](docs/PG_FEATURES.md)
 
 주요 키: **Ctrl+L** 로그온 · **F9** 문장 실행 · **F5/Shift+Enter** 스크립트 실행(커서부터 끝까지) ·
-**Ctrl+End** 전체 fetch · **F8** Object Browser · **Ctrl+T/W** 탭 열기/닫기.
+**Ctrl+End** 전체 fetch · **F8** Object Browser · **Ctrl+T/W** 탭 열기/닫기 ·
+**Ctrl+Shift+F** 즐겨찾기 추가.
 저장된 접속의 비밀번호는 AES-256-GCM 으로 암호화되어 `~/.prismone-studio/` 에 보관됩니다.
 
 ## 목표
@@ -33,9 +34,25 @@ src/
 - **Cli** — 제품 설치·패치의 1차 인터페이스. `patches/apply.sh` 의 apply / dry-run / baseline 시맨틱을 그대로 포팅.
 - **Studio** — Windows·macOS·Linux 지원 (Avalonia 12). WPF가 아닌 이유: 크로스플랫폼 + macOS 개발 환경.
 
-## 빌드
+## 빌드 · 배포
 
 ```bash
 # .NET 10 SDK 필요
 dotnet build PrismOne.Tools.sln
+dotnet test tests/PrismOne.Db.Core.Tests
 ```
+
+배포 패키지:
+
+```bash
+sh packaging/macos/make-app.sh          # → dist/IAP Database Manager.app
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
+# → dist/IAP Database Manager/IAP Database Manager.exe (self-contained 단일 exe)
+#   + dist/IAPDatabaseManager-win-x64-<버전>.zip
+```
+
+> `packaging/windows/*.ps1` 은 **UTF-8 BOM** 으로 저장한다. PowerShell 5.1 은 BOM 없는
+> UTF-8 을 CP949 로 읽어 한글 주석이 깨지면서 스크립트 파싱이 어긋난다.

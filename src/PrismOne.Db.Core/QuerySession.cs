@@ -5,6 +5,63 @@ using Npgsql;
 namespace PrismOne.Db.Core;
 
 /// <summary>
+/// DataGrip 의 "Tx Isolation" 목록 그대로 (DatabaseBundle 의 transaction.mode.* 키).
+/// PG 는 READ UNCOMMITTED 를 받아들이지만 실제 동작은 READ COMMITTED 와 같다 — DataGrip 도
+/// 드라이버가 지원한다고 보고하는 대로 목록에 두므로 우리도 남긴다.
+/// </summary>
+public enum TransactionIsolation
+{
+    DatabaseDefault,
+    ReadUncommitted,
+    ReadCommitted,
+    RepeatableRead,
+    Serializable,
+}
+
+public static class TransactionIsolationExtensions
+{
+    /// <summary>SQL 리터럴. enum 이라 문장 조립에 써도 인젝션 여지가 없다.</summary>
+    public static string ToSql(this TransactionIsolation level) => level switch
+    {
+        TransactionIsolation.ReadUncommitted => "READ UNCOMMITTED",
+        TransactionIsolation.RepeatableRead => "REPEATABLE READ",
+        TransactionIsolation.Serializable => "SERIALIZABLE",
+        TransactionIsolation.ReadCommitted => "READ COMMITTED",
+        _ => "DEFAULT",
+    };
+
+    /// <summary>
+    /// 세션에 거는 문장. Database Default 는 GUC 를 되돌려 서버/DB 설정값을 그대로 쓰게 한다
+    /// (SET SESSION CHARACTERISTICS 는 수준 지정이 필수라 RESET 을 쓴다).
+    /// </summary>
+    public static string ToSessionSql(this TransactionIsolation level) =>
+        level == TransactionIsolation.DatabaseDefault
+            ? "RESET default_transaction_isolation"
+            : $"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {level.ToSql()}";
+
+    /// <summary>툴바 표기 (DataGrip 영문 표기 그대로).</summary>
+    public static string Display(this TransactionIsolation level) => level switch
+    {
+        TransactionIsolation.ReadUncommitted => "Read Uncommitted",
+        TransactionIsolation.ReadCommitted => "Read Committed",
+        TransactionIsolation.RepeatableRead => "Repeatable Read",
+        TransactionIsolation.Serializable => "Serializable",
+        _ => "Database Default",
+    };
+
+    /// <summary>드롭다운 설명 (DataGrip 의 transaction.mode.*.description 를 옮긴 것).</summary>
+    public static string Description(this TransactionIsolation level) => level switch
+    {
+        TransactionIsolation.ReadUncommitted =>
+            "커밋되지 않은 변경을 탐지할 수 있음 (PG 에선 Read Committed 와 동일하게 동작)",
+        TransactionIsolation.ReadCommitted => "커밋된 변경만 탐지",
+        TransactionIsolation.RepeatableRead => "동시에 발생한 변경을 탐지하지 않음",
+        TransactionIsolation.Serializable => "동시 실행이 직렬 실행과 같은 결과",
+        _ => "서버/DB 의 기본 격리 수준을 그대로 사용",
+    };
+}
+
+/// <summary>
 /// 쿼리 탭 하나가 소유하는 DB 세션 (Golden 의 창=세션 모델).
 /// 실행 중 쿼리(ActiveQuery)의 reader 가 세션을 점유하므로,
 /// 새 문장을 실행하기 전에 이전 ActiveQuery 를 반드시 닫아야 한다.
@@ -17,6 +74,9 @@ public sealed class QuerySession : IAsyncDisposable
 
     /// <summary>수동 커밋 모드에서 열린 트랜잭션이 있는지 (Golden 의 Commit/Rollback 대상).</summary>
     public bool InTransaction { get; private set; }
+
+    /// <summary>이 세션의 기본 격리 수준 (DataGrip 의 Tx Isolation). 새 접속은 DB 기본값에서 시작.</summary>
+    public TransactionIsolation Isolation { get; private set; } = TransactionIsolation.DatabaseDefault;
 
     /// <summary>
     /// 이 세션에서 마지막으로 연 결과셋. 공유 세션(Golden)에서는 접속 하나에 reader 하나뿐이라
@@ -95,6 +155,20 @@ public sealed class QuerySession : IAsyncDisposable
         Connection = await Profile.OpenAsync(ct);
         HookNotices(Connection);
         InTransaction = false;
+        // 새 접속은 DB 기본값으로 시작하므로 고른 격리 수준을 다시 걸어준다
+        if (Isolation != TransactionIsolation.DatabaseDefault)
+            await ApplyIsolationAsync(Isolation, ct);
+    }
+
+    /// <summary>
+    /// 세션 기본 격리 수준 변경 (DataGrip 의 Tx isolation).
+    /// PG 규약상 <c>SET SESSION CHARACTERISTICS</c> 는 <b>다음 트랜잭션부터</b> 적용되므로,
+    /// 열린 트랜잭션이 있으면 그 트랜잭션은 이전 수준으로 끝난다.
+    /// </summary>
+    public async Task ApplyIsolationAsync(TransactionIsolation level, CancellationToken ct = default)
+    {
+        await ExecSimpleAsync(level.ToSessionSql(), ct);
+        Isolation = level;
     }
 
     // ---------- 트랜잭션 제어 (Golden: AutoCommit off 가 기본) ----------
@@ -141,6 +215,29 @@ public sealed class QuerySession : IAsyncDisposable
                  head.StartsWith("ROLLBACK", StringComparison.OrdinalIgnoreCase) ||
                  head.StartsWith("END", StringComparison.OrdinalIgnoreCase))
             InTransaction = false;
+    }
+
+    /// <summary>
+    /// 그리드 편집(Run and Edit)이 만든 문장 하나를 실행하고 영향 행 수를 돌려준다.
+    /// 값은 <c>unknown</c> 타입으로 보내 PG 가 대상 컬럼 타입으로 캐스팅하게 한다
+    /// (셀에서 읽은 건 전부 문자열이라 클라이언트에서 타입을 정하면 오히려 어긋난다).
+    /// </summary>
+    public async Task<int> ExecuteEditAsync(EditStatement statement, CancellationToken ct = default)
+    {
+        // 접속 하나에 reader 하나 — 열린 결과가 있으면 먼저 닫는다
+        if (Current is { Completed: false })
+            await Current.AbortAsync();
+
+        await using var cmd = new NpgsqlCommand(statement.Sql, Connection);
+        foreach (var value in statement.Parameters)
+        {
+            cmd.Parameters.Add(new NpgsqlParameter
+            {
+                NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown,
+                Value = (object?)value ?? DBNull.Value,
+            });
+        }
+        return await cmd.ExecuteNonQueryAsync(ct);
     }
 
     private async Task ExecSimpleAsync(string sql, CancellationToken ct)

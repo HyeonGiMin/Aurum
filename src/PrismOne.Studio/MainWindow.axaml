@@ -41,8 +41,18 @@
         <Separator/>
         <MenuItem Header="Describe (커서 위치 테이블)" InputGesture="Ctrl+D" Click="OnMenuDescribe"/>
         <Separator/>
+        <MenuItem Header="Print SQL…" InputGesture="Ctrl+P" Click="OnMenuPrintSql"/>
+        <MenuItem Header="Print Preview (SQL)" Click="OnMenuPreviewSql"/>
+        <Separator/>
         <MenuItem Header="Commit" Click="OnMenuCommit"/>
         <MenuItem Header="Rollback" Click="OnMenuRollback"/>
+        <Separator/>
+        <!-- Golden 의 Run and Edit — 결과 그리드에서 직접 수정/삭제/삽입 -->
+        <MenuItem Header="Run and Edit (편집 모드로 실행)" InputGesture="F11" Click="OnMenuRunAndEdit"/>
+        <MenuItem Header="Submit Edits" InputGesture="Ctrl+Shift+S" Click="OnMenuSubmitEdits"/>
+        <MenuItem Header="Add Row" Click="OnMenuAddRow"/>
+        <MenuItem Header="Delete Selected Records…" Click="OnMenuDeleteRows"/>
+        <MenuItem Header="Revert Edits" Click="OnMenuRevertEdits"/>
       </MenuItem>
       <MenuItem Header="Results">
         <MenuItem Header="Fetch All Records" InputGesture="Ctrl+End" Click="OnMenuFetchAll"/>
@@ -54,12 +64,22 @@
         <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
         <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
         <MenuItem Header="Save Grid As INSERT…" Click="OnMenuExportInsert"/>
+        <Separator/>
+        <MenuItem Header="Print Grid…" Click="OnMenuPrintGrid"/>
+        <MenuItem Header="Print Preview (Grid)" Click="OnMenuPreviewGrid"/>
+      </MenuItem>
+      <!-- Favorites: 고정 3개(추가·관리·구분선) 뒤에 저장된 항목을 코드에서 채운다 -->
+      <MenuItem Name="FavoritesMenu" Header="Favorites">
+        <MenuItem Header="Add Current Statement…" InputGesture="Ctrl+Shift+F" Click="OnMenuAddFavorite"/>
+        <MenuItem Header="Manage Favorites…" Click="OnMenuManageFavorites"/>
+        <Separator/>
       </MenuItem>
       <MenuItem Header="View">
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
       </MenuItem>
       <MenuItem Header="Tools">
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
+        <MenuItem Header="SQL Builder…" Click="OnMenuSqlBuilder"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
@@ -96,7 +116,8 @@
           </Canvas></Viewbox>
         </Button>
 
-        <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Print (준비 중)">
+        <Button Name="PrintButton" Classes="tool" Click="OnMenuPrintGrid"
+                ToolTip.Tip="Print — 결과 그리드를 인쇄 (SQL 인쇄는 Script 메뉴)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconPrintPaperTop}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.2"/>
             <Path Data="{StaticResource IconPrintBody}" Fill="{StaticResource IconGrayBrush}"/>
@@ -219,10 +240,10 @@
           </Canvas></Viewbox>
         </Button>
 
-        <CheckBox Name="AutoCommitBox" Content="Auto" FontSize="11.5" Margin="4,0,0,0"
-                  VerticalAlignment="Center" IsEnabled="False"
-                  IsCheckedChanged="OnAutoCommitChanged"
-                  ToolTip.Tip="AutoCommit — 끄면(기본) Commit/Rollback 으로 직접 제어 (Golden 방식)"/>
+        <!-- DataGrip 방식: 툴바 버튼 하나("Tx: Manual")를 누르면 모드+격리가 한 드롭다운에 -->
+        <Button Name="TxButton" Classes="tool" FontSize="11.5" Padding="9,3" Margin="4,0,0,0"
+                VerticalAlignment="Center" IsEnabled="False"
+                Content="Tx: Manual ▾" Click="OnTxButtonClick"/>
 
         <Button Name="BindVarButton" Classes="tool" Click="OnMenuBindVars"
                 ToolTip.Tip="Bind Variables — 문장의 :var 값 입력 (실행 시 자동으로도 뜸)">

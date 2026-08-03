@@ -4,10 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Windows 작업 표시줄·탐색기 아이콘 (packaging/windows/make-icon.ps1 로 생성) -->
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+    <!-- .ico 는 exe 에 박히므로 Avalonia 리소스로 또 넣지 않는다 -->
+    <AvaloniaResource Remove="Assets\icon.ico" />
   </ItemGroup>
 
   <ItemGroup>

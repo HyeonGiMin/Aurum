@@ -8,9 +8,11 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 | 방법 | 용도 |
 |---|---|
 | `tools/dist/IAP Database Manager.app` | macOS 정식 실행 (독에 이름/아이콘 표시). `sh tools/packaging/macos/make-app.sh` 로 생성 |
+| `tools/dist/IAP Database Manager/IAP Database Manager.exe` | Windows 정식 실행 (.NET 설치 불필요한 단일 exe). `powershell -ExecutionPolicy Bypass -File tools/packaging/windows/make-app.ps1` 로 생성 |
 | `cd tools && dotnet run --project src/PrismOne.Studio` | 개발 실행 |
 
-앱을 켜면 미접속 상태로 빈 Query 1 탭이 열립니다. 쿼리를 미리 써두어도 됩니다.
+앱을 켜면 빈 Query 1 탭이 있는 메인 창이 뜨고 그 위로 **로그온 창이 바로 열립니다**(Golden 과 동일).
+취소하면 미접속 상태로 남습니다 — 쿼리를 미리 써둔 뒤 Ctrl+L 로 접속해도 됩니다.
 
 ## 2. 로그온 (Ctrl+L)
 
@@ -72,10 +74,48 @@ select * from prismone.study where study_key = :key and modality = :mod;
 | **Size All Columns to Fit** | 모든 컬럼 폭을 내용에 맞춤 |
 | **Filter Like Selected Cell** | 선택 셀 값으로 `WHERE` 절을 만들어 에디터 끝에 주석으로 덧붙임 |
 
-## 5. 트랜잭션 (Golden 방식)
+## 4.5 Run and Edit — 그리드에서 직접 고치기 (Golden EditMode)
 
-- **AutoCommit 은 기본 꺼짐**(툴바 `Auto` 체크박스). INSERT/UPDATE/DDL 을 실행하면
+**F11**(Script > Run and Edit) 을 누르면 커서 위치 문장을 편집 모드로 다시 실행합니다.
+
+- **단일 테이블 SELECT 만** 가능합니다. 조인·`DISTINCT`·`GROUP BY`·집합연산·서브쿼리가 있으면
+  거부하고 이유를 상태바에 표시합니다 (행을 특정할 수 없기 때문).
+- 행 식별은 Golden 이 Oracle ROWID 를 쓰던 것과 같은 방식으로 **PG 의 `ctid`** 를 씁니다.
+  편집 모드 SELECT 에 `ctid` 컬럼이 자동으로 붙지만 그리드에는 보이지 않습니다.
+- 셀을 직접 고치고, **Add Row** 로 새 행을 추가하고, 행을 선택해
+  **Delete Selected Records…**(`Delete N selected records?` 확인) 로 삭제 표시합니다.
+- **Submit Edits (Ctrl+Shift+S)** 를 눌러야 DB 로 나갑니다. 그전까지는 아무것도 반영되지 않습니다.
+  - 변경분은 **한 트랜잭션**에서 UPDATE → DELETE → INSERT 순으로 실행됩니다.
+  - 어느 한 문장이라도 **영향 행이 1 이 아니면 전부 롤백**합니다. 다른 사람이 먼저 고쳤거나
+    `ctid` 가 바뀐 경우로, 다시 조회한 뒤 작업하세요.
+  - Tx Mode 가 Manual(기본)이면 커밋되지 않은 채 `[TX]` 로 남습니다 — 툴바 ✓ 로 확정하세요.
+- **Revert Edits** 는 원래 쿼리를 다시 실행해 편집 전으로 되돌립니다.
+- **빈 칸은 NULL 로 저장**됩니다. 빈 문자열이 필요하면 Run and Edit 대신 UPDATE 문을 쓰세요.
+- 편집 모드에서는 옵션의 NULL 표시 문자열을 적용하지 않습니다(그 값이 그대로 저장되면 곤란하므로).
+- 다른 문장을 실행하면 편집 모드가 자동으로 풀립니다.
+
+## 5. 트랜잭션 (Golden 방식 + DataGrip 툴바)
+
+- 툴바의 **`Tx: Manual ▾` 버튼**을 누르면 드롭다운이 열리고, 그 안에
+  **Transaction Mode**(Auto·Manual)와 **Tx Isolation**(5개)이 함께 있습니다.
+  현재 값 앞에 ✓ 가 붙고, 항목에 마우스를 올리면 설명이 뜹니다.
+  DataGrip 2024.2 의 Tx 드롭다운과 같은 구성·표기입니다.
+- **Tx Mode 는 기본 Manual**. INSERT/UPDATE/DDL 을 실행하면
   자동으로 트랜잭션이 열리고 상태바 앞에 **`[TX]`** 가 붙습니다.
+  Auto 로 바꾸면 문장마다 자동 커밋됩니다. 설정은 **탭(세션) 단위**로 적용됩니다.
+- **Tx Isolation** — DataGrip 과 동일한 5개:
+
+  | 항목 | 의미 |
+  |---|---|
+  | **Database Default** (기본) | 서버/DB 설정값을 그대로 사용 (`RESET default_transaction_isolation`) |
+  | Read Uncommitted | PG 는 받아들이지만 실제 동작은 Read Committed 와 같습니다 |
+  | Read Committed | 커밋된 변경만 탐지 (PG 의 실질 기본값) |
+  | Repeatable Read | 동시에 발생한 변경을 탐지하지 않음 |
+  | Serializable | 동시 실행이 직렬 실행과 같은 결과 |
+
+  고른 값은 `SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL …` 로 세션에 걸리며,
+  **열린 트랜잭션이 있으면 그 트랜잭션이 끝난 뒤부터** 적용됩니다(PG 규약 — 상태바에 안내가 뜹니다).
+  마지막에 고른 값은 옵션에 저장돼 다음 접속·새 세션에도 걸리고, 세션이 끊겨 재접속해도 유지됩니다.
 - 툴바 **✓ Commit / ⤺ Rollback** 으로 확정/되돌리기. PG 는 **DDL 도 롤백**됩니다.
 - PG 특성 반영: 수동 커밋 모드여도 **SELECT/EXPLAIN/SHOW 는 트랜잭션을 열지 않습니다**
   (idle-in-transaction 이 서버 VACUUM 을 방해하는 문제 회피).
@@ -95,6 +135,22 @@ select * from prismone.study where study_key = :key and modality = :mod;
 - **Ctrl+↑ / Ctrl+↓** (툴바 ◀ ▶) — 실행했던 문장 순환. 끝까지 가면 작성 중이던
   초안으로 복귀. 히스토리는 재시작 후에도 유지(최근 500개).
 - **Ctrl+F** (툴바 돋보기) — 에디터 검색 패널.
+
+## 7.2 Favorites (즐겨찾기)
+
+자주 쓰는 쿼리를 이름 붙여 저장해 두고 메뉴에서 바로 실행합니다 (Golden 의 Favorites).
+
+- **Ctrl+Shift+F** — 커서 위치 문장(선택 영역이 있으면 선택분)을 즐겨찾기에 추가.
+  이름이 SQL 앞부분으로 채워져 뜨니 알아볼 이름으로 고쳐 **Save**.
+- **Favorites 메뉴** — 저장된 항목이 이름순으로 나열됩니다. 항목을 고르면 **그 SQL 이
+  현재 탭에 올라가고 바로 실행**됩니다(마우스를 올리면 전문이 툴팁으로 보입니다).
+- **Favorites > Manage Favorites…** — 필터(이름·SQL 부분일치), 이름/SQL 수정(Save),
+  삭제(Delete), 실행(Run 또는 목록 더블클릭), **Insert into Editor**(실행 없이 커서 위치에 삽입).
+- **기본은 SELECT 계열만 실행**됩니다. `WITH … (INSERT … RETURNING)` 처럼 쓰기가 섞인
+  문장은 막히고 상태바에 이유가 표시됩니다. 풀려면
+  **Tools > Options > "Favorites 메뉴에서 SELECT 이외의 문장도 실행 허용"** 을 켜세요
+  (Golden 의 "Allow non-Select statements to run from the Favorites Menu.").
+- 목록은 `~/.prismone-studio/favorites.json` 에 저장됩니다.
 
 ## 7.5 Describe (Ctrl+D)
 
@@ -116,6 +172,20 @@ PG 함수가 `RAISE NOTICE/WARNING` 을 내면 결과 아래 **Messages pane** �
 열립니다. 새 실행 때 초기화됩니다.
 테스트: `DO $$ BEGIN RAISE NOTICE 'hello %', now(); END $$;`
 
+## 9.4 SQL Builder (Tools 메뉴)
+
+쿼리를 손으로 쓰지 않고 골라서 만드는 창입니다 (Golden 의 SQLBuilder).
+
+- 왼쪽에서 **테이블**을 고르면 컬럼 목록이 뜹니다. 체크한 컬럼만 SELECT 되고,
+  아무것도 체크하지 않으면 `*` 입니다. `별칭 s` 를 켜면 `from ... s` 와 `s.컬럼` 형태가 됩니다.
+- **+ 조건** 으로 WHERE 를 추가합니다. 연산자는 `=`, `<>`, `>`, `>=`, `<`, `<=`,
+  `LIKE`, `ILIKE`, `IN`, `IS NULL`, `IS NOT NULL`. 조건들은 `and` 로 묶입니다.
+- 값은 자동으로 처리됩니다 — 숫자와 바인드 변수(`:key`)는 그대로, 나머지는 작은따옴표로
+  인용(`it's` → `'it''s'`)됩니다. `IN` 은 콤마로 끊어 각각 인용합니다.
+- Order by · Limit 를 지정할 수 있고, 아래 **미리보기**에 완성된 SQL 이 실시간으로 보입니다.
+- **Insert into Editor** 를 누르면 에디터 커서 위치에 삽입됩니다. **실행은 하지 않습니다** —
+  확인한 뒤 F9 로 직접 실행하세요.
+
 ## 9.5 Session Monitor (Tools 메뉴)
 
 **Tools > Session Monitor** — 현재 DB 의 접속 세션(pg_stat_activity)을 보여줍니다.
@@ -133,6 +203,15 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
   - **Save Grid As INSERT…** — 로드된 행을 `INSERT INTO …` 문으로. 대상 테이블명은
     쿼리의 FROM 절에서 추정합니다. 숫자/boolean 은 그대로, NULL 은 NULL 로.
 - **Ctrl+T** 새 탭 / **Ctrl+W** 탭 닫기 / 탭줄 오른쪽 **▾** 탭 목록.
+
+### 인쇄 (Golden 의 Print / Print Preview)
+
+- **Script > Print SQL… (Ctrl+P)** — 에디터 내용 인쇄. **Results > Print Grid…**(툴바 프린터 버튼)
+  — 그리드에 **로드된 행**을 인쇄합니다(전체가 필요하면 Ctrl+End 로 먼저 다 가져오세요).
+- 각각 **Print Preview** 항목이 따로 있습니다(인쇄 대화상자를 자동으로 띄우지 않음).
+- 동작 방식: Avalonia 에 인쇄 API 가 없어 인쇄용 HTML 을 `%TEMP%\iap-dbm-print\` 에 만들고
+  **OS 기본 브라우저로 엽니다**. 용지·여백·프린터 선택은 브라우저 인쇄 대화상자에서 하세요.
+  머리말에 탭 이름·접속·생성 시각이 들어가고, 표는 페이지가 넘어가도 헤더가 반복됩니다.
 
 ### 세션 모델 (Golden 과 동일)
 
@@ -153,7 +232,9 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
 | Ctrl+T / ⇧T / W | 탭 / 전용탭 / 닫기 |
 | Ctrl+D | Describe | | Ctrl+Shift+X | Transpose | | Ctrl+Z / Y | Undo / Redo |
-| Ctrl+O / S | 열기 / 저장 | | | |
+| Ctrl+O / S | 열기 / 저장 | | Ctrl+Shift+F | 즐겨찾기에 추가 |
+| F11 | Run and Edit | | Ctrl+Shift+S | Submit Edits |
+| Ctrl+P | Print SQL | | | |
 
 (macOS 에선 Ctrl 대신 Cmd 도 동작)
 
@@ -162,13 +243,16 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 - **File > Save/Open Workspace…** — 열린 탭들의 제목·SQL·전용접속 여부를 `.iapws` 파일로
   저장하고 그대로 복원합니다 (Golden 의 Workspace).
 - **Tools > Options…** (툴바 렌치) — fetch 배치 크기, 탭별 최대 행수(-1 무제한),
-  NULL 표시 문자열, `statement_timeout`(ms), AutoCommit 기본값.
+  NULL 표시 문자열, `statement_timeout`(ms), AutoCommit(Tx mode) 기본값,
+  Favorites 에서 SELECT 이외 문장 실행 허용 여부.
+  Tx isolation 기본값은 툴바에서 고른 값이 그대로 저장됩니다.
   설정은 `~/.prismone-studio/options.json` 에 저장되고 새 실행부터 적용됩니다.
 
 ## 12. 데이터 파일 · 문제 해결
 
 - `~/.prismone-studio/` — `connections.json`(접속 목록, 비밀번호 암호문),
-  `key.bin`(암호화 키, 0600), `history.jsonl`(쿼리 히스토리), `options.json`(옵션).
+  `key.bin`(암호화 키, 0600), `history.jsonl`(쿼리 히스토리), `options.json`(옵션),
+  `favorites.json`(즐겨찾기 — 이름과 SQL만).
 - 키 파일을 지우면 저장된 비밀번호만 무효가 됩니다(접속 목록은 유지) —
   다음 로그인 때 비밀번호만 다시 입력하면 됩니다.
 - 세션이 끊기면 다음 실행 때 같은 프로파일로 자동 재접속합니다(열려 있던 트랜잭션은 소멸).

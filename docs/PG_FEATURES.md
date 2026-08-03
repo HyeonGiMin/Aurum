@@ -47,7 +47,8 @@ Golden 파리티(GOLDEN_BEHAVIOR.md)가 UI/UX 의 기준이라면, 이 문서는
 
 ✅ 구현 완료: Messages(NOTICE) pane · EXPLAIN (ANALYZE) 플랜 트리 · COPY 기반 export ·
 jsonb Cell Detail · pg_stat_activity Session Monitor · statement_timeout(옵션) ·
-읽기 문장 autocommit 절충 · Read Only 세션
+읽기 문장 autocommit 절충 · Read Only 세션 ·
+**Tx mode / Tx isolation 툴바(DataGrip 방식, `SET SESSION CHARACTERISTICS`)**
 
 🔜 남은 후보: 테이블 DDL 보기(Show DDL) · 파티션 인지 describe · search_path 표시 ·
 테이블 크기(pg_size_pretty) · COPY 기반 import(CLI 와 함께)

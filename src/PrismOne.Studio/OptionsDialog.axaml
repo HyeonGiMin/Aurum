@@ -21,6 +21,8 @@
     </Grid>
 
     <CheckBox Name="AutoCommitOption" Content="AutoCommit (끄면 Golden 식 수동 커밋)" FontSize="13"/>
+    <CheckBox Name="AllowNonSelectFavoritesOption" FontSize="13"
+              Content="Favorites 메뉴에서 SELECT 이외의 문장도 실행 허용"/>
 
     <TextBlock Text="변경은 새로 실행하는 문장부터 적용됩니다." FontSize="12" Opacity="0.65" TextWrapping="Wrap"/>
 

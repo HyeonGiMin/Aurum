@@ -18,7 +18,14 @@ using PrismOne.Db.Core;
 namespace PrismOne.Studio;
 
 /// <summary>그리드 한 행: Golden 처럼 왼쪽에 행번호(No)를 붙인다. Raw 는 잘린 셀의 원문.</summary>
-public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null);
+public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
+{
+    /// <summary>편집 모드(Run and Edit)의 행 식별자 — PG ctid. 새로 추가한 행이면 null.</summary>
+    public string? RowId { get; init; }
+
+    /// <summary>편집 모드 진입 시점의 값 — 무엇이 바뀌었는지 판별한다.</summary>
+    public string?[]? Original { get; init; }
+}
 
 /// <summary>
 /// 쿼리 탭 하나 = 세션 하나 (Golden 의 쿼리 창 모델).
@@ -241,8 +248,51 @@ public partial class QueryTabView : UserControl
         AutoCommit = Options.AutoCommit;
         if (Options.StatementTimeoutMs > 0)
             _ = session.ExecuteTextAsync($"SET statement_timeout = {Options.StatementTimeoutMs}");
+        if (Options.Isolation != session.Isolation)
+            _ = ApplyIsolationQuietlyAsync(session, Options.Isolation);
         session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
         SetInfo($"Session: {session.Profile.DisplayName}" + (owned ? " (private)" : ""));
+    }
+
+    /// <summary>이 탭의 세션 격리 수준 (DataGrip 의 Tx isolation). 미접속이면 옵션 기본값.</summary>
+    public TransactionIsolation Isolation => _session?.Isolation ?? Options.Isolation;
+
+    /// <summary>
+    /// 툴바에서 격리 수준을 바꿨을 때. 열린 트랜잭션이 있으면 PG 규약상 다음 트랜잭션부터 적용된다.
+    /// </summary>
+    public async Task SetIsolationAsync(TransactionIsolation level)
+    {
+        Options.Isolation = level;
+        if (_session is null)
+        {
+            SetInfo($"Tx Isolation → {level.Display()} (접속하면 적용)");
+            return;
+        }
+        try
+        {
+            await _session.ApplyIsolationAsync(level);
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"Tx isolation 변경 실패: {ex.Message}");
+            return;
+        }
+        SetInfo(InTransaction
+            ? $"Tx Isolation → {level.Display()} (열린 트랜잭션이 끝난 뒤부터 적용)"
+            : $"Tx Isolation → {level.Display()}");
+    }
+
+    /// <summary>세션 부착 시 기본 격리 수준 적용 — 실패해도 접속 자체는 살린다(메시지만 남김).</summary>
+    private async Task ApplyIsolationQuietlyAsync(QuerySession session, TransactionIsolation level)
+    {
+        try
+        {
+            await session.ApplyIsolationAsync(level);
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.UIThread.Post(() => SetInfo($"Tx Isolation 적용 실패: {ex.Message}"));
+        }
     }
 
     /// <summary>"New Private Tab" — 이 탭만의 전용 접속을 연다.</summary>
@@ -370,6 +420,229 @@ public partial class QueryTabView : UserControl
             Editor.CaretOffset = Editor.Text.Length;
             SetInfo("History: back to draft");
         }
+    }
+
+    // ---------- Run and Edit (Golden EditMode) ----------
+
+    /// <summary>편집 모드일 때의 원본 쿼리·대상 테이블. null 이면 읽기 전용.</summary>
+    private EditableQuery? _editSource;
+
+    /// <summary>삭제 표시된 행 (Submit 전까지 DB 에는 반영되지 않는다).</summary>
+    private readonly List<RowItem> _deletedRows = [];
+
+    public bool IsEditing => _editSource is not null;
+
+    /// <summary>편집 대상 테이블 — 상태 표시용.</summary>
+    public string? EditTable => _editSource?.Table;
+
+    public int PendingEditCount => CollectChanges().Count;
+
+    /// <summary>그리드에서 선택된 행 수 — 삭제 확인 문구에 쓴다.</summary>
+    public int SelectedRowCount => ResultGrid.SelectedItems.OfType<RowItem>().Count();
+
+    /// <summary>
+    /// Golden 의 Run and Edit — 커서 문장(또는 선택 영역)을 ctid 를 붙여 다시 실행하고
+    /// 결과 그리드를 편집 가능한 상태로 만든다. 단일 테이블 SELECT 만 가능.
+    /// </summary>
+    public async Task<bool> RunAndEditAsync()
+    {
+        var sql = StatementForFavorite();
+        if (GridEditor.Prepare(sql) is not { } prepared)
+        {
+            SetInfo("Run and Edit: 단일 테이블 SELECT 만 편집할 수 있습니다 (조인·집계·DISTINCT 불가)");
+            return false;
+        }
+        if (_session is null)
+        {
+            SetInfo("Not connected");
+            return false;
+        }
+        _editSource = prepared;
+        _deletedRows.Clear();
+        await ExecuteStatementsAsync([new SqlStatement(prepared.Sql, 0, prepared.Sql.Length)], explain: false);
+        if (_editSource is not null)
+            SetInfo($"EditMode: {prepared.Table} — 셀을 고치고 Submit(F11) 하세요");
+        return true;
+    }
+
+    /// <summary>편집 모드 해제 (일반 실행으로 돌아갈 때).</summary>
+    private void LeaveEditMode()
+    {
+        _editSource = null;
+        _deletedRows.Clear();
+        ResultGrid.IsReadOnly = true;
+    }
+
+    /// <summary>선택한 행들을 삭제 표시하고 그리드에서 감춘다. 실제 DELETE 는 Submit 때.</summary>
+    public int MarkSelectedRowsDeleted()
+    {
+        if (!IsEditing)
+            return 0;
+        var selected = ResultGrid.SelectedItems.OfType<RowItem>().ToList();
+        foreach (var row in selected)
+        {
+            if (row.RowId is not null)
+                _deletedRows.Add(row);
+            _rows.Remove(row);
+        }
+        if (selected.Count > 0)
+            SetInfo($"EditMode: {selected.Count} record(s) marked for delete — Submit 하면 반영됩니다");
+        return selected.Count;
+    }
+
+    /// <summary>Golden 의 하단 insert row — 빈 행을 추가한다.</summary>
+    public void AddInsertRow()
+    {
+        if (!IsEditing)
+        {
+            SetInfo("Run and Edit 로 편집 모드에 들어간 뒤 사용하세요");
+            return;
+        }
+        var cells = new string?[_columns.Count];
+        _rows.Add(new RowItem(_rows.Count + 1, cells));
+        ResultGrid.ScrollIntoView(_rows[^1], null);
+        SetInfo("EditMode: 새 행 추가 — 값을 넣고 Submit 하세요");
+    }
+
+    /// <summary>편집 내용을 되돌린다 — 원래 쿼리를 다시 실행.</summary>
+    public async Task RevertEditsAsync()
+    {
+        if (_editSource is not { } source)
+            return;
+        _deletedRows.Clear();
+        await ExecuteStatementsAsync([new SqlStatement(source.Sql, 0, source.Sql.Length)], explain: false);
+        SetInfo($"EditMode: 되돌렸습니다 ({source.Table})");
+    }
+
+    /// <summary>
+    /// 변경분을 한 트랜잭션으로 반영한다. 영향 행이 1 이 아니면(다른 세션이 먼저 고쳤거나
+    /// ctid 가 바뀐 경우) 전부 롤백한다.
+    /// </summary>
+    public async Task SubmitEditsAsync()
+    {
+        if (_editSource is not { } source)
+        {
+            SetInfo("편집 모드가 아닙니다 (Run and Edit)");
+            return;
+        }
+        if (_session is null)
+        {
+            SetInfo("Not connected");
+            return;
+        }
+        var changes = CollectChanges();
+        if (changes.Count == 0)
+        {
+            SetInfo("EditMode: 변경된 내용이 없습니다");
+            return;
+        }
+
+        List<EditStatement> statements;
+        try
+        {
+            statements = GridEditor.Build(source.Table, changes);
+        }
+        catch (ArgumentException ex)
+        {
+            SetInfo($"EditMode: {ex.Message}");
+            return;
+        }
+
+        var applied = 0;
+        try
+        {
+            await _session.EnsureTransactionAsync();
+            foreach (var statement in statements)
+            {
+                var affected = await _session.ExecuteEditAsync(statement);
+                if (affected != 1)
+                {
+                    await _session.RollbackAsync();
+                    SetInfo($"EditMode: 대상 행을 찾지 못해 되돌렸습니다 (영향 {affected}행) — 다시 조회하세요");
+                    await RevertEditsAsync();
+                    return;
+                }
+                applied++;
+            }
+        }
+        catch (Exception ex)
+        {
+            try { await _session.RollbackAsync(); } catch { /* 접속이 이미 끊긴 경우 */ }
+            SetInfo($"EditMode 실패(롤백): {ex.Message}");
+            return;
+        }
+
+        if (AutoCommit)
+            await _session.CommitAsync();
+
+        var pending = AutoCommit ? "" : " — Commit 필요";
+        await RevertEditsAsync();   // ctid 가 바뀌었을 수 있으니 다시 읽는다
+        SetInfo($"EditMode: {applied} change(s) submitted{pending}");
+    }
+
+    /// <summary>그리드 상태에서 UPDATE/DELETE/INSERT 목록을 만든다. 빈 문자열은 NULL 로 본다.</summary>
+    private List<GridChange> CollectChanges()
+    {
+        var changes = new List<GridChange>();
+        if (_editSource is null)
+            return changes;
+
+        foreach (var row in _rows)
+        {
+            if (row.RowId is null)
+            {
+                var filled = new List<(string, string?)>();
+                for (var i = 1; i < _columns.Count && i < row.Cells.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(row.Cells[i]))
+                        filled.Add((_columns[i], row.Cells[i]));
+                }
+                if (filled.Count > 0)
+                    changes.Add(new GridChange.Insert(filled));
+                continue;
+            }
+
+            if (row.Original is not { } original)
+                continue;
+            var edited = new List<(string, string?)>();
+            for (var i = 1; i < _columns.Count && i < row.Cells.Length; i++)
+            {
+                if (row.Cells[i] != original[i])
+                    edited.Add((_columns[i], NormalizeCell(row.Cells[i])));
+            }
+            if (edited.Count > 0)
+                changes.Add(new GridChange.Update(row.RowId, edited));
+        }
+
+        foreach (var row in _deletedRows)
+        {
+            if (row.RowId is { } id)
+                changes.Add(new GridChange.Delete(id));
+        }
+        return changes;
+    }
+
+    /// <summary>빈 칸은 NULL 로 보낸다 (Golden 도 빈 셀을 NULL 로 다룬다).</summary>
+    private static string? NormalizeCell(string? value) => string.IsNullOrEmpty(value) ? null : value;
+
+    // ---------- Favorites ----------
+
+    /// <summary>즐겨찾기에 담을 SQL — 선택 영역이 있으면 그것, 없으면 커서 위치 문장.</summary>
+    public string StatementForFavorite()
+    {
+        if (!string.IsNullOrWhiteSpace(Editor.SelectedText))
+            return Editor.SelectedText.Trim();
+        var text = Editor.Text ?? "";
+        return StatementSplitter.StatementAt(text, Editor.CaretOffset)?.Text ?? text.Trim();
+    }
+
+    /// <summary>즐겨찾기 실행 — 에디터를 해당 SQL 로 바꾸고 처음부터 스크립트로 돌린다.</summary>
+    public Task LoadAndRunAsync(string sql)
+    {
+        Editor.Text = sql;
+        Editor.CaretOffset = 0;
+        Editor.Focus();
+        return RunScriptAsync();
     }
 
     public void EditorCut() => Editor.Cut();
@@ -566,6 +839,12 @@ public partial class QueryTabView : UserControl
         }
         if (statements.Count == 0)
             return;
+        // 편집 모드는 그 쿼리를 다시 돌릴 때만 유지된다 — 다른 문장을 실행하면 읽기 전용으로
+        if (_editSource is { } editSource &&
+            !(statements.Count == 1 && statements[0].Text == editSource.Sql))
+        {
+            LeaveEditMode();
+        }
         // Golden: 실행 중엔 새 실행 요청을 받지 않는다 (Cancel 만 가능)
         if (_executing)
         {
@@ -948,18 +1227,24 @@ public partial class QueryTabView : UserControl
             noColumn.CellStyleClasses.Add("rownum");
             ResultGrid.Columns.Add(noColumn);
 
-            for (var i = 0; i < columns.Count; i++)
+            // 편집 모드면 첫 컬럼은 행 식별자(ctid)라 감춘다
+            var first = IsEditing ? 1 : 0;
+            for (var i = first; i < columns.Count; i++)
             {
                 ResultGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = columns[i],
-                    Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]"),
+                    Binding = new Binding($"{nameof(RowItem.Cells)}[{i}]")
+                    {
+                        Mode = IsEditing ? BindingMode.TwoWay : BindingMode.OneWay,
+                    },
                     Width = DataGridLength.Auto,
                     // 거대한 값(JSONB 등)이 컬럼 폭 계산을 망가뜨리지 않게 상한
                     MaxWidth = 420,
                 });
             }
         }
+        ResultGrid.IsReadOnly = !IsEditing;
         ResultGrid.ItemsSource = _rows;
         if (columns.Count > 0)
             Dispatcher.UIThread.Post(HookScrollBar, DispatcherPriority.Loaded);
@@ -995,13 +1280,20 @@ public partial class QueryTabView : UserControl
             foreach (var row in batch)
             {
                 var cells = row.Cells;
-                if (Options.NullText.Length > 0)
+                // 편집 모드에선 NULL 자리표시자를 넣지 않는다 — 그대로 DB 에 되쓰이면 곤란하다
+                if (Options.NullText.Length > 0 && !IsEditing)
                 {
                     cells = (string?[])cells.Clone();
                     for (var i = 0; i < cells.Length; i++)
                         cells[i] ??= Options.NullText;
                 }
-                _rows.Add(new RowItem(++no, cells, row.Raw));
+                _rows.Add(IsEditing
+                    ? new RowItem(++no, cells, row.Raw)
+                    {
+                        RowId = cells.Length > 0 ? cells[0] : null,
+                        Original = (string?[])cells.Clone(),
+                    }
+                    : new RowItem(++no, cells, row.Raw));
             }
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).

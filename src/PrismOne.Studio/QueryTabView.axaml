@@ -20,6 +20,7 @@
     <Panel Grid.Row="2">
       <DataGrid Name="ResultGrid"
                 IsReadOnly="True"
+                SelectionMode="Extended"
                 CanUserSortColumns="False"
                 CanUserReorderColumns="True"
                 CanUserResizeColumns="True"

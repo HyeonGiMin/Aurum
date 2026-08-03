@@ -24,6 +24,8 @@ public partial class MainWindow : Window
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
     private AppOptions _options = AppOptions.Load();
+    private readonly FavoritesStore _favorites = FavoritesStore.Load();
+    private NativeMenu? _nativeFavoritesMenu;   // macOS 네이티브 메뉴바의 Favorites 하위
 
     public MainWindow()
     {
@@ -39,13 +41,16 @@ public partial class MainWindow : Window
             if (_sharedSession is not null)
                 await _sharedSession.DisposeAsync();
         };
-        // Golden: 메인 창이 먼저 뜨고(빈 Query1 탭 포함), 로그온은 Ctrl+L 로 연다
+        // Golden: 메인 창(빈 Query1 탭)이 먼저 그려지고 그 위로 로그온 창이 바로 뜬다.
+        // 취소하면 미접속 상태로 남고, 이후엔 Ctrl+L 로 연다.
         BuildNativeMenu();
+        RebuildFavoritesMenu();
         if (Environment.GetEnvironmentVariable("IAPDM_SHOT_DIR") is null)
             Opened += async (_, _) =>
             {
                 if (_tabs.Count == 0)
                     await NewTabAsync(null);
+                await ShowLogonAsync();
             };
 
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
@@ -137,6 +142,7 @@ public partial class MainWindow : Window
         {
             await NewTabAsync(profile);
         }
+        UpdateTxState();   // Tx mode/isolation 콤보를 접속 상태에 맞춘다
     }
 
     // ---------- Tabs ----------
@@ -246,7 +252,16 @@ public partial class MainWindow : Window
             new NativeMenuItemSeparator(),
             Item("Describe (⌘D)", () => OnMenuDescribe(this, args)),
             Item("Commit", () => OnMenuCommit(this, args)),
-            Item("Rollback", () => OnMenuRollback(this, args))));
+            Item("Rollback", () => OnMenuRollback(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Run and Edit (F11)", () => OnMenuRunAndEdit(this, args)),
+            Item("Submit Edits (⇧⌘S)", () => OnMenuSubmitEdits(this, args)),
+            Item("Add Row", () => OnMenuAddRow(this, args)),
+            Item("Delete Selected Records…", () => OnMenuDeleteRows(this, args)),
+            Item("Revert Edits", () => OnMenuRevertEdits(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Print SQL… (⌘P)", () => PrintSql(auto: true)),
+            Item("Print Preview (SQL)", () => PrintSql(auto: false))));
         root.Items.Add(Sub("Results",
             Item("Fetch All Records (⌘End)", () => OnMenuFetchAll(this, args)),
             new NativeMenuItemSeparator(),
@@ -256,11 +271,21 @@ public partial class MainWindow : Window
             new NativeMenuItemSeparator(),
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
-            Item("Save Grid As INSERT…", () => OnMenuExportInsert(this, args))));
+            Item("Save Grid As INSERT…", () => OnMenuExportInsert(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Print Grid…", () => PrintGrid(auto: true)),
+            Item("Print Preview (Grid)", () => PrintGrid(auto: false))));
+        var favorites = Sub("Favorites",
+            Item("Add Current Statement… (⇧⌘F)", () => OnMenuAddFavorite(this, args)),
+            Item("Manage Favorites…", () => OnMenuManageFavorites(this, args)),
+            new NativeMenuItemSeparator());
+        _nativeFavoritesMenu = favorites.Menu;
+        root.Items.Add(favorites);
         root.Items.Add(Sub("View",
             Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
         root.Items.Add(Sub("Tools",
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
+            Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -470,6 +495,21 @@ public partial class MainWindow : Window
             e.Handled = true;
             OnMenuToggleBrowser(sender, e);
         }
+        else if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            OnMenuRunAndEdit(sender, e);
+        }
+        else if (e.Key == Key.P && cmdOrCtrl)
+        {
+            e.Handled = true;
+            PrintSql(auto: true);
+        }
+        else if (e.Key == Key.S && cmdOrCtrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            OnMenuSubmitEdits(sender, e);
+        }
         else if (e.Key == Key.Up && cmdOrCtrl)
         {
             e.Handled = true;
@@ -479,6 +519,11 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             ActiveView?.HistoryNext();
+        }
+        else if (e.Key == Key.F && cmdOrCtrl && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            OnMenuAddFavorite(sender, e);
         }
         else if (e.Key == Key.O && cmdOrCtrl)
         {
@@ -536,6 +581,250 @@ public partial class MainWindow : Window
             foreach (var view in AllViews())
                 view.Options = options;
             StatusLabel.Text = "Options saved";
+        }
+    }
+
+    // ---------- Print / Print Preview (Golden) ----------
+
+    private void OnMenuPrintSql(object? sender, RoutedEventArgs e) => PrintSql(auto: true);
+    private void OnMenuPreviewSql(object? sender, RoutedEventArgs e) => PrintSql(auto: false);
+    private void OnMenuPrintGrid(object? sender, RoutedEventArgs e) => PrintGrid(auto: true);
+    private void OnMenuPreviewGrid(object? sender, RoutedEventArgs e) => PrintGrid(auto: false);
+
+    private void PrintSql(bool auto)
+    {
+        if (ActiveView is not { } view)
+            return;
+        var sql = view.GetSql();
+        if (sql.Trim().Length == 0)
+        {
+            StatusLabel.Text = "인쇄할 SQL 이 없습니다";
+            return;
+        }
+        var title = (QueryTabs.SelectedItem as TabItem)?.Header as string ?? "Query";
+        OpenPrintPage(PrintRenderer.RenderSql(sql, title, ConnectionSubtitle(), DateTimeOffset.Now, auto), "sql");
+    }
+
+    private void PrintGrid(bool auto)
+    {
+        if (ActiveView is not { HasResult: true } view)
+        {
+            StatusLabel.Text = "인쇄할 결과가 없습니다";
+            return;
+        }
+        var (columns, rows) = view.LoadedSnapshot();
+        var title = (QueryTabs.SelectedItem as TabItem)?.Header as string ?? "Result";
+        OpenPrintPage(
+            PrintRenderer.RenderGrid(columns, rows, title, ConnectionSubtitle(), DateTimeOffset.Now, auto),
+            "grid");
+    }
+
+    private string ConnectionSubtitle() => _profile?.DisplayName ?? "not connected";
+
+    /// <summary>
+    /// Avalonia 에 인쇄 API 가 없어 HTML 로 뽑아 OS 기본 브라우저에 넘긴다.
+    /// 미리보기·프린터 선택은 브라우저 인쇄 대화상자가 맡는다.
+    /// </summary>
+    private void OpenPrintPage(string html, string kind)
+    {
+        try
+        {
+            var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iap-dbm-print");
+            System.IO.Directory.CreateDirectory(dir);
+            var path = System.IO.Path.Combine(dir, $"{kind}-{DateTime.Now:yyyyMMdd-HHmmss}.html");
+            System.IO.File.WriteAllText(path, html, new UTF8Encoding(true));
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path)
+            {
+                UseShellExecute = true,
+            });
+            StatusLabel.Text = $"Print: 브라우저에서 열었습니다 ({System.IO.Path.GetFileName(path)})";
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Print failed: {ex.Message}";
+        }
+    }
+
+    // ---------- Run and Edit (Golden EditMode) ----------
+
+    private async void OnMenuRunAndEdit(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.RunAndEditAsync();
+    }
+
+    private async void OnMenuSubmitEdits(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+        {
+            await view.SubmitEditsAsync();
+            UpdateTxState();
+        }
+    }
+
+    private void OnMenuAddRow(object? sender, RoutedEventArgs e) => ActiveView?.AddInsertRow();
+
+    private async void OnMenuRevertEdits(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.RevertEditsAsync();
+    }
+
+    /// <summary>Golden 문구 그대로 "Delete N selected records?" 로 확인한다.</summary>
+    private async void OnMenuDeleteRows(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { IsEditing: true } view)
+        {
+            StatusLabel.Text = "Run and Edit (F11) 로 편집 모드에 들어간 뒤 사용하세요";
+            return;
+        }
+        var count = view.SelectedRowCount;
+        if (count == 0)
+        {
+            StatusLabel.Text = "삭제할 행을 선택하세요";
+            return;
+        }
+        if (await ConfirmAsync($"Delete {count} selected records?"))
+            view.MarkSelectedRowsDeleted();
+    }
+
+    /// <summary>예/아니오 확인 창 — 그리드 삭제처럼 되돌리기 어려운 동작에만 쓴다.</summary>
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        var result = false;
+        var yes = new Button { Content = "Yes", MinWidth = 80, MinHeight = 30, IsDefault = true };
+        var no = new Button { Content = "No", MinWidth = 80, MinHeight = 30, IsCancel = true };
+        var dialog = new Window
+        {
+            Title = "IAP Database Manager",
+            Width = 380,
+            SizeToContent = SizeToContent.Height,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(20),
+                Spacing = 16,
+                Children =
+                {
+                    new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { no, yes },
+                    },
+                },
+            },
+        };
+        yes.Click += (_, _) => { result = true; dialog.Close(); };
+        no.Click += (_, _) => dialog.Close();
+        await dialog.ShowDialog(this);
+        return result;
+    }
+
+    // ---------- Favorites (Golden 의 즐겨찾기 메뉴) ----------
+
+    /// <summary>고정 항목(Add·Manage·Separator) 뒤를 저장된 즐겨찾기로 다시 채운다.</summary>
+    private void RebuildFavoritesMenu()
+    {
+        const int fixedItems = 3;
+        var items = FavoritesMenu.Items;
+        while (items.Count > fixedItems)
+            items.RemoveAt(items.Count - 1);
+
+        if (_favorites.Items.Count == 0)
+        {
+            items.Add(new MenuItem { Header = "(즐겨찾기 없음)", IsEnabled = false });
+        }
+        else
+        {
+            foreach (var favorite in _favorites.Items)
+            {
+                var item = new MenuItem { Header = favorite.Name };
+                ToolTip.SetTip(item, favorite.Sql);
+                var target = favorite;
+                item.Click += (_, _) => _ = RunFavoriteAsync(target);
+                items.Add(item);
+            }
+        }
+        RebuildNativeFavoritesMenu(fixedItems);
+    }
+
+    /// <summary>macOS 네이티브 메뉴바에도 같은 목록을 반영한다 (인앱 메뉴가 숨겨져 있으므로).</summary>
+    private void RebuildNativeFavoritesMenu(int fixedItems)
+    {
+        if (_nativeFavoritesMenu is not { } menu)
+            return;
+        while (menu.Items.Count > fixedItems)
+            menu.Items.RemoveAt(menu.Items.Count - 1);
+        foreach (var favorite in _favorites.Items)
+        {
+            var item = new NativeMenuItem(favorite.Name);
+            var target = favorite;
+            item.Click += (_, _) => _ = RunFavoriteAsync(target);
+            menu.Items.Add(item);
+        }
+    }
+
+    /// <summary>Golden: 메뉴에서 고른 즐겨찾기는 바로 실행된다. 기본은 SELECT 만 허용.</summary>
+    private async Task RunFavoriteAsync(FavoriteQuery favorite) =>
+        await RunFavoriteSqlAsync(favorite.Sql, favorite.Name);
+
+    private async Task RunFavoriteSqlAsync(string sql, string label)
+    {
+        if (ActiveView is not { } view)
+        {
+            StatusLabel.Text = "실행할 탭이 없습니다 (Ctrl+T)";
+            return;
+        }
+        if (!_options.AllowNonSelectFavorites && !FavoriteSql.IsSelectOnly(sql))
+        {
+            StatusLabel.Text = $"'{label}' 은 SELECT 문이 아닙니다 — Options 에서 허용할 수 있습니다";
+            return;
+        }
+        await view.LoadAndRunAsync(sql);
+    }
+
+    /// <summary>Ctrl+Shift+F — 현재 문장(또는 선택 영역)을 이름 붙여 저장.</summary>
+    private async void OnMenuAddFavorite(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view)
+        {
+            StatusLabel.Text = "즐겨찾기에 담을 탭이 없습니다 (Ctrl+T)";
+            return;
+        }
+        var sql = view.StatementForFavorite();
+        if (sql.Length == 0)
+        {
+            StatusLabel.Text = "즐겨찾기에 담을 SQL 이 없습니다";
+            return;
+        }
+        await ShowFavoritesAsync(sql);
+    }
+
+    private async void OnMenuManageFavorites(object? sender, RoutedEventArgs e)
+        => await ShowFavoritesAsync(null);
+
+    private async Task ShowFavoritesAsync(string? seedSql)
+    {
+        var dialog = new FavoritesDialog(_favorites, seedSql);
+        await dialog.ShowDialog(this);
+        RebuildFavoritesMenu();
+
+        if (dialog.RunSql is { } runSql)
+        {
+            await RunFavoriteSqlAsync(runSql, "선택한 즐겨찾기");
+        }
+        else if (dialog.InsertSql is { } insertSql)
+        {
+            ActiveView?.InsertAtCaret(insertSql);
+            StatusLabel.Text = "즐겨찾기 SQL 을 에디터에 삽입했습니다";
+        }
+        else
+        {
+            StatusLabel.Text = $"Favorites: {_favorites.Items.Count} item(s)";
         }
     }
 
@@ -602,6 +891,23 @@ public partial class MainWindow : Window
                            (workspace.Connection is { } c ? $" · saved with {c}" : "");
     }
 
+    /// <summary>Tools > SQL Builder — 만든 SELECT 를 에디터에 넣는다 (실행은 사용자가).</summary>
+    private async void OnMenuSqlBuilder(object? sender, RoutedEventArgs e)
+    {
+        if (_allTables.Count == 0)
+            StatusLabel.Text = "SQL Builder: 로그온하면 테이블 목록이 채워집니다 (Ctrl+L)";
+
+        var dialog = new SqlBuilderDialog(_allTables, _profile);
+        await dialog.ShowDialog(this);
+        if (dialog.Result is not { Length: > 0 } sql)
+            return;
+
+        var view = ActiveView ?? await NewTabAsync(_profile);
+        view.InsertAtCaret(sql);
+        view.FocusEditor();
+        StatusLabel.Text = "SQL Builder: 에디터에 삽입했습니다 (F9 로 실행)";
+    }
+
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
         if (_profile is { } profile)
@@ -631,10 +937,76 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnAutoCommitChanged(object? sender, RoutedEventArgs e)
+    // ---------- Tx mode / Tx isolation (DataGrip 툴바) ----------
+
+    /// <summary>DataGrip 의 Tx Isolation 목록·순서 그대로.</summary>
+    private static readonly TransactionIsolation[] IsolationLevels =
+    [
+        TransactionIsolation.DatabaseDefault,
+        TransactionIsolation.ReadUncommitted,
+        TransactionIsolation.ReadCommitted,
+        TransactionIsolation.RepeatableRead,
+        TransactionIsolation.Serializable,
+    ];
+
+    /// <summary>
+    /// DataGrip 의 Tx 드롭다운 — 한 팝업에 Transaction Mode(Auto·Manual)와 Tx Isolation 을 함께 둔다.
+    /// 현재 값 앞에 ✓ 를 붙인다.
+    /// </summary>
+    private void OnTxButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (ActiveView is { } view)
-            view.AutoCommit = AutoCommitBox.IsChecked == true;
+        if (ActiveView is not { } view)
+            return;
+
+        static MenuItem Section(string title) => new()
+        {
+            Header = title,
+            IsEnabled = false,
+            FontWeight = Avalonia.Media.FontWeight.SemiBold,
+        };
+        static string Mark(bool selected) => selected ? "✓ " : "     ";
+
+        var flyout = new MenuFlyout();
+        flyout.Items.Add(Section("Transaction Mode"));
+        foreach (var auto in new[] { true, false })
+        {
+            var item = new MenuItem { Header = $"{Mark(view.AutoCommit == auto)}{(auto ? "Auto" : "Manual")}" };
+            ToolTip.SetTip(item, auto
+                ? "데이터베이스로 제출한 변경이 자동 커밋"
+                : "Commit / Rollback 으로 직접 확정");
+            var target = auto;
+            item.Click += (_, _) => SetTxMode(view, target);
+            flyout.Items.Add(item);
+        }
+
+        flyout.Items.Add(new Separator());
+        flyout.Items.Add(Section("Tx Isolation"));
+        foreach (var level in IsolationLevels)
+        {
+            var item = new MenuItem { Header = $"{Mark(view.Isolation == level)}{level.Display()}" };
+            ToolTip.SetTip(item, level.Description());
+            var target = level;
+            item.Click += (_, _) => _ = SetIsolationAsync(view, target);
+            flyout.Items.Add(item);
+        }
+        flyout.ShowAt(TxButton);
+    }
+
+    private void SetTxMode(QueryTabView view, bool auto)
+    {
+        view.AutoCommit = auto;
+        StatusLabel.Text = auto
+            ? "Tx Mode → Auto (문장마다 자동 커밋)"
+            : "Tx Mode → Manual (Commit/Rollback 으로 확정)";
+        UpdateTxState();
+    }
+
+    private async Task SetIsolationAsync(QueryTabView view, TransactionIsolation level)
+    {
+        _options.Isolation = level;      // 다음 세션 기본값으로 기억
+        _options.Save();
+        await view.SetIsolationAsync(level);
+        UpdateTxState();
     }
 
     /// <summary>상태바의 접속 pill 갱신 — 미접속이면 빨강, 접속되면 초록.</summary>
@@ -698,9 +1070,13 @@ public partial class MainWindow : Window
         var connected = view?.IsConnected == true;
         CommitButton.IsEnabled = connected && view!.InTransaction;
         RollbackButton.IsEnabled = connected && view!.InTransaction;
-        AutoCommitBox.IsEnabled = connected;
-        if (view is not null)
-            AutoCommitBox.IsChecked = view.AutoCommit;
+        TxButton.IsEnabled = connected;
+        // 버튼 라벨은 DataGrip 의 action.tx.text ("Tx: {0}") 형식
+        var mode = view?.AutoCommit == true ? "Auto" : "Manual";
+        TxButton.Content = $"Tx: {mode} ▾";
+        ToolTip.SetTip(TxButton, view is null
+            ? "Transaction Mode / Tx Isolation"
+            : $"Transaction Mode: {mode} · Tx Isolation: {view.Isolation.Display()}");
     }
 
     private void OnMenuTranspose(object? sender, RoutedEventArgs e) => ActiveView?.ToggleTranspose();
@@ -947,11 +1323,22 @@ public partial class MainWindow : Window
                     SaveShot(this, System.IO.Path.Combine(dir, "live_completion.png"));
                 }
 
-                view.SetSql(Environment.GetEnvironmentVariable("IAPDM_SHOT_SQL")
-                    ?? "select table_schema, table_name from information_schema.tables order by 1, 2;");
+                var shotSql = Environment.GetEnvironmentVariable("IAPDM_SHOT_SQL")
+                    ?? "select table_schema, table_name from information_schema.tables order by 1, 2;";
+                view.SetSql(shotSql);
                 await view.ExecuteAtCaretAsync();
                 await Task.Delay(400);
                 SaveShot(this, System.IO.Path.Combine(dir, "live_query.png"));
+
+                // 즐겨찾기 실행 경로 점검 — 메뉴에서 고른 것과 같은 경로(SELECT 게이트 + LoadAndRun)
+                await RunFavoriteSqlAsync("select current_database(), now();", "shot favorite");
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "live_favorite.png"));
+
+                // 즐겨찾기가 에디터를 덮어썼으므로 스크롤 캡처용 쿼리를 다시 돌린다
+                view.SetSql(shotSql);
+                await view.ExecuteAtCaretAsync();
+                await Task.Delay(400);
 
                 await view.ScrollToBottomAsync();
                 await Task.Delay(400);
@@ -1023,6 +1410,20 @@ public partial class MainWindow : Window
             dialog.Show(this);
             await Task.Delay(500);
             SaveShot(dialog, System.IO.Path.Combine(dir, "shot_login.png"));
+            dialog.Close();
+
+            var builder = new SqlBuilderDialog(_allTables, null);
+            builder.Show(this);
+            await Task.Delay(500);
+            SaveShot(builder, System.IO.Path.Combine(dir, "shot_sqlbuilder.png"));
+            builder.Close();
+
+            var favorites = new FavoritesDialog(_favorites,
+                "select * from prismone.study where study_dttm > now() - interval '7 days';");
+            favorites.Show(this);
+            await Task.Delay(500);
+            SaveShot(favorites, System.IO.Path.Combine(dir, "shot_favorites.png"));
+            favorites.Close();
         }
         finally
         {

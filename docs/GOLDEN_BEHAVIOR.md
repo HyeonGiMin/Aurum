@@ -83,7 +83,8 @@ UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.pn
 - **Favorites**: 즐겨찾기 쿼리 메뉴(필터 지원). 기본은 SELECT만 실행 허용
   ("Allow non-Select statements to run from the Favorites Menu." 옵션)
 - **History**: 쿼리 히스토리 (서버 저장 옵션 UseServerHistory 존재)
-- SQLBuilder(비주얼 쿼리 빌더), Describe 창(스키마/타입별)
+- ~~SQLBuilder(비주얼 쿼리 빌더)~~ ✅ 구현됨 (Tools > SQL Builder — 테이블·컬럼·WHERE·정렬·Limit,
+  미리보기 후 에디터 삽입), Describe 창(스키마/타입별)
 
 ## 10. 우리 구현과의 갭 (우선순위순)
 
@@ -92,11 +93,18 @@ UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.pn
 3. **fetch 기본값**: ✅ 초기/배치 100. 옵션화·탭별 상한(-1)은 미구현
 4. Commit/Rollback/Autocommit (P4 예정 — 공유 세션 위에서)
 5. ~~자동완성 팝업, Find~~ ✅ 구현됨 (Replace 는 검색 패널 내장)
-6. ~~히스토리~~ ✅ 구현됨 (Ctrl+↑↓). Favorites 는 미구현
+6. ~~히스토리~~ ✅ 구현됨 (Ctrl+↑↓). ~~Favorites~~ ✅ 구현됨 (Ctrl+Shift+F · Favorites 메뉴 ·
+   Manage 창 · "SELECT 이외 실행 허용" 옵션)
 7. 그리드: transpose, 셀 상세, 컬럼 fit, xlsx/INSERT export (P4)
 8. ~~Output 창 (RAISE NOTICE)~~ ✅ 구현됨 (Messages pane)
 9. 워크스페이스 저장/복원 (P5)
-10. EditMode(그리드 편집) — 대형 기능, 별도 단계로 (P6 후보)
+10. ~~EditMode(그리드 편집)~~ ✅ 구현됨 — Run and Edit(F11). Golden 이 Oracle ROWID 로 행을
+    특정하던 것을 PG 에선 `ctid` 로 대응. Submit(Ctrl+Shift+S) 시 한 트랜잭션,
+    영향 행 ≠ 1 이면 전체 롤백. 붙여넣기 다중 insert 는 미구현
 
-상태바 형식("Done, ran x of y statements."), Ctrl+L 로그온, 시작 시 메인 창 먼저,
+**시작 시 로그온 창**: Golden 은 실행하면 메인 창 위로 로그온 창을 곧바로 띄운다
+(2026-08-03 실제 동작 확인 — 그전 기록이던 "메인 창만 먼저"는 정정). 우리도 동일하게
+바꿨고, 취소하면 미접속 상태로 남는다.
+
+상태바 형식("Done, ran x of y statements."), Ctrl+L 로그온,
 점진 fetch 자체, 커서 문장 실행, Explain, 로그온 리스트 구조는 이미 일치.

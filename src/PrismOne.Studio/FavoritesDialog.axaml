@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        x:Class="PrismOne.Studio.FavoritesDialog"
+        Title="Favorites - IAP Database Manager"
+        Width="720" Height="560"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,1.1*,Auto,Auto">
+
+    <TextBox Grid.Row="0" Name="FilterBox" Margin="0,0,0,8" MinHeight="30" FontSize="13"
+             PlaceholderText="Filter (이름 · SQL 부분일치)" TextChanged="OnFilterChanged"/>
+
+    <ListBox Grid.Row="1" Name="FavoriteList" SelectionChanged="OnSelectionChanged"
+             DoubleTapped="OnRun">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="local:FavoriteRow">
+          <StackPanel Spacing="1" Margin="0,2">
+            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+            <TextBlock Text="{Binding Preview}" FontSize="11.5" Opacity="0.65"
+                       TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0" Text="Name" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Grid.Column="1" Name="NameBox" MinHeight="30" FontSize="13"/>
+    </Grid>
+
+    <TextBlock Grid.Row="3" Text="SQL" FontSize="13" Margin="0,10,0,4"/>
+
+    <TextBox Grid.Row="4" Name="SqlBox" AcceptsReturn="True" TextWrapping="NoWrap" FontSize="12.5"
+             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+             VerticalContentAlignment="Top"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+
+    <TextBlock Grid.Row="5" Name="StatusText" FontSize="12" Opacity="0.75"
+               Margin="0,8,0,0" TextWrapping="Wrap" Text=""/>
+
+    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right"
+                Spacing="8" Margin="0,12,0,0">
+      <Button Content="Delete" MinHeight="30" MinWidth="80" Click="OnDelete"/>
+      <Button Content="Save" MinHeight="30" MinWidth="80" Click="OnSave"/>
+      <Button Content="Insert into Editor" MinHeight="30" Click="OnInsert"/>
+      <Button Content="Run" MinHeight="30" MinWidth="80" Classes="accent" IsDefault="True" Click="OnRun"/>
+      <Button Content="Close" MinHeight="30" MinWidth="80" IsCancel="True" Click="OnClose"/>
+    </StackPanel>
+
+  </Grid>
+</Window>

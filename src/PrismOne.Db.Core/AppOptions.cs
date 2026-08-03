@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PrismOne.Db.Core;
 
@@ -19,6 +20,13 @@ public sealed class AppOptions
 
     /// <summary>true 면 PG 기본 autocommit, false 면 Golden 식 수동 커밋.</summary>
     public bool AutoCommit { get; set; }
+
+    /// <summary>Golden: "Allow non-Select statements to run from the Favorites Menu." 기본은 차단.</summary>
+    public bool AllowNonSelectFavorites { get; set; }
+
+    /// <summary>DataGrip 의 Tx Isolation — 새 세션에 걸 격리 수준. 기본은 DB 설정을 따른다.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<TransactionIsolation>))]
+    public TransactionIsolation Isolation { get; set; } = TransactionIsolation.DatabaseDefault;
 
     private static string Dir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".prismone-studio");

@@ -20,6 +20,7 @@ public partial class OptionsDialog : Window
         NullTextBox.Text = current.NullText;
         TimeoutBox.Text = current.StatementTimeoutMs.ToString(CultureInfo.InvariantCulture);
         AutoCommitOption.IsChecked = current.AutoCommit;
+        AllowNonSelectFavoritesOption.IsChecked = current.AllowNonSelectFavorites;
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
@@ -33,6 +34,7 @@ public partial class OptionsDialog : Window
             NullText = NullTextBox.Text ?? "",
             StatementTimeoutMs = ParseInt(TimeoutBox.Text, 0, min: 0, max: 86_400_000),
             AutoCommit = AutoCommitOption.IsChecked == true,
+            AllowNonSelectFavorites = AllowNonSelectFavoritesOption.IsChecked == true,
         };
         options.Save();
         Result = options;

@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        x:Class="PrismOne.Studio.SqlBuilderDialog"
+        Title="SQL Builder - IAP Database Manager"
+        Width="900" Height="640"
+        WindowStartupLocation="CenterOwner">
+  <Grid Margin="14" ColumnDefinitions="260,12,*" RowDefinitions="Auto,*,Auto">
+
+    <!-- 왼쪽: 테이블 목록 -->
+    <TextBlock Grid.Row="0" Grid.Column="0" Text="Table" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
+    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*">
+      <TextBox Grid.Row="0" Name="TableFilterBox" MinHeight="30" FontSize="13" Margin="0,0,0,6"
+               PlaceholderText="필터" TextChanged="OnTableFilterChanged"/>
+      <ListBox Grid.Row="1" Name="TableList" FontSize="12.5" SelectionChanged="OnTableSelected"/>
+    </Grid>
+
+    <!-- 오른쪽: 컬럼 · 조건 · 정렬 -->
+    <TextBlock Grid.Row="0" Grid.Column="2" Text="Columns · Where · Order by"
+               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
+    <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="*,Auto,Auto,Auto,Auto,1.1*">
+
+      <Border Grid.Row="0" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1" Padding="6">
+        <ScrollViewer>
+          <StackPanel Name="ColumnPanel" Spacing="2"/>
+        </ScrollViewer>
+      </Border>
+
+      <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,4">
+        <TextBlock Grid.Column="0" Text="조건 (비워 두면 전체 조회)" FontSize="12" Opacity="0.7"
+                   VerticalAlignment="Center"/>
+        <CheckBox Grid.Column="1" Name="UseAliasBox" Content="별칭 s" FontSize="12" Margin="0,0,8,0"
+                  IsCheckedChanged="OnSpecCheckChanged"/>
+        <Button Grid.Column="2" Content="+ 조건" FontSize="12" Padding="8,3" Click="OnAddCondition"/>
+      </Grid>
+
+      <StackPanel Grid.Row="2" Name="ConditionPanel" Spacing="4"/>
+
+      <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,10,0,4">
+        <TextBlock Grid.Column="0" Text="Order by" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <ComboBox Grid.Column="1" Name="OrderColumnCombo" FontSize="12" HorizontalAlignment="Stretch"
+                  SelectionChanged="OnSpecSelectionChanged"/>
+        <CheckBox Grid.Column="2" Name="OrderDescBox" Content="desc" FontSize="12" Margin="8,0"
+                  IsCheckedChanged="OnSpecCheckChanged"/>
+        <TextBlock Grid.Column="3" Text="Limit" FontSize="12" VerticalAlignment="Center" Margin="8,0,6,0"/>
+        <TextBox Grid.Column="4" Name="LimitBox" Width="80" MinHeight="28" FontSize="12"
+                 Text="100" TextChanged="OnSpecTextChanged"/>
+      </Grid>
+
+      <TextBlock Grid.Row="4" Text="미리보기" FontSize="12" Opacity="0.7" Margin="0,6,0,4"/>
+      <TextBox Grid.Row="5" Name="PreviewBox" IsReadOnly="True" AcceptsReturn="True"
+               FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="12.5"
+               VerticalContentAlignment="Top"
+               ScrollViewer.HorizontalScrollBarVisibility="Auto"
+               ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+    </Grid>
+
+    <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right"
+                Spacing="8" Margin="0,12,0,0">
+      <TextBlock Name="StatusText" FontSize="12" Opacity="0.75" VerticalAlignment="Center" Text=""/>
+      <Button Content="Cancel" MinHeight="30" MinWidth="80" IsCancel="True" Click="OnCancel"/>
+      <Button Content="Insert into Editor" MinHeight="30" Classes="accent" IsDefault="True" Click="OnOk"/>
+    </StackPanel>
+
+  </Grid>
+</Window>
