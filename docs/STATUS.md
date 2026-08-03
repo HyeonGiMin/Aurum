@@ -75,12 +75,16 @@ Studio3T(몽고 툴)에서 가져올 만한 것: 비주얼 쿼리 빌더, 결과
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
 - **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 130개)
-- **미검증 (중요)**: 2026-08-03 작업 환경에서 개발 DB(`<dev-host>:5432`) 접속이 안 돼
-  다음이 실접속으로 확인되지 않았다 — DB 되는 자리에서 먼저 확인할 것:
-  1. Run and Edit 전체 경로(셀 편집 → Submit → 커밋). 특히 DataGrid 셀의 양방향 바인딩
-     (`Cells[i]` TwoWay)이 실제로 값을 되쓰는지
-  2. `SET SESSION CHARACTERISTICS …`(Tx Isolation)가 세션에 반영되는지 — `show transaction_isolation;`
-  3. 즐겨찾기 메뉴 실행 경로(`live_favorite.png`)
+- **실접속 검증 현황** (2026-08-03, 개발 DB `<dev-host>` 접속 가능한 환경에서 확인):
+  1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
+     Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,
+     Database Default 는 서버 기본값(read committed)으로 되돌아온다
+  2. ✅ **즐겨찾기 실행 경로** — `live_favorite.png` 로 확인 (메뉴에서 실행 → 결과 표시)
+  3. ✅ 로그온·describe·자동완성·쿼리·스크롤·EXPLAIN — 스크린샷 모드 7종 전부 정상
+  4. ⏳ **Run and Edit 전체 경로(셀 편집 → Submit → 커밋)는 여전히 미검증**.
+     공유 staging DB 에 데이터를 쓰게 되므로 확인하지 않았다.
+     **검증용 임시 테이블을 따로 만들어 그 위에서** 확인할 것 (DataGrid 셀의
+     `Cells[i]` TwoWay 바인딩이 실제로 값을 되쓰는지가 핵심)
 - **실행**: 개발 중엔 `dotnet run --project src/PrismOne.Studio`,
   배포 확인은 macOS `sh packaging/macos/make-app.sh` → `dist/IAP Database Manager.app`,
   Windows `powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1`
