@@ -122,7 +122,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
 - **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 130개)
-- **실접속 검증 현황** (2026-08-03, 개발 DB `<dev-host>` 접속 가능한 환경에서 확인):
+- **실접속 검증 현황** (2026-08-03, 사내 개발 DB 접속 가능한 환경에서 확인):
   1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
      Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,
      Database Default 는 서버 기본값(read committed)으로 되돌아온다
@@ -145,7 +145,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 - **자가 검증 (중요)**: 화면 회귀는 스크린샷 모드로 확인한다.
   ```bash
   IAPDM_SHOT_DIR=/tmp/shots \
-  IAPDM_SHOT_CONN="<dev-host>/prismone|prismone|***REMOVED***" \
+  IAPDM_SHOT_CONN="<dev-host>/prismone|<user>|<password>" \
   dotnet run --project src/PrismOne.Studio --no-build
   ```
   → `live_after_login.png` / `live_describe.png` / `live_completion.png` /
@@ -154,7 +154,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
   (임시 테이블을 만들어 편집·Submit 후 drop — 위 실접속 검증 4번 참조). 접속 없이 샘플 데이터만 볼 땐 `IAPDM_SHOT_CONN` 을 빼면
   `shot_main.png` / `shot_login.png` / `shot_favorites.png` 가 나온다.
   아이콘 재생성은 `IAPDM_RENDER_ICON=<경로>`.
-- **개발용 DB**: `<dev-host>/prismone` (계정 `prismone`/`***REMOVED***`). 공유 서버이므로
+- **개발용 DB**: `<dev-host>/prismone` — 접속 정보는 사내 위키 참조. 공유 서버이므로
   읽기 위주로 쓰고, 스키마 변경은 하지 말 것.
 - 사용자 데이터: `~/.prismone-studio/` — connections.json(암호문) · key.bin(0600) ·
   history.jsonl · options.json

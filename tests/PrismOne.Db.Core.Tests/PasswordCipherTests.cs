@@ -8,9 +8,9 @@ public class PasswordCipherTests
     [Fact]
     public void ProtectUnprotect_Roundtrip()
     {
-        var stored = PasswordCipher.Protect("***REMOVED***!@#123");
+        var stored = PasswordCipher.Protect("s3cretpw!@#123");
         Assert.StartsWith("enc:v1:", stored);
-        Assert.Equal("***REMOVED***!@#123", PasswordCipher.Unprotect(stored));
+        Assert.Equal("s3cretpw!@#123", PasswordCipher.Unprotect(stored));
     }
 
     [Fact]

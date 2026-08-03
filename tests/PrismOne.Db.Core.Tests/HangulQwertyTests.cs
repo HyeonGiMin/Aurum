@@ -13,7 +13,7 @@ public class HangulQwertyTests
     [InlineData("뷁", "qnpfr")]
     [InlineData("ㅁㄴㅇ", "asd")]
     [InlineData("abc한1!", "abcgks1!")]
-    [InlineData("***REMOVED***", "***REMOVED***")]
+    [InlineData("plainpw", "plainpw")]
     public void Convert_MapsDubeolsikToQwerty(string input, string expected)
         => Assert.Equal(expected, HangulQwerty.Convert(input));
 }
