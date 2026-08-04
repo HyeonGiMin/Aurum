@@ -37,6 +37,8 @@ public partial class CsvImportDialog : Window
         _profile = profile;
         _cache = cache;
         Title = $"Import CSV/TSV - {profile.DisplayName}";
+        MinWidth = 560;
+        MinHeight = 400;
         Opened += async (_, _) => await LoadTablesAsync();
     }
 

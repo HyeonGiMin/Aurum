@@ -34,7 +34,7 @@
     <TextBlock Text="변경은 새로 실행하는 문장부터 적용됩니다." FontSize="12" Opacity="0.65" TextWrapping="Wrap"/>
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="Cancel" MinHeight="30" MinWidth="80" Click="OnCancel"/>
+      <Button Content="Cancel" MinHeight="30" MinWidth="80" Click="OnCancel" IsCancel="True"/>
       <Button Content="OK" MinHeight="30" MinWidth="80" Classes="accent" IsDefault="True" Click="OnOk"/>
     </StackPanel>
   </StackPanel>

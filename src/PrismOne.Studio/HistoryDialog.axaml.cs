@@ -38,6 +38,8 @@ public partial class HistoryDialog : Window
     internal HistoryDialog(IReadOnlyList<HistoryEntry> entries)
     {
         InitializeComponent();
+        MinWidth = 480;
+        MinHeight = 380;
         // 최근 것이 위로
         _all = entries.Reverse().Select(e => new HistoryRow(e)).ToList();
         Rebuild();

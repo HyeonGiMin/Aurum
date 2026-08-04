@@ -268,4 +268,5 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 | `TOOL_COMPARISON.md` | **Golden vs DataGrip 장단점** — Aurum 이 무엇을 취하고 무엇을 버릴지 |
 | `DATAGRIP_GAP.md` | DataGrip 대비 기능 갭과 우선순위 |
 | `MULTI_DB_PLAN.md` | **멀티 DB 계획** — PG/Oracle/SQLite/MongoDB provider 단계 |
+| `UI_POLISH.md` | **UI 다듬기 로드맵** — 실제품 수준까지 (다크 모드·로딩 피드백·토스트 등) |
 | `STATUS.md` | 이 문서 — 진행 상황과 다음 작업 |
