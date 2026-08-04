@@ -16,18 +16,24 @@
             BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1"
             CornerRadius="2" Padding="14,14,14,10" Margin="0,8,12,0">
       <StackPanel>
-        <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto">
+        <Grid ColumnDefinitions="88,*" RowDefinitions="Auto,Auto,Auto,Auto">
           <Grid.Styles>
             <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13.5"/></Style>
             <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="32"/><Setter Property="FontSize" Value="13.5"/></Style>
           </Grid.Styles>
-          <TextBlock Grid.Row="0" Grid.Column="0" Text="Username:"/>
-          <TextBox   Grid.Row="0" Grid.Column="1" Name="UsernameBox" TextChanged="OnLoginFieldChanged"/>
-          <TextBlock Grid.Row="1" Grid.Column="0" Text="Password:"/>
-          <TextBox   Grid.Row="1" Grid.Column="1" Name="PasswordBox" PasswordChar="●"
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Type:"/>
+          <ComboBox  Grid.Row="0" Grid.Column="1" Name="DbTypeCombo"
+                     MinHeight="32" FontSize="13.5" Margin="0,4"
+                     HorizontalAlignment="Stretch"
+                     SelectionChanged="OnDbTypeChanged"
+                     ToolTip.Tip="접속할 데이터베이스 종류"/>
+          <TextBlock Grid.Row="1" Grid.Column="0" Name="UsernameLabel" Text="Username:"/>
+          <TextBox   Grid.Row="1" Grid.Column="1" Name="UsernameBox" TextChanged="OnLoginFieldChanged"/>
+          <TextBlock Grid.Row="2" Grid.Column="0" Name="PasswordLabel" Text="Password:"/>
+          <TextBox   Grid.Row="2" Grid.Column="1" Name="PasswordBox" PasswordChar="●"
                      TextChanged="OnPasswordChanged"/>
-          <TextBlock Grid.Row="2" Grid.Column="0" Text="Database:"/>
-          <ComboBox  Grid.Row="2" Grid.Column="1" Name="DatabaseCombo" IsEditable="True"
+          <TextBlock Grid.Row="3" Grid.Column="0" Name="DatabaseLabel" Text="Database:"/>
+          <ComboBox  Grid.Row="3" Grid.Column="1" Name="DatabaseCombo" IsEditable="True"
                      MinHeight="32" FontSize="13.5" Margin="0,4"
                      HorizontalAlignment="Stretch"
                      PlaceholderText="host[:port]/database"/>
@@ -76,7 +82,8 @@
                 SelectionChanged="OnSavedSelected" DoubleTapped="OnSavedDoubleTapped">
         <DataGrid.Columns>
           <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="96"/>
-          <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="112"/>
+          <DataGridTextColumn Header="Type" Binding="{Binding TypeLabel}" Width="88"/>
+          <DataGridTextColumn Header="Username" Binding="{Binding Username}" Width="104"/>
           <DataGridTextColumn Header="Database" Binding="{Binding DisplayDatabase}" Width="*"/>
           <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="96"/>
           <DataGridTextColumn Header="Comment" Binding="{Binding Comment}" Width="100"/>

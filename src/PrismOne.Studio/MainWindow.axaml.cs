@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Npgsql;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
 
@@ -114,6 +115,24 @@ public partial class MainWindow : Window
         Title = $"{profile.DisplayName} - Aurum";
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
+        // 쿼리 실행 경로(QuerySession)와 스키마 브라우저는 아직 PostgreSQL 전용이다.
+        // 다른 DB 는 접속만 확인하고 ERD(Tools > Diagram)까지만 열어준다
+        // — MULTI_DB_PLAN.md 의 "남은 것" 참조.
+        if (profile.Kind != DbKind.PostgreSql)
+        {
+            _schemaCache = null;
+            _allTables = [];
+            SchemaCombo.ItemsSource = null;   // 이전 PG 스키마 목록이 남지 않게
+            RefreshObjectList();
+            StatusLabel.Text =
+                $"Connected: {profile.DisplayName} · {profile.Provider.DisplayName} 는 아직 " +
+                "쿼리 실행을 지원하지 않습니다 (Tools > Diagram 으로 스키마를 볼 수 있습니다)";
+            foreach (var b in new[] { ExecuteButton, RunScriptButton, ExplainButton, ExplainAnalyzeButton, FetchAllButton, ExportButton })
+                b.IsEnabled = false;
+            UpdateConnectionPill();
+            return;
+        }
+
         await LoadBrowserAsync(profile);
         foreach (var v in AllViews())
         {
@@ -131,6 +150,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusLabel.Text = $"Connect failed: {ex.Message}";
+            await ErrorDialog.ShowAsync(this, "Connection failed",
+                $"세션을 열지 못했습니다.\n{profile.DisplayName}", ex);
             return;
         }
 

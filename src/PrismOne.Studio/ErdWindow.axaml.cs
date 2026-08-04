@@ -48,7 +48,8 @@ public partial class ErdWindow : Window
     public ErdWindow(ConnectionProfile profile, string? focusKey)
     {
         InitializeComponent();
-        _catalog = new PgErdCatalog(profile);
+        // provider 가 자기 DB 의 카탈로그를 준다 (PG/Oracle/SQLite)
+        _catalog = profile.Provider.CreateErdCatalog(profile);
         _database = profile.Database;
         _focusKey = focusKey;
 
