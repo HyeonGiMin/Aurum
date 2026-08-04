@@ -23,6 +23,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TabItem> _tabs = [];
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
+    /// <summary>접속당 하나 — 테이블·컬럼을 한 번만 읽는다 (DataGrip introspection 캐시).</summary>
+    private SchemaCache? _schemaCache;
     private AppOptions _options = AppOptions.Load();
     private readonly FavoritesStore _favorites = FavoritesStore.Load();
     private NativeMenu? _nativeFavoritesMenu;   // macOS 네이티브 메뉴바의 Favorites 하위
@@ -114,7 +116,10 @@ public partial class MainWindow : Window
 
         await LoadBrowserAsync(profile);
         foreach (var v in AllViews())
+        {
             v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
+            v.SchemaCache = _schemaCache;      // 컬럼 완성도 캐시에서 (접속 안 염)
+        }
 
         // Golden: 메인 접속 하나를 공유 세션으로 열고 탭들에 붙인다
         if (_sharedSession is not null)
@@ -173,6 +178,7 @@ public partial class MainWindow : Window
         var view = new QueryTabView
         {
             CompletionTables = _allTables,
+            SchemaCache = _schemaCache,
             Options = _options,
             PreferredSchema = SchemaCombo.SelectedItem as string,
         };
@@ -361,10 +367,12 @@ public partial class MainWindow : Window
 
     private async Task LoadBrowserAsync(ConnectionProfile profile)
     {
+        // DataGrip 식 introspection — 접속당 한 번만 읽고 describe·자동완성은 캐시에서.
+        // (예전엔 테이블을 고를 때마다 새 접속을 열어 컬럼을 조회했다)
+        _schemaCache = SchemaCache.ForProfile(profile);
         try
         {
-            await using var conn = await profile.OpenAsync();
-            _allTables = await SchemaCatalog.GetTablesAsync(conn);
+            _allTables = [.. await _schemaCache.GetTablesAsync()];
         }
         catch (Exception ex)
         {
@@ -413,13 +421,13 @@ public partial class MainWindow : Window
 
     private async void OnObjectSelected(object? sender, SelectionChangedEventArgs e)
     {
-        if (ObjectsGrid.SelectedItem is not ObjectRow row || _profile is null)
+        if (ObjectsGrid.SelectedItem is not ObjectRow row || _schemaCache is null)
             return;
         DescribeTitle.Text = $"{row.Type.ToUpperInvariant()} {row.Info.Schema}.{row.Info.Name}";
         try
         {
-            await using var conn = await _profile.OpenAsync();
-            DescribeGrid.ItemsSource = await SchemaCatalog.GetColumnsAsync(conn, row.Info);
+            // 캐시에서 즉시 — 접속을 새로 열지 않는다
+            DescribeGrid.ItemsSource = await _schemaCache.GetColumnsAsync(row.Info);
         }
         catch (Exception ex)
         {
@@ -990,7 +998,7 @@ public partial class MainWindow : Window
         if (_allTables.Count == 0)
             StatusLabel.Text = "SQL Builder: 로그온하면 테이블 목록이 채워집니다 (Ctrl+L)";
 
-        var dialog = new SqlBuilderDialog(_allTables, _profile);
+        var dialog = new SqlBuilderDialog(_allTables, _profile) { SchemaCache = _schemaCache };
         await dialog.ShowDialog(this);
         if (dialog.Result is not { Length: > 0 } sql)
             return;

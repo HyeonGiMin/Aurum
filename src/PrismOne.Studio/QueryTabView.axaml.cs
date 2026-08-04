@@ -236,6 +236,16 @@ public partial class QueryTabView : UserControl
         window.Show();
     }
 
+    /// <summary>접속당 공용 introspection 캐시 (MainWindow 가 주입). 없으면 직접 조회한다.</summary>
+    public SchemaCache? SchemaCache { get; set; }
+
+    /// <summary>캐시가 없을 때의 예전 경로 — 그 테이블만 조회.</summary>
+    private async Task<List<ColumnInfo>> LoadColumnsDirectlyAsync(TableInfo table)
+    {
+        await using var conn = await _session!.Profile.OpenAsync();
+        return await SchemaCatalog.GetColumnsAsync(conn, table);
+    }
+
     private async Task<List<SqlCompletionItem>> ColumnItemsAsync(string qualifier, string sql)
     {
         if (SqlCompletion.ResolveTable(CompletionTables, qualifier, sql) is not { } table || _session is null)
@@ -245,8 +255,10 @@ public partial class QueryTabView : UserControl
         {
             try
             {
-                await using var conn = await _session.Profile.OpenAsync();
-                columns = await SchemaCatalog.GetColumnsAsync(conn, table);
+                // 공용 introspection 캐시가 있으면 접속을 열지 않는다 (DataGrip 방식)
+                columns = SchemaCache is { } cache
+                    ? [.. await cache.GetColumnsAsync(table)]
+                    : await LoadColumnsDirectlyAsync(table);
                 _columnCache[key] = columns;
             }
             catch

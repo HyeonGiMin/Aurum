@@ -66,10 +66,20 @@ public partial class SqlBuilderDialog : Window
         UpdatePreview();
     }
 
+    /// <summary>접속당 공용 introspection 캐시 (MainWindow 가 주입). 없으면 직접 조회한다.</summary>
+    public SchemaCache? SchemaCache { get; set; }
+
     private async Task<List<string>> LoadColumnsAsync(TableInfo table)
     {
         if (_columnCache.TryGetValue(table.QualifiedName, out var cached))
             return cached.Select(c => c.Name).ToList();
+        if (SchemaCache is { } cache)
+        {
+            var fromCache = (await cache.GetColumnsAsync(table)).ToList();
+            _columnCache[table.QualifiedName] = fromCache;
+            StatusText.Text = "";
+            return fromCache.Select(c => c.Name).ToList();
+        }
         if (_profile is null)
         {
             StatusText.Text = "미접속 — 컬럼 목록 없이 * 로 만듭니다";

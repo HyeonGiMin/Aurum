@@ -38,6 +38,53 @@ public static class SchemaCatalog
         return result;
     }
 
+    /// <summary>
+    /// 모든 테이블의 컬럼을 **한 쿼리로** 가져온다 (키: "schema.table").
+    /// DataGrip 식 introspection 캐시용 — 테이블당 1쿼리씩 왕복하던 것을 없앤다.
+    /// </summary>
+    public static async Task<Dictionary<string, List<ColumnInfo>>> GetAllColumnsAsync(
+        NpgsqlConnection conn, CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT n.nspname || '.' || c.relname,
+                   a.attnum,
+                   a.attname,
+                   pg_catalog.format_type(a.atttypid, a.atttypmod),
+                   CASE WHEN a.attnotnull THEN 'no' ELSE 'yes' END,
+                   COALESCE('P' || array_position(pk.conkey, a.attnum)::text, ''),
+                   COALESCE('F' || array_position(fk.conkey, a.attnum)::text, '')
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+              LEFT JOIN pg_constraint pk ON pk.conrelid = c.oid AND pk.contype = 'p'
+              LEFT JOIN LATERAL (
+                   SELECT f.conkey
+                     FROM pg_constraint f
+                    WHERE f.conrelid = c.oid AND f.contype = 'f' AND a.attnum = ANY(f.conkey)
+                    LIMIT 1) fk ON true
+             WHERE c.relkind IN ('r', 'p', 'v', 'm')
+               AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+             ORDER BY n.nspname, c.relname, a.attnum
+            """;
+        var result = new Dictionary<string, List<ColumnInfo>>(StringComparer.Ordinal);
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var key = reader.GetString(0);
+            if (!result.TryGetValue(key, out var columns))
+                result[key] = columns = [];
+            columns.Add(new ColumnInfo(
+                reader.GetInt16(1),
+                reader.GetString(2),
+                reader.GetString(3),
+                reader.GetString(4),
+                reader.GetString(5),
+                reader.GetString(6)));
+        }
+        return result;
+    }
+
     public static async Task<List<ColumnInfo>> GetColumnsAsync(
         NpgsqlConnection conn, TableInfo table, CancellationToken ct = default)
     {
