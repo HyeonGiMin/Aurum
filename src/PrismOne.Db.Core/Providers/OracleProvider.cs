@@ -57,8 +57,13 @@ public sealed class OracleProvider : IDbProvider
         DataSource = $"{profile.Host}:{profile.Port}/{profile.Database}",
         UserID = profile.Username,
         Password = profile.Password,
-        // Golden 스타일 툴 특성상 세션 하나를 계속 쓰므로 풀링 불필요
-        Pooling = false,
+        // PG 와 달리 **풀링을 켠다.** 카탈로그·COUNT 조회가 짧은 접속을 여러 번 열고 닫는데,
+        // 풀링이 꺼져 있으면 매번 진짜 세션을 만들어 리스너가 핸들러를 못 내주는
+        // ORA-12516 (TNS:listener could not find available handler) 이 난다.
+        // 상한을 작게 잡아 서버 세션을 낭비하지 않는다.
+        Pooling = true,
+        MinPoolSize = 0,
+        MaxPoolSize = 5,
         ConnectionTimeout = 10,
     }.ConnectionString;
 
