@@ -452,6 +452,7 @@ public partial class ErdWindow : Window
             await using var stream = await file.OpenWriteAsync();
             bitmap.Save(stream);
             ErdStatus.Text = $"Saved {file.Name} ({width}×{height}px)";
+            Toast.Show(this, "PNG 저장 완료", $"{file.Name} ({width}×{height}px)");
         }
         catch (Exception ex)
         {

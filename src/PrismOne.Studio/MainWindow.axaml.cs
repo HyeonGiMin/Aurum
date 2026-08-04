@@ -1469,6 +1469,7 @@ public partial class MainWindow : Window
             StatusLabel.Text = written < rows.Count
                 ? $"Saved {written:N0} of {rows.Count:N0} record(s) to {file.Name} (Excel row limit)"
                 : $"Saved {written:N0} loaded record(s) to {file.Name}";
+            Toast.Show(this, "xlsx 저장 완료", $"{file.Name} — {written:N0}행");
         }
         catch (Exception ex)
         {
@@ -1502,6 +1503,7 @@ public partial class MainWindow : Window
             await using var writer = new System.IO.StreamWriter(stream, new UTF8Encoding(true));
             await writer.WriteAsync(text);
             StatusLabel.Text = $"Saved {rows.Count:N0} loaded record(s) to {file.Name}";
+            Toast.Show(this, "저장 완료", $"{file.Name} — {rows.Count:N0}행");
         }
         catch (Exception ex)
         {
@@ -1583,6 +1585,7 @@ public partial class MainWindow : Window
             await using var writer = new System.IO.StreamWriter(stream);
             await writer.WriteAsync(view.GetSql());
             StatusLabel.Text = $"Saved {file.Name}";
+            Toast.Show(this, "저장 완료", file.Name);
         }
         catch (Exception ex)
         {
@@ -1619,6 +1622,7 @@ public partial class MainWindow : Window
                 var chars = await CopyExporter.ExportCsvAsync(profile, sql, stream,
                     total => StatusLabel.Text = $"Exporting… {total / 1_000_000.0:0.0}M chars");
                 StatusLabel.Text = $"Exported to {file.Name} via COPY ({chars:N0} chars, 전체 행·전문)";
+                Toast.Show(this, "CSV 내보내기 완료", $"{file.Name} (COPY, 전체 행)");
                 return;
             }
             catch (PostgresException ex)
@@ -1643,6 +1647,7 @@ public partial class MainWindow : Window
             foreach (var row in rows)
                 await writer.WriteLineAsync(string.Join(",", row.Select(v => CsvField(v ?? ""))));
             StatusLabel.Text = $"Exported {rows.Count:N0} loaded record(s) to {file.Name}";
+            Toast.Show(this, "CSV 내보내기 완료", $"{file.Name} — {rows.Count:N0}행");
         }
         catch (Exception ex)
         {

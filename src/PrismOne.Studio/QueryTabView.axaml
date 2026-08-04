@@ -29,14 +29,20 @@
                 HeadersVisibility="Column"
                 RowHeight="22"/>
       <!-- Golden: 빈 결과 영역엔 "▸ 1  No Records" (그리드 위에 표시) -->
-      <StackPanel Name="NoRecordsPanel" Orientation="Horizontal"
+      <StackPanel Name="NoRecordsPanel" Orientation="Vertical"
                   HorizontalAlignment="Left" VerticalAlignment="Top" Margin="0,4,0,0">
-        <TextBlock Text="▸ 1" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
-                   Margin="6,2,8,0"/>
-        <Border Background="{DynamicResource HeaderBgBrush}"
-                BorderBrush="{DynamicResource GridLineBrush}" BorderThickness="1" Padding="8,2">
-          <TextBlock Text="No Records" FontSize="12"/>
-        </Border>
+        <StackPanel Orientation="Horizontal">
+          <TextBlock Text="▸ 1" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
+                     Margin="6,2,8,0"/>
+          <Border Background="{DynamicResource HeaderBgBrush}"
+                  BorderBrush="{DynamicResource GridLineBrush}" BorderThickness="1" Padding="8,2">
+            <TextBlock Text="No Records" FontSize="12"/>
+          </Border>
+        </StackPanel>
+        <!-- 빈 상태 안내 (P2-5): 미접속이면 다음 행동을 알려준다 -->
+        <TextBlock Name="EmptyHint" FontSize="12" Foreground="{DynamicResource TextMutedBrush}"
+                   Margin="6,10,0,0" IsVisible="False"
+                   Text="Ctrl+L 로 접속한 뒤, SQL 을 쓰고 F9 로 실행하세요. 자동완성은 Ctrl+Space."/>
       </StackPanel>
       <!-- EXPLAIN (ANALYZE) 플랜 트리 (pgAdmin 그래픽 플랜의 트리 버전) -->
       <TreeView Name="PlanTree" IsVisible="False" Background="{DynamicResource ContentBgBrush}"

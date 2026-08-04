@@ -152,6 +152,7 @@ public partial class QueryTabView : UserControl
     {
         InitializeComponent();
         Editor.SyntaxHighlighting = SqlHighlighting.For(ThemeBrushes.IsDark);
+        EmptyHint.IsVisible = true;   // 새 탭은 미접속 — 다음 행동 안내 (AttachSession 이 끈다)
         _search = AvaloniaEdit.Search.SearchPanel.Install(Editor);   // Ctrl+F 내장
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
             CaretChanged?.Invoke(this, Editor.TextArea.Caret.Line, Editor.TextArea.Caret.Column);
@@ -448,6 +449,7 @@ public partial class QueryTabView : UserControl
             _ = ApplyIsolationQuietlyAsync(session, Options.Isolation);
         session.NoticeReceived += line => Dispatcher.UIThread.Post(() => AppendMessage(line));
         SetInfo($"Session: {session.Profile.DisplayName}" + (owned ? " (private)" : ""));
+        EmptyHint.IsVisible = false;   // 접속됨 — 빈 상태 안내 해제
     }
 
     /// <summary>이 탭의 세션 격리 수준 (DataGrip 의 Tx isolation). 미접속이면 옵션 기본값.</summary>

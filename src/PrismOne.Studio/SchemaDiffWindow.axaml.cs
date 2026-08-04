@@ -125,6 +125,7 @@ public partial class SchemaDiffWindow : Window
             SchemaSnapshotFile.Save(file.Path.LocalPath,
                 new SchemaSnapshotDoc(_profile.DisplayName, DateTime.UtcNow, graph));
             StatusText.Text = $"저장했습니다: {file.Path.LocalPath} — 테이블 {graph.Tables.Count}개, FK {graph.Relations.Count}개";
+            Toast.Show(this, "스냅샷 저장 완료", $"{System.IO.Path.GetFileName(file.Path.LocalPath)} — 테이블 {graph.Tables.Count}개");
         }
         catch (Exception ex)
         {
