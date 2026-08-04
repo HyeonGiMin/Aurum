@@ -188,29 +188,19 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
     private static async Task<List<ErdRelation>> LoadRelationsAsync(
         OracleConnection conn, string[] owners, CancellationToken ct)
     {
+        // 1:1 판정(child_unique)은 예전에 상관 서브쿼리로 SQL 안에서 했는데
+        // FK 행마다 all_cons_columns 를 세 번씩 훑어 **517테이블 기준 31.8초**가 걸렸다.
+        // PK/UNIQUE 컬럼 집합을 단순 쿼리로 한 번 읽어 C# 에서 비교한다
+        // (SqliteErdCatalog 와 같은 방식).
+        var uniqueSets = await LoadUniqueColumnSetsAsync(conn, owners, ct);
+
         var sql = $"""
             SELECT c.constraint_name,
                    c.owner || '.' || c.table_name,
                    rc.owner || '.' || rc.table_name,
                    cc.column_name,
                    rcc.column_name,
-                   col.nullable,
-                   (SELECT COUNT(*)
-                      FROM all_constraints u
-                     WHERE u.owner = c.owner
-                       AND u.table_name = c.table_name
-                       AND u.constraint_type IN ('P', 'U')
-                       AND (SELECT COUNT(*) FROM all_cons_columns ucc
-                             WHERE ucc.owner = u.owner AND ucc.constraint_name = u.constraint_name)
-                           = (SELECT COUNT(*) FROM all_cons_columns fcc
-                               WHERE fcc.owner = c.owner AND fcc.constraint_name = c.constraint_name)
-                       AND NOT EXISTS (
-                             SELECT 1 FROM all_cons_columns ucc
-                              WHERE ucc.owner = u.owner AND ucc.constraint_name = u.constraint_name
-                                AND ucc.column_name NOT IN (
-                                    SELECT fcc.column_name FROM all_cons_columns fcc
-                                     WHERE fcc.owner = c.owner
-                                       AND fcc.constraint_name = c.constraint_name))) AS child_unique
+                   col.nullable
               FROM all_constraints c
               JOIN all_constraints rc
                 ON rc.owner = c.r_owner AND rc.constraint_name = c.r_constraint_name
@@ -228,7 +218,7 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
             """;
 
         var parts = new List<(string Name, string Child, string Parent,
-            string ChildColumn, string ParentColumn, bool Nullable, bool Unique)>();
+            string ChildColumn, string ParentColumn, bool Nullable)>();
         await using var cmd = Command(conn, sql);
         Bind(cmd, "o", owners);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
@@ -236,20 +226,56 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
             parts.Add((
                 reader.GetString(0), reader.GetString(1), reader.GetString(2),
                 reader.GetString(3), reader.GetString(4),
-                reader.GetString(5) == "Y",
-                reader.GetInt32(6) > 0));
+                reader.GetString(5) == "Y"));
 
         return parts
             .GroupBy(p => (p.Name, p.Child))
-            .Select(g => new ErdRelation(
-                g.Key.Name,
-                g.Key.Child,
-                g.Select(p => p.ChildColumn).ToList(),
-                g.First().Parent,
-                g.Select(p => p.ParentColumn).ToList(),
-                ChildUnique: g.First().Unique,
-                ChildOptional: g.Any(p => p.Nullable)))
+            .Select(g =>
+            {
+                var childColumns = g.Select(p => p.ChildColumn).ToList();
+                var set = childColumns.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                // 자식 FK 컬럼 집합과 정확히 같은 PK/UNIQUE 가 있으면 1:1
+                var unique = uniqueSets.TryGetValue(g.Key.Child, out var sets)
+                             && sets.Any(s => s.SetEquals(set));
+                return new ErdRelation(
+                    g.Key.Name,
+                    g.Key.Child,
+                    childColumns,
+                    g.First().Parent,
+                    g.Select(p => p.ParentColumn).ToList(),
+                    ChildUnique: unique,
+                    ChildOptional: g.Any(p => p.Nullable));
+            })
             .ToList();
+    }
+
+    /// <summary>(OWNER.TABLE → PK/UNIQUE 제약별 컬럼 집합들). 1:1 판정에 쓴다.</summary>
+    private static async Task<Dictionary<string, List<HashSet<string>>>> LoadUniqueColumnSetsAsync(
+        OracleConnection conn, string[] owners, CancellationToken ct)
+    {
+        var sql = $"""
+            SELECT cc.owner || '.' || cc.table_name, cc.constraint_name, cc.column_name
+              FROM all_constraints c
+              JOIN all_cons_columns cc
+                ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+             WHERE c.constraint_type IN ('P', 'U')
+               AND c.owner IN ({Placeholders(owners.Length, "o")})
+            """;
+        var byConstraint = new Dictionary<(string Table, string Name), HashSet<string>>();
+        await using var cmd = Command(conn, sql);
+        Bind(cmd, "o", owners);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var key = (reader.GetString(0), reader.GetString(1));
+            if (!byConstraint.TryGetValue(key, out var set))
+                byConstraint[key] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            set.Add(reader.GetString(2));
+        }
+
+        return byConstraint
+            .GroupBy(p => p.Key.Table)
+            .ToDictionary(g => g.Key, g => g.Select(p => p.Value).ToList(), StringComparer.Ordinal);
     }
 
     // ---------- 도우미 ----------
