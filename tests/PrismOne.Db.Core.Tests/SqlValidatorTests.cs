@@ -166,6 +166,16 @@ public sealed class SqlValidatorTests
         => Assert.Empty(SqlValidator.Validate("select * from ghost", SchemaSnapshot.Empty));
 
     [Fact]
+    public void HugeScriptIsSkippedForResponsiveness()
+    {
+        // UI 스레드에서 돌기 때문에 대형 덤프는 검사하지 않는다 — 밑줄보다 반응성
+        var huge = "select * from prismone.stduy;\n"
+                   + new string(' ', SqlValidator.MaxValidatedLength);
+
+        Assert.Empty(Validate(huge));
+    }
+
+    [Fact]
     public void UnknownColumnOfUnknownTableIsNotDoubleReported()
     {
         // 테이블이 이미 밑줄이면 그 별칭의 컬럼까지 겹쳐 알리지 않는다

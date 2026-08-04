@@ -38,10 +38,17 @@ public static class SqlValidator
         || name.StartsWith("pg_", StringComparison.OrdinalIgnoreCase)     // PG 카탈로그 뷰
         || name.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// 이 길이를 넘는 스크립트(마이그레이션 덤프 등)는 검사하지 않는다 —
+    /// 검증은 타자 사이 UI 스레드에서 돌므로 밑줄보다 반응성이 먼저다.
+    /// </summary>
+    public const int MaxValidatedLength = 200_000;
+
     public static List<SqlIssue> Validate(string sql, SchemaSnapshot snapshot)
     {
         var issues = new List<SqlIssue>();
-        if (string.IsNullOrWhiteSpace(sql) || snapshot.Tables.Count == 0)
+        if (string.IsNullOrWhiteSpace(sql) || snapshot.Tables.Count == 0
+            || sql.Length > MaxValidatedLength)
             return issues;
 
         var text = Mask(sql);

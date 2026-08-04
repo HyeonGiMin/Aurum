@@ -195,6 +195,24 @@ public sealed class CsvImporterTests : IDisposable
     }
 
     [Fact]
+    public async Task LargeFileGoesThroughPreparedBatchPath()
+    {
+        // 5천 행 — 준비된 문장 재사용 경로. 수 초씩 걸리면 회귀다 (CI 감각의 느슨한 상한)
+        await using var session = await QuerySession.CreateAsync(Profile);
+        var rows = Enumerable.Range(1, 5_000).Select(i => new[] { i.ToString(), $"S{i}" }).ToList();
+        var mapping = CsvImporter.MapByHeader(["study_key", "study_id"], StudyColumns);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var result = await CsvImporter.RunAsync(session, "", "study", mapping, rows, emptyAsNull: true);
+        watch.Stop();
+
+        Assert.True(result.Success, result.Error);
+        Assert.Equal(5_000, result.Inserted);
+        Assert.Equal(5_000, await CountAsync(session));
+        Assert.True(watch.ElapsedMilliseconds < 10_000, $"5천 행에 {watch.ElapsedMilliseconds}ms");
+    }
+
+    [Fact]
     public async Task StructuralErrorTouchesNothing()
     {
         await using var session = await QuerySession.CreateAsync(Profile);

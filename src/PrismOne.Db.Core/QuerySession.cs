@@ -281,6 +281,55 @@ public sealed class QuerySession : IAsyncDisposable
         return await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>
+    /// 같은 문장을 값만 바꿔 반복 실행한다 (CSV import 등 대량 insert).
+    /// 명령·파라미터를 **한 번 만들어 재사용**하고 가능하면 Prepare 한다 —
+    /// 행마다 명령을 새로 만드는 것보다 훨씬 싸다. 실패하면 몇 번째 행인지 실어 던진다.
+    /// </summary>
+    public async Task<int> ExecuteBatchAsync(
+        string sql, IReadOnlyList<IReadOnlyList<string?>> rows,
+        IProgress<int>? progress = null, CancellationToken ct = default)
+    {
+        if (rows.Count == 0) return 0;
+        // 접속 하나에 reader 하나 — 열린 결과가 있으면 먼저 닫는다
+        if (Current is { Completed: false })
+            await Current.AbortAsync();
+
+        await using var cmd = NewCommand(sql);
+        var parameters = new DbParameter[rows[0].Count];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var p = cmd.CreateParameter();
+            if (p is NpgsqlParameter pg)
+                pg.NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown;   // 서버가 컬럼 타입으로 캐스팅
+            else
+                p.ParameterName = $"p{i + 1}";   // SQLite 는 이름 없는 파라미터를 거부한다
+            parameters[i] = p;
+            cmd.Parameters.Add(p);
+        }
+        try { await cmd.PrepareAsync(ct); } catch { /* Prepare 미지원 드라이버 — 그냥 간다 */ }
+
+        var done = 0;
+        foreach (var row in rows)
+        {
+            ct.ThrowIfCancellationRequested();
+            for (var i = 0; i < parameters.Length; i++)
+                parameters[i].Value = (object?)(i < row.Count ? row[i] : null) ?? DBNull.Value;
+            try
+            {
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new BatchRowException(done + 1, ex);
+            }
+            done++;
+            if (done % 500 == 0)
+                progress?.Report(done);
+        }
+        return done;
+    }
+
     private async Task ExecSimpleAsync(string sql, CancellationToken ct)
     {
         await using var cmd = NewCommand(sql);
@@ -302,6 +351,13 @@ public sealed class QuerySession : IAsyncDisposable
     {
         try { await Connection.DisposeAsync(); } catch { /* shutdown */ }
     }
+}
+
+/// <summary>배치 실행 중 몇 번째 행(1부터)에서 실패했는지를 실은 예외.</summary>
+public sealed class BatchRowException(int rowNumber, Exception inner)
+    : Exception($"{rowNumber}번째 행: {inner.Message}", inner)
+{
+    public int RowNumber { get; } = rowNumber;
 }
 
 /// <summary>fetch 된 행 하나. Raw 는 표시용으로 잘린 셀의 원문만 담는다 (없으면 null).</summary>

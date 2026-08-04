@@ -151,21 +151,28 @@ public static class CsvImporter
         return null;
     }
 
-    public static EditStatement BuildInsert(
-        IDbProvider provider, string schema, string table,
-        CsvMapping mapping, string[] row, bool emptyAsNull)
+    /// <summary>모든 행에 재사용되는 INSERT 문 (값은 자리표시자).</summary>
+    public static string BuildInsertSql(IDbProvider provider, string schema, string table, CsvMapping mapping)
     {
         var target = string.IsNullOrEmpty(schema)
             ? provider.QuoteIdentifier(table)
             : $"{provider.QuoteIdentifier(schema)}.{provider.QuoteIdentifier(table)}";
         var columns = string.Join(", ", mapping.Columns.Select(m => provider.QuoteIdentifier(m.Column.Name)));
         var placeholders = string.Join(", ", mapping.Columns.Select((_, i) => provider.ParameterPlaceholder(i + 1)));
-        var values = mapping.Columns
+        return $"INSERT INTO {target} ({columns}) VALUES ({placeholders})";
+    }
+
+    /// <summary>파일 행 → 매핑 순서의 파라미터 값.</summary>
+    public static List<string?> MapRow(CsvMapping mapping, string[] row, bool emptyAsNull) =>
+        mapping.Columns
             .Select(m => m.FileIndex < row.Length ? row[m.FileIndex] : null)
             .Select(v => emptyAsNull && v is { Length: 0 } ? null : v)
             .ToList();
-        return new EditStatement($"INSERT INTO {target} ({columns}) VALUES ({placeholders})", values);
-    }
+
+    public static EditStatement BuildInsert(
+        IDbProvider provider, string schema, string table,
+        CsvMapping mapping, string[] row, bool emptyAsNull) =>
+        new(BuildInsertSql(provider, schema, table, mapping), MapRow(mapping, row, emptyAsNull));
 
     /// <summary>
     /// 한 트랜잭션으로 전량 insert. 실패하면 롤백하고 몇 번째 행에서 무엇이 났는지 돌려준다.
@@ -181,30 +188,30 @@ public static class CsvImporter
             return new CsvImportResult(0, rows.Count, bad.Message, bad.Row);
 
         var provider = session.Profile.Provider;
-        var inserted = 0;
+        var sql = BuildInsertSql(provider, schema, table, mapping);
+        var values = rows.Select(r => (IReadOnlyList<string?>)MapRow(mapping, r, emptyAsNull)).ToList();
         try
         {
             await session.EnsureTransactionAsync(ct);
-            foreach (var row in rows)
-            {
-                ct.ThrowIfCancellationRequested();
-                await session.ExecuteEditAsync(BuildInsert(provider, schema, table, mapping, row, emptyAsNull), ct);
-                inserted++;
-                if (inserted % 100 == 0)
-                    progress?.Report(inserted);
-            }
+            // 준비된 문장 재사용 — 행마다 명령을 만들지 않는다 (대량 파일 성능)
+            var inserted = await session.ExecuteBatchAsync(sql, values, progress, ct);
             await session.CommitAsync(ct);
             return new CsvImportResult(inserted, rows.Count, null, null);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (BatchRowException ex)
         {
             await TryRollback(session);
-            return new CsvImportResult(0, rows.Count, ex.Message, inserted + 1);
+            return new CsvImportResult(0, rows.Count, ex.InnerException!.Message, ex.RowNumber);
         }
         catch (OperationCanceledException)
         {
             await TryRollback(session);
-            return new CsvImportResult(0, rows.Count, "취소됨", inserted + 1);
+            return new CsvImportResult(0, rows.Count, "취소됨", null);
+        }
+        catch (Exception ex)
+        {
+            await TryRollback(session);
+            return new CsvImportResult(0, rows.Count, ex.Message, null);
         }
     }
 
