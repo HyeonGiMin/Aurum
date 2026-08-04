@@ -119,7 +119,11 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 - Mongo 는 SQL 이 아니라 문서·파이프라인 모델이라 에디터(쿼리 언어)·그리드(중첩 문서
   표시)·자동완성(컬렉션/필드)·편집(_id 기준) 모두 별도 UX 가 필요 — Studio3T 가
   참고 대상. 드라이버는 공식 MongoDB.Driver(.NET)
-- 아직 미착수 — §2·3 CLI 이후, 별도 계획 문서로 시작한다
+- **계획 문서 작성됨 (2026-08-04): `MULTI_DB_PLAN.md`** — Oracle·SQLite 까지 범위를
+  넓혔고, 결합도 측정(Core 8개 파일이 Npgsql 직접 참조)·드라이버 선정·기능별 대응
+  가능성 표·단계(0 경계 → 1 SQLite → 2 Oracle → 3 Mongo)를 담았다.
+  SQLite 를 Oracle 보다 먼저 두는 이유는 **파일 DB 라 단위 테스트로 검증 가능**해서다.
+  구현은 아직 미착수
 
 ## 2·3. CLI — iap-database repo 로 이관
 
@@ -196,4 +200,5 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 | `GOLDEN_BEHAVIOR.md` | Golden 동작 명세 + 갭 목록 (바이너리·매뉴얼 근거) |
 | `PG_FEATURES.md` | pgAdmin·PostgreSQL 고유 기능 채택 계획 |
 | `STUDIO_PLAN.md` | 초기 파리티 계획 (P1~P5) |
+| `MULTI_DB_PLAN.md` | **멀티 DB 계획** — PG/Oracle/SQLite/MongoDB provider 단계 |
 | `STATUS.md` | 이 문서 — 진행 상황과 다음 작업 |
