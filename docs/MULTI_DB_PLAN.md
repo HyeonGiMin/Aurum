@@ -3,7 +3,15 @@
 작성: 2026-08-04 · 목표: DataGrip 처럼 **접속 대상 DB 를 골라 쓰는** 도구로 넓힌다.
 
 > STATUS.md §1.5 가 "착수 전에 별도 계획 문서로 시작한다"고 한 그 문서다.
-> **아직 착수 전이다.** 아래는 현황 측정과 단계 계획이다.
+>
+> **진행 상황 (2026-08-04)**
+> - 0단계 **경계 만들기 — 완료.** `Core/Providers/` 에 `DbKind`·`DbCapabilities`·
+>   `IDbProvider`·`DbProviders` 레지스트리, `PostgresProvider`, `SqliteProvider`
+> - 1단계 **SQLite — 카탈로그까지 완료.** `SqliteErdCatalog` 가 sqlite_master +
+>   PRAGMA 로 테이블·컬럼·FK·UNIQUE 를 읽는다. **임시 파일 DB 로 실제 검증**
+>   (`SqliteProviderTests` 15개)
+> - **남은 것**: 로그온 창의 DB 종류 선택, `QuerySession`/`QueryExecutor` 의
+>   `DbConnection` 마이그레이션(아직 Npgsql 고정), Capabilities 를 UI 비활성화에 연결
 
 ## 1. 현재 결합도 (2026-08-04 측정)
 
