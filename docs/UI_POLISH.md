@@ -34,10 +34,12 @@
 
 ## P2 — 첫인상·완성도
 
-4. **토스트 알림** — xlsx 저장 완료·Import 완료·커밋 완료처럼 "한 줄 알림"이
-   필요한 곳. 상태바는 놓치기 쉽다. Avalonia `WindowNotificationManager` 사용.
-5. **빈 상태(empty state) 정리** — No records·미접속 탭·History 0건·ERD 미선택에
-   아이콘 + 다음 행동 안내 한 줄 (예: "Ctrl+L 로 접속하세요").
+4. ~~**토스트 알림**~~ ✅ 구현됨 (2026-08-04) — `Toast.Show` (WindowNotificationManager,
+   우하단). 성공 확인이 필요한 곳에만: xlsx/TSV/INSERT/CSV 내보내기, Import 완료,
+   Schema Diff 스냅샷 저장, ERD PNG 저장. 실패는 기존 오류 표시 경로 그대로.
+5. ~~**빈 상태 정리**~~ ✅ 1차 (2026-08-04) — 미접속 탭의 빈 결과 영역에
+   "Ctrl+L 로 접속한 뒤 F9 로 실행" 안내 (접속하면 사라진다). History 0건·ERD 는
+   기존 상태바 문구로 충분해 그대로 뒀다.
 6. **타이포 스케일 통일** — FontSize 11/11.5/12/12.5/13 혼재. 3단(본문 13 ·
    보조 12 · 캡션 11)으로 정리하고 Styles 에 클래스로.
 7. **툴바 아이콘 정리** — 스타일 혼재 여부 점검, hover/pressed/disabled 상태 통일,

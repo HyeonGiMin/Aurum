@@ -190,6 +190,8 @@ public partial class CsvImportDialog : Window
             StatusText.Text = result.Success
                 ? $"완료 — {result.Inserted:N0}행을 {table.Schema}.{table.Name} 에 넣고 커밋했습니다."
                 : $"실패 (전량 롤백) — {result.ErrorRow}번째 행: {result.Error}";
+            if (result.Success)
+                Toast.Show(this, "Import 완료", $"{table.Schema}.{table.Name} — {result.Inserted:N0}행 커밋");
         }
         catch (Exception ex)
         {
