@@ -94,6 +94,18 @@
   보내 서버가 캐스팅. 전용 접속에서 실행. `IDbProvider.ParameterPlaceholder`
   추가 — Microsoft.Data.Sqlite 가 이름 없는 파라미터를 거부해 SQLite 는 `@pN`.
   테스트 19개, 오프라인 스크린샷 `shot_import.png`.
+- **성능·안정성 (2026-08-04, 사용자 방향: "성능과 안정성이 최우선")**
+  - Import 대량 insert 를 **준비된 문장 재사용**(`QuerySession.ExecuteBatchAsync`,
+    Prepare + 파라미터 재사용)으로 — 행마다 명령 생성 제거. 5천 행 테스트 포함
+    전체 스위트가 0.2초 안에 돈다. 실패 행 번호는 `BatchRowException` 으로 유지
+  - SQL 검증에 **200K 자 상한** — 대형 덤프에서 UI 스레드 지연 방지 (밑줄보다 반응성)
+- **Query History 조회 창 (2026-08-04, 사용자 요청)** — Tools > Query History.
+  실행 시각 포함 최근 순, 부분일치 필터, 더블클릭/Insert 로 에디터 삽입.
+  `HistoryStore` 가 시각을 메모리에도 보존하도록 확장 (jsonl 형식은 그대로).
+  쿼리 앱 내 저장 = 기존 Favorites, 파일 열기/저장 = 기존 Ctrl+O/S 로 이미 충족.
+- **Pin Results (2026-08-04, DATAGRIP_GAP §6)** — Results > Pin Results to New
+  Window. 결과 영역 다중 탭 대신 **스냅샷을 별도 창에 고정** — 그리드 핵심 경로를
+  건드리지 않는 저위험 설계. 오프라인 스크린샷 `shot_history.png` · `shot_pin.png`.
 - **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
   SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
   Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·
@@ -205,7 +217,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
-- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 279개)
+- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 281개)
 - **실접속 검증 현황** (2026-08-03, 사내 개발 DB 접속 가능한 환경에서 확인):
   1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
      Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,

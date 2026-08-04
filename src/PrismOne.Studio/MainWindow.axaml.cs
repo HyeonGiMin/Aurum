@@ -299,6 +299,7 @@ public partial class MainWindow : Window
             Item("Clear Filter", () => OnMenuClearFilter(this, args)),
             Item("Append Filter Clause to Editor", () => OnMenuFilterCell(this, args)),
             Item("Clear Results", () => OnMenuClearResults(this, args)),
+            Item("Pin Results to New Window", () => OnMenuPinResult(this, args)),
             new NativeMenuItemSeparator(),
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
@@ -321,6 +322,7 @@ public partial class MainWindow : Window
             Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
             Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
             Item("Import CSV/TSV…", () => OnMenuImportCsv(this, args)),
+            Item("Query History…", () => OnMenuHistory(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -1095,6 +1097,24 @@ public partial class MainWindow : Window
 
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
     private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
+
+    /// <summary>Results > Pin — 현재 결과 스냅샷을 새 창에 (다음 쿼리와 나란히 비교).</summary>
+    private void OnMenuPinResult(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView?.SnapshotResult() is { } snap)
+            new PinnedResultWindow(snap.Sql ?? "results", snap.Columns, snap.Rows).Show(this);
+        else
+            StatusLabel.Text = "고정할 결과가 없습니다 (편집 모드에서는 고정할 수 없습니다)";
+    }
+
+    /// <summary>Tools > Query History — 검색해서 에디터에 삽입 (실행은 사용자가).</summary>
+    private async void OnMenuHistory(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new HistoryDialog();
+        await dialog.ShowDialog(this);
+        if (dialog.SelectedSql is { } sql && ActiveView is { } view)
+            view.InsertAtCaret(sql);
+    }
 
     private async void OnMenuCommit(object? sender, RoutedEventArgs e)
     {
@@ -1942,6 +1962,31 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
             importWin.Close();
+
+            // Query History — 가짜 항목으로 렌더 확인 (실제 히스토리 파일을 읽지 않는다)
+            var historyWin = new HistoryDialog(
+            [
+                new HistoryEntry("select * from prismone.study where study_dttm >= '2026-07-01' order by study_dttm desc",
+                    new DateTime(2026, 8, 3, 14, 22, 5)),
+                new HistoryEntry("update prismone.examlist set status = 'DONE' where exam_key = 1234",
+                    new DateTime(2026, 8, 3, 15, 2, 41)),
+                new HistoryEntry("select e.exam_key, e.status from prismone.examlist e join prismone.study s on s.study_key = e.study_key",
+                    new DateTime(2026, 8, 4, 9, 12, 0)),
+            ]);
+            historyWin.Show(this);
+            await Task.Delay(400);
+            SaveShot(historyWin, System.IO.Path.Combine(dir, "shot_history.png"));
+            historyWin.Close();
+
+            // Pin Results — 샘플 그리드 스냅샷을 새 창에
+            if (ActiveView?.SnapshotResult() is { } pinSnap)
+            {
+                var pin = new PinnedResultWindow(pinSnap.Sql ?? "study search", pinSnap.Columns, pinSnap.Rows);
+                pin.Show(this);
+                await Task.Delay(500);
+                SaveShot(pin, System.IO.Path.Combine(dir, "shot_pin.png"));
+                pin.Close();
+            }
 
             var dialog = new ConnectDialog();
             dialog.Show(this);

@@ -68,6 +68,7 @@
         <MenuItem Header="Clear Filter" Click="OnMenuClearFilter"/>
         <MenuItem Header="Append Filter Clause to Editor" Click="OnMenuFilterCell"/>
         <MenuItem Header="Clear Results" Click="OnMenuClearResults"/>
+        <MenuItem Header="Pin Results to New Window" Click="OnMenuPinResult"/>
         <Separator/>
         <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
         <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
@@ -93,6 +94,7 @@
         <MenuItem Header="Diagram (ERD)…" Click="OnMenuErd"/>
         <MenuItem Header="Schema Diff…" Click="OnMenuSchemaDiff"/>
         <MenuItem Header="Import CSV/TSV…" Click="OnMenuImportCsv"/>
+        <MenuItem Header="Query History…" Click="OnMenuHistory"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
