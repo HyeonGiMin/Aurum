@@ -40,6 +40,18 @@ public sealed class OracleProvider : IDbProvider
 
     public string? RowIdColumn => "ROWID";
 
+    /// <summary>Oracle 은 DML 이 암시적으로 트랜잭션을 연다. BEGIN 은 PL/SQL 블록이라 보내면 안 된다.</summary>
+    public string? BeginTransactionSql => null;
+
+    public string? SessionIsolationSql(TransactionIsolation level) => level switch
+    {
+        TransactionIsolation.Serializable => "ALTER SESSION SET ISOLATION_LEVEL = SERIALIZABLE",
+        TransactionIsolation.ReadCommitted => "ALTER SESSION SET ISOLATION_LEVEL = READ COMMITTED",
+        // Database Default 는 Oracle 기본값(READ COMMITTED)으로 되돌린다
+        TransactionIsolation.DatabaseDefault => "ALTER SESSION SET ISOLATION_LEVEL = READ COMMITTED",
+        _ => null,   // Oracle 에 없는 수준 — 걸지 않는다
+    };
+
     public string BuildConnectionString(ConnectionProfile profile) => new OracleConnectionStringBuilder
     {
         DataSource = $"{profile.Host}:{profile.Port}/{profile.Database}",

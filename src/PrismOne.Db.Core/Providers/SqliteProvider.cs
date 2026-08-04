@@ -35,6 +35,11 @@ public sealed class SqliteProvider : IDbProvider
 
     public string? RowIdColumn => "rowid";
 
+    public string? BeginTransactionSql => "BEGIN";
+
+    /// <summary>세션 격리 수준 개념이 없다.</summary>
+    public string? SessionIsolationSql(TransactionIsolation level) => null;
+
     /// <summary>
     /// 없는 파일을 열면 SQLite 는 빈 DB 를 만들어버린다 — 경로 오타로 빈 DB 가 생기는
     /// 사고를 막으려고 <c>Mode=ReadWrite</c> 로 고정한다(생성하지 않음).

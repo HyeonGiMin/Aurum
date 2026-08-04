@@ -54,6 +54,18 @@ public interface IDbProvider
     /// <summary>행 특정용 의사 컬럼. 없으면 null (그리드 편집 불가).</summary>
     string? RowIdColumn { get; }
 
+    /// <summary>
+    /// 명시적으로 트랜잭션을 여는 문장. Oracle 은 DML 이 암시적으로 열고 BEGIN 은
+    /// PL/SQL 블록 시작이라 보내면 안 되므로 null 이다.
+    /// </summary>
+    string? BeginTransactionSql { get; }
+
+    /// <summary>
+    /// 세션 격리 수준을 거는 문장. 지원하지 않거나 해당 수준이 없으면 null.
+    /// enum 에서 파생되므로 사용자 입력이 문장에 섞이지 않는다.
+    /// </summary>
+    string? SessionIsolationSql(TransactionIsolation level);
+
     string BuildConnectionString(ConnectionProfile profile);
 
     /// <summary>ADO.NET 공통 타입으로 연다 — 호출부가 드라이버를 몰라도 되게.</summary>

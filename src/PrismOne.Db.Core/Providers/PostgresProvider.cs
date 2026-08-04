@@ -37,6 +37,11 @@ public sealed class PostgresProvider : IDbProvider
     /// <summary>PG 는 ctid 로 행을 특정한다 (Golden 이 Oracle ROWID 를 쓰던 자리).</summary>
     public string? RowIdColumn => "ctid";
 
+    public string? BeginTransactionSql => "BEGIN";
+
+    /// <summary>기존 동작 그대로 — SET SESSION CHARACTERISTICS (다음 트랜잭션부터 적용).</summary>
+    public string? SessionIsolationSql(TransactionIsolation level) => level.ToSessionSql();
+
     public string BuildConnectionString(ConnectionProfile profile) => new NpgsqlConnectionStringBuilder
     {
         Host = profile.Host,

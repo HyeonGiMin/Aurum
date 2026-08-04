@@ -115,25 +115,24 @@ public partial class MainWindow : Window
         Title = $"{profile.DisplayName} - Aurum";
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
-        // 쿼리 실행 경로(QuerySession)와 스키마 브라우저는 아직 PostgreSQL 전용이다.
-        // 다른 DB 는 접속만 확인하고 ERD(Tools > Diagram)까지만 열어준다
-        // — MULTI_DB_PLAN.md 의 "남은 것" 참조.
-        if (profile.Kind != DbKind.PostgreSql)
+        // 쿼리 실행은 이제 드라이버 중립(QuerySession 이 DbConnection 을 쓴다)이지만,
+        // Object Browser·자동완성 캐시·스키마 버전 pill 은 아직 PG 카탈로그에 묶여 있다.
+        // COPY 기반 대량 내보내기도 provider 가 지원한다고 할 때만 켠다.
+        var isPostgres = profile.Kind == DbKind.PostgreSql;
+        ExportButton.IsEnabled = profile.Provider.Capabilities.BulkExport;
+
+        if (isPostgres)
+        {
+            await LoadBrowserAsync(profile);
+        }
+        else
         {
             _schemaCache = null;
             _allTables = [];
             SchemaCombo.ItemsSource = null;   // 이전 PG 스키마 목록이 남지 않게
             RefreshObjectList();
-            StatusLabel.Text =
-                $"Connected: {profile.DisplayName} · {profile.Provider.DisplayName} 는 아직 " +
-                "쿼리 실행을 지원하지 않습니다 (Tools > Diagram 으로 스키마를 볼 수 있습니다)";
-            foreach (var b in new[] { ExecuteButton, RunScriptButton, ExplainButton, ExplainAnalyzeButton, FetchAllButton, ExportButton })
-                b.IsEnabled = false;
-            UpdateConnectionPill();
-            return;
         }
 
-        await LoadBrowserAsync(profile);
         foreach (var v in AllViews())
         {
             v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
@@ -156,7 +155,13 @@ public partial class MainWindow : Window
         }
 
         UpdateConnectionPill();
-        await UpdateSchemaVersionPillAsync(profile);
+        // 스키마 버전 pill 은 PRISMONE.schema_version(PG) 을 읽는다
+        if (isPostgres)
+            await UpdateSchemaVersionPillAsync(profile);
+        else
+            StatusLabel.Text =
+                $"Connected: {profile.DisplayName} · {profile.Provider.DisplayName} — " +
+                "쿼리 실행과 Diagram 은 되고, Object Browser·자동완성은 아직 PostgreSQL 전용입니다";
 
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
         if (orphans.Count > 0)

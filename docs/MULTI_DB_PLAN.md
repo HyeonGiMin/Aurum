@@ -18,9 +18,15 @@
 > - **발견된 문제**: 517개 테이블이면 다이어그램이 2834×11520 이 된다. FK 로 안 이어진
 >   단독 테이블이 많아 주제영역이 340개까지 늘어난다. Focus 로 좁히면 되지만
 >   전체 보기는 사실상 못 읽는다 — 대형 스키마 배치 개선이 필요하다
-> - **남은 것**: 로그온 창의 DB 종류 선택, `QuerySession`/`QueryExecutor` 의
->   `DbConnection` 마이그레이션(아직 Npgsql 고정), Capabilities 를 UI 비활성화에 연결,
->   Oracle AS SYSDBA·Read Only 처리
+> - **로그온 창 DB 종류 선택 — 완료.** Type 드롭다운 + Login List 의 Type 컬럼.
+>   접속 검증도 provider 경유(`OpenDbAsync`)
+> - **`QuerySession` 드라이버 중립화 — 완료 (2026-08-04).** `DbConnection`/`DbCommand`/
+>   `DbDataReader` 로 옮기고 DB 별 차이(BEGIN 문장·세션 격리 구문·서버 NOTICE)를
+>   provider 로 뺐다. Oracle 은 BEGIN 을 보내지 않는다(DML 이 암시적으로 열고
+>   BEGIN 은 PL/SQL 블록이라 보내면 안 된다). **SQLite 실제 DB 로 실행·커밋 검증**
+> - **남은 것**: Object Browser·자동완성 캐시가 아직 PG 카탈로그 전용,
+>   COPY 대량 내보내기는 Capabilities 로 껐지만 대체 경로 없음,
+>   Oracle AS SYSDBA·Read Only 처리, MongoDB(3단계)
 
 ## 1. 현재 결합도 (2026-08-04 측정)
 

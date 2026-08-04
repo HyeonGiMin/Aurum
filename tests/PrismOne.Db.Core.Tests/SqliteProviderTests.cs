@@ -194,6 +194,52 @@ public sealed class SqliteProviderTests : IDisposable
         Assert.Equal(["main"], schemas);
     }
 
+    // ---------- 쿼리 실행 경로 (QuerySession 이 드라이버 중립인지) ----------
+
+    [Fact]
+    public async Task RunsAStatementThroughQuerySession()
+    {
+        await using var session = await QuerySession.CreateAsync(Profile);
+
+        await using var query = await session.ExecuteAsync("select 1 as one, 'x' as two");
+
+        Assert.True(query.HasGrid);
+        Assert.Equal(["one", "two"], query.Columns);
+        var batch = await query.FetchAsync(10);
+        Assert.Single(batch);
+        Assert.Equal("1", batch[0].Cells[0]);
+    }
+
+    [Fact]
+    public async Task CommitsThroughTheProviderTransactionStatements()
+    {
+        await using var session = await QuerySession.CreateAsync(Profile);
+
+        await session.EnsureTransactionAsync();
+        Assert.True(session.InTransaction);
+        var affected = await session.ExecuteEditAsync(
+            new EditStatement("insert into patient (patient_key, patient_id) values (1, 'P0001')", []));
+        await session.CommitAsync();
+
+        Assert.Equal(1, affected);
+        Assert.False(session.InTransaction);
+
+        await using var check = await session.ExecuteAsync("select patient_id from patient");
+        var rows = await check.FetchAsync(10);
+        Assert.Equal("P0001", rows[0].Cells[0]);
+    }
+
+    [Fact]
+    public async Task IsolationIsSkippedWhereUnsupported()
+    {
+        await using var session = await QuerySession.CreateAsync(Profile);
+
+        // SQLite 는 세션 격리 수준을 걸 수 없다 — 문장을 보내지 않고 조용히 기록만 한다
+        await session.ApplyIsolationAsync(TransactionIsolation.Serializable);
+
+        Assert.Equal(TransactionIsolation.Serializable, session.Isolation);
+    }
+
     [Fact]
     public async Task GraphFeedsTheExistingLayoutUnchanged()
     {
