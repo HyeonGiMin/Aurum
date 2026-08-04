@@ -135,6 +135,41 @@ SQL 이 아니라 **에디터(쿼리 언어)·그리드(중첩 문서)·자동�
 UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단계와 성격이 완전히
 달라 별도 계획으로 분리한다.
 
+**진행 상황 (2026-08-05) — Core 경로 착수, UI 미연결**
+
+들어온 것 (전부 테스트 있음, Mongo 관련 40개):
+
+| 부분 | 파일 | 검증 |
+|---|---|---|
+| 셸 구문 파서 | `Mongo/MongoCommand.cs` | 서버 없이 21개 |
+| 문서 → 표 평탄화 | `Mongo/MongoDocuments.cs` | 서버 없이 12개 |
+| 접속·실행·필드 추론 | `Mongo/MongoSession.cs` | **실서버 6개** + 접속문자열 1개 |
+
+- 지원 구문: `find`(filter·projection·`.limit/.skip/.sort`) · `findOne` · `aggregate` ·
+  `countDocuments` · `distinct` · `show collections`. **읽기 전용** — `drop`/`insert`
+  같은 쓰기는 파서가 받지 않는다 (Studio 는 조회 전용, STATUS §2·3).
+- 필터·파이프라인은 문자열이 아니라 **BSON 문서로 드라이버에 전달**한다 (주입 여지 없음).
+- 중첩 문서는 `address.city` 점 경로로 펴고(기본 3단계), 배열은 JSON 한 칸으로 둔다 —
+  배열은 길이가 문서마다 달라 컬럼으로 펴면 표가 폭발한다.
+- 컬렉션 필드는 카탈로그가 없으므로 **샘플 50건에서 추론**한다.
+- 검증 인프라: `docker run -d --name aurum-mongo-test -p 127.0.0.1:27017:27017 mongo:7`
+  후 `AURUM_MONGO_TEST_HOST=localhost`. 환경변수가 없으면 실서버 테스트는 그냥 통과한다
+  (접속 정보를 코드에 박지 않기 위해). Mongo 7 실컨테이너로 확인했고, 포트를 일부러
+  틀리면 그 6개만 실패하는 것까지 확인해 "정말 서버를 친다"를 보장했다.
+
+**아직 안 된 것 — UI 에서 Mongo 를 고를 수 없다.** `IDbProvider.OpenAsync` 가
+`DbConnection`(ADO.NET)을 반환하는데 Mongo 드라이버는 ADO.NET 이 아니라
+이 계약을 만족할 수 없다. 그래서 `MongoProvider` 를 만들지 않았고
+`DbProviders.IsSupported(MongoDb)` 는 false 다 — 로그온 창 목록에 뜨지 않고,
+고르려 해도 "아직 지원하지 않습니다" 로 막힌다(거짓 기대를 주지 않는 상태).
+
+다음에 할 일은 **경계를 넓히는 결정**이다. 후보:
+1. `IDbProvider` 를 SQL 계열과 문서 계열로 나눈다 (실행·결과 타입을 추상화)
+2. Studio 쪽에서 Mongo 탭을 별도 경로로 다룬다 (provider 는 접속 정보만 담당)
+
+그 밖에 남은 것: 중첩 문서 트리 뷰, `_id` 기준 편집, JSON import/export,
+`explain()`, `currentOp` 세션 모니터.
+
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
 Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),
 _id 기준 편집, JSON import/export)을 목표로 한다. 착수 시 검증 인프라부터:
