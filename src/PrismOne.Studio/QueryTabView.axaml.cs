@@ -28,7 +28,27 @@ public enum ResultViewMode
 }
 
 public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
+    : System.ComponentModel.INotifyPropertyChanged
 {
+    private int _seq;
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// 그리드 맨 왼쪽 순번. 정렬해도 **위에서부터 1,2,3…** 이 되도록 화면 순서로 다시 매긴다
+    /// (<see cref="No"/> 는 fetch 순서 그대로라 정렬하면 뒤섞인다).
+    /// </summary>
+    public int Seq
+    {
+        get => _seq == 0 ? No : _seq;
+        set
+        {
+            if (_seq == value) return;
+            _seq = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Seq)));
+        }
+    }
+
     /// <summary>편집 모드(Run and Edit)의 행 식별자 — PG ctid. 새로 추가한 행이면 null.</summary>
     public string? RowId { get; init; }
 
@@ -1197,6 +1217,40 @@ public partial class QueryTabView : UserControl
         if (_resultView == ResultViewMode.Log) ApplyResultView();
     }
 
+    /// <summary>
+    /// 그리드에 행을 붙인다. DataGridCollectionView 로 감싸 **정렬·필터로 순서가 바뀔 때마다
+    /// 맨 왼쪽 순번을 화면 순서로 다시 매긴다** — 그러지 않으면 정렬 후 1,2,3 이 뒤섞인다.
+    /// </summary>
+    private Avalonia.Collections.DataGridCollectionView? _gridView;
+
+    private void SetGridSource(System.Collections.IEnumerable rows)
+    {
+        var view = new Avalonia.Collections.DataGridCollectionView(rows);
+        // 정렬이 바뀔 때만 다시 매긴다. 행이 하나 추가될 때마다 매기면
+        // 점진 fetch(수만 행)에서 O(n²) 가 된다
+        view.SortDescriptions.CollectionChanged += (_, _) => Renumber(view);
+        _gridView = view;
+        ResultGrid.ItemsSource = view;
+        Renumber(view);
+    }
+
+    /// <summary>정렬이 걸린 상태로 더 가져왔으면 순번이 어긋나므로 fetch 후에도 한 번 맞춘다.</summary>
+    private void RenumberAfterFetch()
+    {
+        if (_gridView is { SortDescriptions.Count: > 0 } view)
+            Renumber(view);
+    }
+
+    private static void Renumber(Avalonia.Collections.DataGridCollectionView view)
+    {
+        var seq = 1;
+        foreach (var item in view)
+        {
+            if (item is RowItem row) row.Seq = seq;
+            seq++;
+        }
+    }
+
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
     private void ClearResultArea()
     {
@@ -1286,7 +1340,7 @@ public partial class QueryTabView : UserControl
                 MaxWidth = 420,
             });
         }
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         _transposed = false;
     }
 
@@ -1352,7 +1406,7 @@ public partial class QueryTabView : UserControl
 
         _unfiltered ??= _rows;
         _rows = kept;
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         SetInfo($"Filtered: {_columns[index]} = {wanted ?? "NULL"}", $"{kept.Count:N0} of {source.Count:N0} record(s)");
     }
 
@@ -1366,7 +1420,7 @@ public partial class QueryTabView : UserControl
         }
         _rows = _unfiltered;
         _unfiltered = null;
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         SetInfo("Filter cleared", $"{_rows.Count:N0} record(s)");
     }
 
@@ -1544,9 +1598,12 @@ public partial class QueryTabView : UserControl
             var noColumn = new DataGridTextColumn
             {
                 Header = "#",
-                Binding = new Binding(nameof(RowItem.No)),
+                // 화면 순서 순번 — 정렬해도 위에서부터 1,2,3… 을 유지한다
+                Binding = new Binding(nameof(RowItem.Seq)),
                 Width = new DataGridLength(46),
                 IsReadOnly = true,
+                // 순번 자체로는 정렬하지 않는다 (재번호와 맞물려 의미가 없다)
+                CanUserSort = false,
             };
             noColumn.CellStyleClasses.Add("rownum");
             ResultGrid.Columns.Add(noColumn);
@@ -1576,7 +1633,7 @@ public partial class QueryTabView : UserControl
         // 전치 상태는 행/열이 뒤바뀌어 의미가 없고, 편집 모드는 행 순서가 흔들리면 혼란스럽다.
         ResultGrid.CanUserSortColumns = !_transposed && !IsEditing;
         ResultGrid.IsReadOnly = !IsEditing;
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         if (columns.Count > 0)
             Dispatcher.UIThread.Post(HookScrollBar, DispatcherPriority.Loaded);
     }
@@ -1653,6 +1710,7 @@ public partial class QueryTabView : UserControl
             }
             UpdateFetchInfo();
             SetInfo("Done.", InfoRows, InfoTime);
+            RenumberAfterFetch();
         }
         catch (OperationCanceledException)
         {
