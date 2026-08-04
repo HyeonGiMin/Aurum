@@ -21,7 +21,7 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
-      <Button Content="Cancel" MinHeight="30" Click="OnCancel"/>
+      <Button Content="Cancel" MinHeight="30" Click="OnCancel" IsCancel="True"/>
       <Button Content="OK" MinHeight="30" Classes="accent" IsDefault="True" Click="OnOk"/>
     </StackPanel>
   </StackPanel>

@@ -19,7 +19,10 @@ public sealed class PinnedResultWindow : Window
         Title = $"📌 {summary} — {rows.Count:N0} rows";
         Width = 860;
         Height = 520;
+        MinWidth = 420;
+        MinHeight = 240;
         ShowInTaskbar = false;
+        KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) Close(); };
 
         var grid = new DataGrid
         {

@@ -53,7 +53,7 @@
     <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8" Margin="0,16,0,0">
       <Button Name="ConnectButton" Content="Login" Classes="accent" IsDefault="True" MinHeight="34" FontSize="13.5"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnConnect"/>
-      <Button Content="Close" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCancel"/>
+      <Button Content="Close" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCancel" IsCancel="True"/>
       <Button Content="Help" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
       <Button Content="Options…" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
     </StackPanel>
