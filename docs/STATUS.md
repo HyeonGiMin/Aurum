@@ -176,6 +176,22 @@ FK 제약 **prismone 185건**(+pgmq 2건) 존재. ERD 관계선이 그려지는 
 로그온 한 번 저장한 뒤 검증할 것. 그 외: AS SYSDBA·Read Only(Oracle 은 접속 수준
 읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
 
+## 1.4 아이디어 — MCP 서버 (2026-08-04 검토, 미착수)
+
+LLM(Claude 등)이 개발 DB 의 스키마·데이터를 조회하게 하는 MCP 서버.
+**지금은 만들지 않는다** — 판단 근거:
+
+- PG 만 필요하면 범용 PostgreSQL MCP 서버가 이미 있다 (접속 문자열만 주면 됨).
+- Aurum 이 고유하게 줄 수 있는 것은 **DB 중립 카탈로그**(PG/Oracle/SQLite 동일
+  모델), **Schema Diff**("표준과 뭐가 다른가"를 LLM 이 답하게), introspection 캐시.
+  이건 범용 서버에 없다 — 만들 가치가 생기는 지점.
+- 만들 경우의 원칙: GUI 에 넣지 않고 **별도 실행 파일**(iapdb 계열), Core 재사용
+  (카탈로그·diff·IsReadOnlyStatement 가 이미 순수 로직), **읽기 전용 강제**
+  (SELECT 화이트리스트 + 행 상한), 자격증명은 기존 암호화 저장 재사용.
+  도구 셋 후보: `list_tables` · `describe` · `schema_diff` · `run_readonly_query`.
+- 착수 조건: 사내에서 LLM 으로 DB 를 실제로 질의하는 수요가 확인될 때
+  (DATAGRIP_GAP 의 원칙 — 빈도와 절실함으로 판단).
+
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
 
 Golden 파리티가 끝나면 다음 단계는 **DataGrip 처럼 쓰이는 DB 툴**로 넓히는 것.
