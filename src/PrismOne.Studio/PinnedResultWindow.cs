@@ -22,6 +22,7 @@ public sealed class PinnedResultWindow : Window
         MinWidth = 420;
         MinHeight = 240;
         ShowInTaskbar = false;
+        Icon = AppIcon.Shared;
         KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) Close(); };
 
         var grid = new DataGrid

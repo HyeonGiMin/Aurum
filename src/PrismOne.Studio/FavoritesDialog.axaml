@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="using:PrismOne.Studio"
         x:Class="PrismOne.Studio.FavoritesDialog"
+        Icon="/Assets/icon.png"
         Title="Favorites - Aurum"
         Width="720" Height="560"
         WindowStartupLocation="CenterOwner"
