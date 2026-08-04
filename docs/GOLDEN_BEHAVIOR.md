@@ -57,8 +57,8 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 | Run Script From Cursor | F6 | ✅ F6 (우리 F5 도 커서부터 — Golden 8 시맨틱) |
 | Run One Statement At Cursor | F7 / Ctrl+Enter | ✅ + F9 (Golden 8 기준) |
 | **Run Script And Go To Edit Mode** | **Ctrl+E** | ✅ + F11 별칭 |
+| **Run Selected** | **Ctrl+F7** | ✅ 동일 — 선택 영역만 실행 (선택이 없으면 실행 안 함) |
 | Commit / Rollback | Ctrl+F5 / Ctrl+F6 | ✅ 동일 |
-| *(Golden 에 없음)* | **Shift+F5** | ➕ Refresh Results — 마지막 결과 문장 재실행. Ctrl+F5 가 Commit 이라 Shift 로 뺐다 |
 | Login | Ctrl+L / Ctrl+J | ✅ 동일 |
 | New Tab / Private | Ctrl+N / Shift+Ctrl+Alt+N | ✅ Ctrl+N·T / +Shift |
 | Close Tab | Ctrl+F4 | ✅ + Ctrl+W(관행) |

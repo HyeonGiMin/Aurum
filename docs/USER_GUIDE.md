@@ -58,7 +58,7 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 |---|---|
 | **F9** (또는 Cmd/Ctrl+Enter) | **커서 위치 문장 하나** 실행. 선택 영역이 있으면 선택만 |
 | **F5** (또는 Shift+Enter) | **Run Script — 커서 문장부터 끝까지** 순차 실행 |
-| **Shift+F5** | **Refresh Results** — 지금 그리드를 채운 문장을 **그대로 다시 실행**. 커서 위치와 무관하므로 결과만 새로 고칠 때 씁니다 (Ctrl+F5 는 Golden 키맵의 Commit 이라 비워 둡니다) |
+| **Ctrl+F7** | **Run Selected — 선택 영역만** 실행. 선택이 없으면 실행하지 않습니다(그건 F9/F7 의 몫) |
 | ⚡ᴱ | **Explain** — 커서 문장의 실행 계획을 트리로 (실행 안 함) |
 | ⚡ᴬ | **Explain Analyze** — 실제 실행 후 노드별 실측 시간 트리. **DML 은 자동 롤백**되어 안전. 전체 시간의 50%↑ 노드는 빨강, 20%↑ 주황. 노드에 마우스를 올리면 Filter/Index Cond 표시 |
 | 툴바 ⊘ | 실행 취소 (서버에 cancel 전송) |
@@ -322,7 +322,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 |---|---|---|---|---|
 | Ctrl+L / Ctrl+J | 로그온 | | F9 / F7 / Ctrl+Enter | 문장 실행 |
 | F5 / F6 / Shift+Enter | 스크립트 실행 (커서부터) | | Ctrl+End | 전체 fetch |
-| **Shift+F5** | **결과 새로고침 (재실행)** | | | |
+| **Ctrl+F7** | **Run Selected (선택 영역만)** | | | |
 | **Ctrl+E** / F11 | **Run and Edit (편집 모드)** | | Ctrl+Shift+S | Submit Edits |
 | **Ctrl+F5** | **Commit** | | **Ctrl+F6** | **Rollback** |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F / Ctrl+H | 찾기 / 바꾸기 |

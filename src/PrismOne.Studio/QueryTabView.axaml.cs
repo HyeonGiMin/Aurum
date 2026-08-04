@@ -933,6 +933,21 @@ public partial class QueryTabView : UserControl
         return ExecuteStatementsAsync(statements, explain: false);
     }
 
+    /// <summary>
+    /// Golden 의 Run Selected (Ctrl+F7) — <b>선택 영역만</b> 실행한다.
+    /// 선택이 없으면 커서 문장으로 넘어가지 않고 아무것도 실행하지 않는다
+    /// (그 동작은 F7/F9 의 몫이다).
+    /// </summary>
+    public Task ExecuteSelectedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Editor.SelectedText))
+        {
+            SetInfo("선택된 SQL 이 없습니다");
+            return Task.CompletedTask;
+        }
+        return ExecuteStatementsAsync(StatementSplitter.Split(Editor.SelectedText), explain: false);
+    }
+
     /// <summary>커서 문장을 EXPLAIN (FORMAT JSON) 으로 실행해 플랜 트리로 표시.
     /// analyze=true 면 실제 실행 — DML 은 pgAdmin 처럼 자동 롤백으로 보호한다.</summary>
     public async Task ExecuteExplainAsync(bool analyze)
@@ -1331,20 +1346,6 @@ public partial class QueryTabView : UserControl
         MessagesPane.IsVisible = false;
         PlanTree.ItemsSource = null;
         PlanTree.IsVisible = false;
-    }
-
-    /// <summary>
-    /// 결과 새로고침 — 마지막으로 그리드를 채운 문장을 그대로 다시 실행한다.
-    /// 커서가 어디 있든 같은 결과를 다시 본다는 점이 F9(커서 문장 실행)와 다르다.
-    /// </summary>
-    public async Task RefreshResultsAsync()
-    {
-        if (LastGridSql is not { Length: > 0 } sql)
-        {
-            SetInfo("다시 실행할 결과가 없습니다");
-            return;
-        }
-        await ExecuteStatementsAsync([new SqlStatement(sql, 0, sql.Length)], explain: false);
     }
 
     public void Cancel() => _cts?.Cancel();

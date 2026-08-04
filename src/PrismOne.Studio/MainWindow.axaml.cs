@@ -496,18 +496,17 @@ public partial class MainWindow : Window
             e.Handled = true;
             OnMenuRollback(sender, e);
         }
+        else if (e.Key == Key.F7 && cmdOrCtrl)
+        {
+            // Golden: Ctrl+F7 = Run Selected — 무수식 F7 보다 먼저 판정해야 한다
+            e.Handled = true;
+            _ = ActiveView?.ExecuteSelectedAsync();
+        }
         else if (e.Key == Key.F9 || e.Key == Key.F7 || (e.Key == Key.Enter && cmdOrCtrl))
         {
             // Golden: F7/Ctrl+Enter = Run One Statement At Cursor (F9 는 Golden 8)
             e.Handled = true;
             _ = ActiveView?.ExecuteAtCaretAsync();
-        }
-        else if (e.Key == Key.F5 && shift)
-        {
-            // 결과 새로고침 — 마지막 결과 문장을 그대로 다시 실행.
-            // Ctrl+F5 는 Golden 키맵에서 Commit 이라 Shift+F5 로 뺐다.
-            e.Handled = true;
-            _ = ActiveView?.RefreshResultsAsync();
         }
         else if (e.Key == Key.F5 || e.Key == Key.F6 || (e.Key == Key.Enter && shift))
         {
@@ -674,10 +673,10 @@ public partial class MainWindow : Window
             await view.RunScriptAsync();
     }
 
-    private async void OnMenuRefreshResults(object? sender, RoutedEventArgs e)
+    private async void OnMenuRunSelected(object? sender, RoutedEventArgs e)
     {
         if (ActiveView is { } view)
-            await view.RefreshResultsAsync();
+            await view.ExecuteSelectedAsync();
     }
 
     private async void OnMenuExplain(object? sender, RoutedEventArgs e)
