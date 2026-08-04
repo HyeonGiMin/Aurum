@@ -143,35 +143,35 @@ public partial class SchemaDiffWindow : Window
         var items = new List<TreeViewItem>();
         if (diff.IsEmpty)
         {
-            items.Add(new TreeViewItem { Header = Text("차이 없음 — 스키마가 일치합니다", Brushes.ForestGreen, bold: true) });
+            items.Add(new TreeViewItem { Header = Text("차이 없음 — 스키마가 일치합니다", ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"), bold: true) });
         }
         else
         {
             AddGroup(items, $"빠진 테이블 ({diff.MissingTables.Count}) — 기준에는 있는데 대상에 없음",
-                Brushes.Firebrick, diff.MissingTables.Select(t => Leaf($"− {t.Key}", Brushes.Firebrick,
+                ThemeBrushes.Get("DiffRemovedBrush", "#C62828"), diff.MissingTables.Select(t => Leaf($"− {t.Key}", ThemeBrushes.Get("DiffRemovedBrush", "#C62828"),
                     string.Join("\n", t.Columns.Select(c => $"{c.Name} {c.Type}")))));
             AddGroup(items, $"추가된 테이블 ({diff.ExtraTables.Count}) — 대상에만 있음",
-                Brushes.ForestGreen, diff.ExtraTables.Select(t => Leaf($"+ {t.Key}", Brushes.ForestGreen,
+                ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"), diff.ExtraTables.Select(t => Leaf($"+ {t.Key}", ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"),
                     string.Join("\n", t.Columns.Select(c => $"{c.Name} {c.Type}")))));
             AddGroup(items, $"달라진 테이블 ({diff.ChangedTables.Count})",
-                Brushes.Chocolate, diff.ChangedTables.Select(BuildChangedTable));
+                ThemeBrushes.Get("DiffChangedBrush", "#C77400"), diff.ChangedTables.Select(BuildChangedTable));
             AddGroup(items, $"빠진 FK ({diff.MissingRelations.Count})",
-                Brushes.Firebrick, diff.MissingRelations.Select(r => Leaf($"− {r.Describe}", Brushes.Firebrick, r.Name)));
+                ThemeBrushes.Get("DiffRemovedBrush", "#C62828"), diff.MissingRelations.Select(r => Leaf($"− {r.Describe}", ThemeBrushes.Get("DiffRemovedBrush", "#C62828"), r.Name)));
             AddGroup(items, $"추가된 FK ({diff.ExtraRelations.Count})",
-                Brushes.ForestGreen, diff.ExtraRelations.Select(r => Leaf($"+ {r.Describe}", Brushes.ForestGreen, r.Name)));
+                ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"), diff.ExtraRelations.Select(r => Leaf($"+ {r.Describe}", ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"), r.Name)));
         }
         ResultTree.ItemsSource = items;
     }
 
     private static TreeViewItem BuildChangedTable(TableChange change)
     {
-        var item = new TreeViewItem { Header = Text($"~ {change.Key}", Brushes.Chocolate, bold: true), IsExpanded = true };
+        var item = new TreeViewItem { Header = Text($"~ {change.Key}", ThemeBrushes.Get("DiffChangedBrush", "#C77400"), bold: true), IsExpanded = true };
         foreach (var col in change.MissingColumns)
-            item.Items.Add(Leaf($"− {col.Name}  {col.Type}{(col.NotNull ? " NOT NULL" : "")}", Brushes.Firebrick, null));
+            item.Items.Add(Leaf($"− {col.Name}  {col.Type}{(col.NotNull ? " NOT NULL" : "")}", ThemeBrushes.Get("DiffRemovedBrush", "#C62828"), null));
         foreach (var col in change.ExtraColumns)
-            item.Items.Add(Leaf($"+ {col.Name}  {col.Type}{(col.NotNull ? " NOT NULL" : "")}", Brushes.ForestGreen, null));
+            item.Items.Add(Leaf($"+ {col.Name}  {col.Type}{(col.NotNull ? " NOT NULL" : "")}", ThemeBrushes.Get("DiffAddedBrush", "#2E7D32"), null));
         foreach (var c in change.ChangedColumns)
-            item.Items.Add(Leaf($"~ {c.Column}  {c.Aspect}: {c.Baseline} → {c.Target}", Brushes.Chocolate, null));
+            item.Items.Add(Leaf($"~ {c.Column}  {c.Aspect}: {c.Baseline} → {c.Target}", ThemeBrushes.Get("DiffChangedBrush", "#C77400"), null));
         return item;
     }
 

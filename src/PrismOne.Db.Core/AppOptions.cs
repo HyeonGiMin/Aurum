@@ -20,6 +20,12 @@ public sealed class AppOptions
     /// <summary>NULL 셀 표시 문자열 (빈 문자열이면 공백).</summary>
     public string NullText { get; set; } = "";
 
+    /// <summary>
+    /// UI 테마: "Light" · "Dark" · "System". 기본은 Light — Golden(Benthic)의
+    /// 라이트 크롬이 이 앱의 정체성이라 시스템 설정을 따르지 않는 게 기본이다.
+    /// </summary>
+    public string Theme { get; set; } = "Light";
+
     /// <summary>0 이면 미설정. 세션에 SET statement_timeout 적용 (ms).</summary>
     public int StatementTimeoutMs { get; set; }
 

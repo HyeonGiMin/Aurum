@@ -44,6 +44,11 @@ public partial class MainWindow : Window
             if (_sharedSession is not null)
                 await _sharedSession.DisposeAsync();
         };
+        // 테마 전환을 즉시 반영 (에디터 하이라이팅·메뉴 체크)
+        ActualThemeVariantChanged += (_, _) => OnThemeVariantChanged();
+        if (ThemeBrushes.IsDark)
+            OnThemeVariantChanged();   // 옵션이 Dark 로 시작한 경우
+
         // Golden: 메인 창(빈 Query1 탭)이 먼저 그려지고 그 위로 로그온 창이 바로 뜬다.
         // 취소하면 미접속 상태로 남고, 이후엔 Ctrl+L 로 연다.
         BuildNativeMenu();
@@ -315,7 +320,9 @@ public partial class MainWindow : Window
         root.Items.Add(favorites);
         root.Items.Add(Sub("View",
             Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args)),
-            Item("Toggle DataGrid/Text/Log View (F12)", () => OnMenuCycleResultView(this, args))));
+            Item("Toggle DataGrid/Text/Log View (F12)", () => OnMenuCycleResultView(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Toggle Dark Mode", () => OnMenuToggleTheme(this, args))));
         root.Items.Add(Sub("Tools",
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
             Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
@@ -328,6 +335,27 @@ public partial class MainWindow : Window
         root.Items.Add(Sub("Help",
             Item("About Aurum", () => OnMenuAbout(this, args))));
         NativeMenu.SetMenu(this, root);
+    }
+
+    /// <summary>
+    /// View > Dark Mode — 라이트/다크 즉시 전환 + 옵션 저장.
+    /// (System 으로 두고 싶으면 Options 의 테마 콤보에서 고른다)
+    /// </summary>
+    private void OnMenuToggleTheme(object? sender, RoutedEventArgs e)
+    {
+        var next = ThemeBrushes.IsDark ? "Light" : "Dark";
+        App.ApplyTheme(next);
+        _options.Theme = next;
+        _options.Save();
+    }
+
+    /// <summary>테마가 바뀌면 코드가 만든 색(에디터 하이라이팅)을 따라 바꾼다.</summary>
+    private void OnThemeVariantChanged()
+    {
+        var dark = ThemeBrushes.IsDark;
+        foreach (var view in AllViews())
+            view.ApplyEditorTheme(dark);
+        ThemeMenuItem.Header = dark ? "Dark Mode ✓" : "Dark Mode";
     }
 
     /// <summary>View > Object Browser — Golden 6 기본은 패널 없음, 필요할 때만 켠다.</summary>

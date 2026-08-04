@@ -7,7 +7,7 @@
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
   <StackPanel Margin="18" Spacing="12">
-    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto">
+    <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
       <Grid.Styles>
         <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>
         <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="30"/><Setter Property="FontSize" Value="13"/></Style>
@@ -20,6 +20,13 @@
       <TextBox   Grid.Row="2" Grid.Column="1" Name="NullTextBox"/>
       <TextBlock Grid.Row="3" Grid.Column="0" Text="statement_timeout (ms, 0=없음)"/>
       <TextBox   Grid.Row="3" Grid.Column="1" Name="TimeoutBox"/>
+      <TextBlock Grid.Row="4" Grid.Column="0" Text="테마"/>
+      <ComboBox  Grid.Row="4" Grid.Column="1" Name="ThemeCombo" Margin="0,4" MinHeight="30"
+                 FontSize="13" HorizontalAlignment="Stretch">
+        <ComboBoxItem>Light (Golden 기본)</ComboBoxItem>
+        <ComboBoxItem>Dark</ComboBoxItem>
+        <ComboBoxItem>System (OS 설정 따름)</ComboBoxItem>
+      </ComboBox>
     </Grid>
 
     <CheckBox Name="AutoCommitOption" Content="AutoCommit (끄면 Golden 식 수동 커밋)" FontSize="13"/>

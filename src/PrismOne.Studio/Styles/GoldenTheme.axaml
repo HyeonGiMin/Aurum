@@ -4,30 +4,76 @@
        노란 번개 실행 아이콘, 연회색 그리드 헤더. -->
   <Styles.Resources>
     <ResourceDictionary>
-      <SolidColorBrush x:Key="ChromeBgBrush">#F0F0F0</SolidColorBrush>
-      <SolidColorBrush x:Key="ChromeBorderBrush">#D5D5D5</SolidColorBrush>
-      <SolidColorBrush x:Key="ContentBgBrush">#FFFFFF</SolidColorBrush>
-      <SolidColorBrush x:Key="HeaderBgBrush">#F5F5F5</SolidColorBrush>
-      <SolidColorBrush x:Key="HeaderBorderBrush">#E0E0E0</SolidColorBrush>
-      <SolidColorBrush x:Key="GridLineBrush">#E9E9E9</SolidColorBrush>
-      <SolidColorBrush x:Key="TextPrimaryBrush">#1A1A1A</SolidColorBrush>
-      <SolidColorBrush x:Key="TextMutedBrush">#666666</SolidColorBrush>
-      <SolidColorBrush x:Key="ToolHoverBrush">#E5F1FB</SolidColorBrush>
-      <SolidColorBrush x:Key="ToolHoverBorderBrush">#CCE4F7</SolidColorBrush>
-      <SolidColorBrush x:Key="ToolPressedBrush">#CCE4F7</SolidColorBrush>
+      <!-- 테마 종속 색 — Light 는 Golden(Benthic) 원본, Dark 는 같은 위계의 어두운 대응.
+           참조하는 쪽은 반드시 DynamicResource (전환 시 즉시 반영). -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="ChromeBgBrush">#F0F0F0</SolidColorBrush>
+          <SolidColorBrush x:Key="ChromeBorderBrush">#D5D5D5</SolidColorBrush>
+          <SolidColorBrush x:Key="ContentBgBrush">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBgBrush">#F5F5F5</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBorderBrush">#E0E0E0</SolidColorBrush>
+          <SolidColorBrush x:Key="GridLineBrush">#E9E9E9</SolidColorBrush>
+          <SolidColorBrush x:Key="TextPrimaryBrush">#1A1A1A</SolidColorBrush>
+          <SolidColorBrush x:Key="TextMutedBrush">#666666</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolHoverBrush">#E5F1FB</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolHoverBorderBrush">#CCE4F7</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolPressedBrush">#CCE4F7</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolActiveBgBrush">#D6E8F8</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolActiveBorderBrush">#9CC3E8</SolidColorBrush>
+          <SolidColorBrush x:Key="SplitterHoverBrush">#B9D7F1</SolidColorBrush>
+          <SolidColorBrush x:Key="DisabledInputBrush">#F7F7F7</SolidColorBrush>
+          <SolidColorBrush x:Key="SeparatorBrush">#C0C0C0</SolidColorBrush>
+          <SolidColorBrush x:Key="CancelRedBrush">#D23B2E</SolidColorBrush>
+          <SolidColorBrush x:Key="ExportGreenBrush">#2E9E44</SolidColorBrush>
+          <SolidColorBrush x:Key="PlugBlueBrush">#3E76B5</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorRedBrush">#B01A1A</SolidColorBrush>
+          <SolidColorBrush x:Key="FloppyBlueBrush">#3E76B5</SolidColorBrush>
+          <SolidColorBrush x:Key="IconGrayBrush">#8A8A8A</SolidColorBrush>
+          <SolidColorBrush x:Key="IconDarkBrush">#444444</SolidColorBrush>
+          <SolidColorBrush x:Key="WandPurpleBrush">#7B5AA6</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffRemovedBrush">#C62828</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffAddedBrush">#2E7D32</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffChangedBrush">#C77400</SolidColorBrush>
+          <SolidColorBrush x:Key="PlanBarTrackBrush">#DCDCDC</SolidColorBrush>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="ChromeBgBrush">#2B2B2B</SolidColorBrush>
+          <SolidColorBrush x:Key="ChromeBorderBrush">#454545</SolidColorBrush>
+          <SolidColorBrush x:Key="ContentBgBrush">#1E1E1E</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBgBrush">#2A2A2A</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBorderBrush">#3A3A3A</SolidColorBrush>
+          <SolidColorBrush x:Key="GridLineBrush">#333333</SolidColorBrush>
+          <SolidColorBrush x:Key="TextPrimaryBrush">#E6E6E6</SolidColorBrush>
+          <SolidColorBrush x:Key="TextMutedBrush">#9A9A9A</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolHoverBrush">#3A4A5C</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolHoverBorderBrush">#4E6A85</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolPressedBrush">#46586E</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolActiveBgBrush">#3B5570</SolidColorBrush>
+          <SolidColorBrush x:Key="ToolActiveBorderBrush">#5E86AC</SolidColorBrush>
+          <SolidColorBrush x:Key="SplitterHoverBrush">#4E6A85</SolidColorBrush>
+          <SolidColorBrush x:Key="DisabledInputBrush">#262626</SolidColorBrush>
+          <SolidColorBrush x:Key="SeparatorBrush">#4A4A4A</SolidColorBrush>
+          <SolidColorBrush x:Key="CancelRedBrush">#E0584B</SolidColorBrush>
+          <SolidColorBrush x:Key="ExportGreenBrush">#4CBB63</SolidColorBrush>
+          <SolidColorBrush x:Key="PlugBlueBrush">#6AA1DE</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorRedBrush">#E06A6A</SolidColorBrush>
+          <SolidColorBrush x:Key="FloppyBlueBrush">#6AA1DE</SolidColorBrush>
+          <SolidColorBrush x:Key="IconGrayBrush">#9A9A9A</SolidColorBrush>
+          <SolidColorBrush x:Key="IconDarkBrush">#C8C8C8</SolidColorBrush>
+          <SolidColorBrush x:Key="WandPurpleBrush">#A488D4</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffRemovedBrush">#EF5350</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffAddedBrush">#66BB6A</SolidColorBrush>
+          <SolidColorBrush x:Key="DiffChangedBrush">#FFB74D</SolidColorBrush>
+          <SolidColorBrush x:Key="PlanBarTrackBrush">#3A3A3A</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <!-- 테마 무관 (양쪽에서 대비 충분) -->
       <SolidColorBrush x:Key="BoltYellowBrush">#F5C400</SolidColorBrush>
       <SolidColorBrush x:Key="BoltOutlineBrush">#8A6D00</SolidColorBrush>
-      <SolidColorBrush x:Key="CancelRedBrush">#D23B2E</SolidColorBrush>
-      <SolidColorBrush x:Key="ExportGreenBrush">#2E9E44</SolidColorBrush>
-      <SolidColorBrush x:Key="PlugBlueBrush">#3E76B5</SolidColorBrush>
-      <SolidColorBrush x:Key="ErrorRedBrush">#B01A1A</SolidColorBrush>
-
       <SolidColorBrush x:Key="FolderYellowBrush">#F0C36A</SolidColorBrush>
       <SolidColorBrush x:Key="FolderOutlineBrush">#9A7B2F</SolidColorBrush>
-      <SolidColorBrush x:Key="FloppyBlueBrush">#3E76B5</SolidColorBrush>
-      <SolidColorBrush x:Key="IconGrayBrush">#8A8A8A</SolidColorBrush>
-      <SolidColorBrush x:Key="IconDarkBrush">#444444</SolidColorBrush>
-      <SolidColorBrush x:Key="WandPurpleBrush">#7B5AA6</SolidColorBrush>
       <SolidColorBrush x:Key="PasteTanBrush">#C8A165</SolidColorBrush>
 
       <StreamGeometry x:Key="IconBolt">M13,2 L5,13 L10,13 L9,22 L18,9 L12.5,9 Z</StreamGeometry>
@@ -72,13 +118,13 @@
   </Styles.Resources>
 
   <Style Selector="Window">
-    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ChromeBgBrush}"/>
     <Setter Property="FontSize" Value="13"/>
   </Style>
 
   <!-- 메뉴바 -->
   <Style Selector="Menu">
-    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ChromeBgBrush}"/>
     <Setter Property="FontSize" Value="12.5"/>
     <Setter Property="Padding" Value="2,0"/>
   </Style>
@@ -95,19 +141,19 @@
     <Setter Property="Padding" Value="4,3"/>
   </Style>
   <Style Selector="Button.tool:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource ToolHoverBrush}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource ToolHoverBorderBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ToolHoverBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource ToolHoverBorderBrush}"/>
   </Style>
   <Style Selector="Button.tool:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource ToolPressedBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ToolPressedBrush}"/>
   </Style>
   <Style Selector="Button.tool:disabled">
     <Setter Property="Opacity" Value="0.35"/>
   </Style>
   <!-- 토글형 툴 버튼(Object Browser 등)의 켜짐 상태 -->
   <Style Selector="Button.tool.active /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#D6E8F8"/>
-    <Setter Property="BorderBrush" Value="#9CC3E8"/>
+    <Setter Property="Background" Value="{DynamicResource ToolActiveBgBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource ToolActiveBorderBrush}"/>
   </Style>
 
   <Style Selector="Button.tool:disabled /template/ ContentPresenter#PART_ContentPresenter">
@@ -117,14 +163,14 @@
 
   <!-- 비활성 입력/버튼이 어두운 박스로 보이지 않게 -->
   <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="#F7F7F7"/>
-    <Setter Property="BorderBrush" Value="{StaticResource GridLineBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource DisabledInputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource GridLineBrush}"/>
   </Style>
 
   <!-- 스크립트 탭 (Golden: 활성=흰색+굵게, 비활성=크롬 회색) -->
   <Style Selector="TabControl">
     <Setter Property="Padding" Value="0"/>
-    <Setter Property="Background" Value="{StaticResource ChromeBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ChromeBgBrush}"/>
   </Style>
   <Style Selector="TabItem">
     <Setter Property="FontSize" Value="12.5"/>
@@ -132,15 +178,15 @@
     <Setter Property="MinHeight" Value="30"/>
     <Setter Property="Padding" Value="14,5"/>
     <Setter Property="Margin" Value="0"/>
-    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
   <Style Selector="TabItem:pointerover">
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
   </Style>
   <Style Selector="TabItem:selected">
     <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
   </Style>
 
   <!-- 스플리터: 평소엔 경계선, 올리면 살짝 강조 -->
@@ -149,7 +195,7 @@
     <Setter Property="MinHeight" Value="0"/>
   </Style>
   <Style Selector="GridSplitter:pointerover">
-    <Setter Property="Background" Value="#B9D7F1"/>
+    <Setter Property="Background" Value="{DynamicResource SplitterHoverBrush}"/>
   </Style>
 
   <!-- 다이얼로그/패널 공용 버튼 -->
@@ -159,22 +205,22 @@
 
   <!-- 데이터 그리드 (흰 바탕·연회색 헤더·가는 격자선) -->
   <Style Selector="DataGrid">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
     <Setter Property="FontSize" Value="12"/>
-    <Setter Property="RowBackground" Value="{StaticResource ContentBgBrush}"/>
-    <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource GridLineBrush}"/>
-    <Setter Property="VerticalGridLinesBrush" Value="{StaticResource GridLineBrush}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource ChromeBorderBrush}"/>
+    <Setter Property="RowBackground" Value="{DynamicResource ContentBgBrush}"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource GridLineBrush}"/>
+    <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource GridLineBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource ChromeBorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
   </Style>
   <Style Selector="DataGridColumnHeader">
-    <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="MinHeight" Value="26"/>
     <Setter Property="Padding" Value="6,0"/>
-    <Setter Property="BorderBrush" Value="{StaticResource HeaderBorderBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource HeaderBorderBrush}"/>
     <Setter Property="BorderThickness" Value="0,0,1,1"/>
   </Style>
   <Style Selector="DataGridCell">
@@ -182,8 +228,8 @@
     <Setter Property="MinHeight" Value="22"/>
   </Style>
   <Style Selector="DataGridCell.rownum">
-    <Setter Property="Background" Value="{StaticResource HeaderBgBrush}"/>
-    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource HeaderBgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
   <!-- 행번호/숫자 컬럼은 우측 정렬 (Golden) -->
   <Style Selector="DataGridCell.rownum TextBlock">
@@ -192,8 +238,8 @@
 
   <!-- SQL 에디터: 흰 바탕 모노스페이스 (키워드 하이라이팅은 P2 AvaloniaEdit) -->
   <Style Selector="TextBox.editor">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
     <Setter Property="FontFamily" Value="Consolas,Menlo,Monaco,Courier New,monospace"/>
     <Setter Property="FontSize" Value="13"/>
     <Setter Property="CornerRadius" Value="0"/>
@@ -201,15 +247,15 @@
     <Setter Property="Padding" Value="8,6"/>
   </Style>
   <Style Selector="TextBox.editor /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
     <Setter Property="BorderThickness" Value="0"/>
   </Style>
   <Style Selector="TextBox.editor:pointerover /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
     <Setter Property="BorderThickness" Value="0"/>
   </Style>
   <Style Selector="TextBox.editor:focus /template/ Border#PART_BorderElement">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
     <Setter Property="BorderThickness" Value="0"/>
   </Style>
 
@@ -227,13 +273,13 @@
   <Style Selector="TextBlock.panelLabel">
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
   </Style>
 
   <!-- 우측 패널의 quick SQL 그리드 (select / * / from / where 클릭 삽입) -->
   <Style Selector="Button.qcell">
-    <Setter Property="Background" Value="{StaticResource ContentBgBrush}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource GridLineBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ContentBgBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource GridLineBrush}"/>
     <Setter Property="BorderThickness" Value="0,0,1,1"/>
     <Setter Property="CornerRadius" Value="0"/>
     <Setter Property="FontSize" Value="12"/>
@@ -242,16 +288,16 @@
     <Setter Property="HorizontalAlignment" Value="Stretch"/>
     <Setter Property="HorizontalContentAlignment" Value="Left"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
   </Style>
   <Style Selector="Button.qcell:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource ToolHoverBrush}"/>
+    <Setter Property="Background" Value="{DynamicResource ToolHoverBrush}"/>
   </Style>
 
   <!-- 상태바 -->
   <Style Selector="TextBlock.status">
     <Setter Property="FontSize" Value="11.5"/>
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
 </Styles>

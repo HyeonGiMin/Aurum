@@ -87,6 +87,8 @@
       <MenuItem Header="View">
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
         <MenuItem Header="Toggle DataGrid/Text/Log View" InputGesture="F12" Click="OnMenuCycleResultView"/>
+        <Separator/>
+        <MenuItem Name="ThemeMenuItem" Header="Dark Mode" Click="OnMenuToggleTheme"/>
       </MenuItem>
       <MenuItem Header="Tools">
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
@@ -112,7 +114,7 @@
         <Button Name="NewTabButton" Classes="tool" Click="OnMenuNewTab" ToolTip.Tip="New Query Tab (Ctrl+T)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconPage}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.4"/>
-            <Path Data="{StaticResource IconPlus}" Fill="{StaticResource ExportGreenBrush}"/>
+            <Path Data="{StaticResource IconPlus}" Fill="{DynamicResource ExportGreenBrush}"/>
           </Canvas></Viewbox>
         </Button>
 
@@ -125,7 +127,7 @@
 
         <Button Name="SaveButton" Classes="tool" Click="OnMenuSave" ToolTip.Tip="Save Script As… (Ctrl+S)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconFloppyBody}" Fill="{StaticResource FloppyBlueBrush}"/>
+            <Path Data="{StaticResource IconFloppyBody}" Fill="{DynamicResource FloppyBlueBrush}"/>
             <Path Data="{StaticResource IconFloppySlot}" Fill="White"/>
             <Path Data="{StaticResource IconFloppyLabel}" Fill="White"/>
           </Canvas></Viewbox>
@@ -135,17 +137,17 @@
                 ToolTip.Tip="Print — 결과 그리드를 인쇄 (SQL 인쇄는 Script 메뉴)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconPrintPaperTop}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.2"/>
-            <Path Data="{StaticResource IconPrintBody}" Fill="{StaticResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconPrintBody}" Fill="{DynamicResource IconGrayBrush}"/>
             <Path Data="{StaticResource IconPrintPaperOut}" Fill="White" Stroke="#7A7A7A" StrokeThickness="1.2"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="CutButton" Classes="tool" Click="OnMenuCut" ToolTip.Tip="Cut (Ctrl+X)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconCutLines}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="1.8"/>
-            <Path Data="{StaticResource IconCutCircles}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="1.6"/>
+            <Path Data="{StaticResource IconCutLines}" Stroke="{DynamicResource IconDarkBrush}" StrokeThickness="1.8"/>
+            <Path Data="{StaticResource IconCutCircles}" Stroke="{DynamicResource IconDarkBrush}" StrokeThickness="1.6"/>
           </Canvas></Viewbox>
         </Button>
 
@@ -159,47 +161,47 @@
         <Button Name="PasteButton" Classes="tool" Click="OnMenuPaste" ToolTip.Tip="Paste (Ctrl+V)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
             <Path Data="{StaticResource IconPasteBoard}" Fill="{StaticResource PasteTanBrush}" Stroke="#8A6D3B" StrokeThickness="1"/>
-            <Path Data="{StaticResource IconPasteClip}" Fill="{StaticResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconPasteClip}" Fill="{DynamicResource IconGrayBrush}"/>
             <Path Data="{StaticResource IconPastePaper}" Fill="White"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="RedoButton" Classes="tool" Click="OnMenuRedo" ToolTip.Tip="Redo (Ctrl+Y)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconRedoArc}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
-            <Path Data="{StaticResource IconRedoHead}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconRedoArc}" Stroke="{DynamicResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconRedoHead}" Stroke="{DynamicResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="UndoButton" Classes="tool" Click="OnMenuUndo" ToolTip.Tip="Undo (Ctrl+Z)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconUndoArc}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
-            <Path Data="{StaticResource IconUndoHead}" Stroke="{StaticResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoArc}" Stroke="{DynamicResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoHead}" Stroke="{DynamicResource FloppyBlueBrush}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="FindButton" Classes="tool" Click="OnMenuFind" ToolTip.Tip="Find (Ctrl+F)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconSearchCircle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2"/>
-            <Path Data="{StaticResource IconSearchHandle}" Stroke="{StaticResource IconDarkBrush}" StrokeThickness="2.4"/>
+            <Path Data="{StaticResource IconSearchCircle}" Stroke="{DynamicResource IconDarkBrush}" StrokeThickness="2"/>
+            <Path Data="{StaticResource IconSearchHandle}" Stroke="{DynamicResource IconDarkBrush}" StrokeThickness="2.4"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="HistoryPrevButton" Classes="tool" Click="OnMenuHistoryPrev" ToolTip.Tip="Previous Query (Ctrl+↑)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconChevronLeft}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconChevronLeft}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="HistoryNextButton" Classes="tool" Click="OnMenuHistoryNext" ToolTip.Tip="Next Query (Ctrl+↓)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconChevronRight}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconChevronRight}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="ExecuteButton" Classes="tool" Click="OnMenuExecute" IsEnabled="False" ToolTip.Tip="Run Statement (F9)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
@@ -234,24 +236,24 @@
 
         <Button Name="StopButton" Classes="tool" Click="OnMenuCancel" IsEnabled="False" ToolTip.Tip="Cancel">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconCancelCircle}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2"/>
-            <Path Data="{StaticResource IconCancelSlash}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2"/>
+            <Path Data="{StaticResource IconCancelCircle}" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="2.2"/>
+            <Path Data="{StaticResource IconCancelSlash}" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="2.2"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="CommitButton" Classes="tool" Click="OnMenuCommit" IsEnabled="False" ToolTip.Tip="Commit (Ctrl+F5) — 현재 트랜잭션 확정">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="M4,13 L10,19 L20,5" Stroke="{StaticResource ExportGreenBrush}" StrokeThickness="3.2"
+            <Path Data="M4,13 L10,19 L20,5" Stroke="{DynamicResource ExportGreenBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="RollbackButton" Classes="tool" Click="OnMenuRollback" IsEnabled="False" ToolTip.Tip="Rollback (Ctrl+F6) — 현재 트랜잭션 되돌리기">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconUndoArc}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
-            <Path Data="{StaticResource IconUndoHead}" Stroke="{StaticResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoArc}" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
+            <Path Data="{StaticResource IconUndoHead}" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
@@ -276,45 +278,45 @@
 
         <Button Classes="tool" IsEnabled="False" ToolTip.Tip="Format SQL (준비 중)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconWandLine}" Stroke="{StaticResource WandPurpleBrush}" StrokeThickness="2.4"/>
+            <Path Data="{StaticResource IconWandLine}" Stroke="{DynamicResource WandPurpleBrush}" StrokeThickness="2.4"/>
             <Path Data="{StaticResource IconSparkle}" Fill="{StaticResource BoltYellowBrush}"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="FetchAllButton" Classes="tool" Click="OnMenuFetchAll" IsEnabled="False" ToolTip.Tip="Fetch All Records (Ctrl+End)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconFetchAll}" Fill="{StaticResource ExportGreenBrush}"/>
+            <Path Data="{StaticResource IconFetchAll}" Fill="{DynamicResource ExportGreenBrush}"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="ExportButton" Classes="tool" Click="OnMenuExport" IsEnabled="False" ToolTip.Tip="Export Grid As CSV…">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconExportArrow}" Fill="{StaticResource ExportGreenBrush}"/>
+            <Path Data="{StaticResource IconExportArrow}" Fill="{DynamicResource ExportGreenBrush}"/>
             <Path Data="{StaticResource IconExportTray}" Fill="#8A8A8A"/>
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="18" Background="#C0C0C0" Margin="8,0"/>
+        <Border Width="1" Height="18" Background="{DynamicResource SeparatorBrush}" Margin="8,0"/>
 
         <Button Name="BrowserToggleButton" Classes="tool" Click="OnMenuToggleBrowser" ToolTip.Tip="Object Browser (F8)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconBars}" Fill="{StaticResource PlugBlueBrush}"/>
+            <Path Data="{StaticResource IconBars}" Fill="{DynamicResource PlugBlueBrush}"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="ConnectButton" Classes="tool" Click="OnMenuConnect" ToolTip.Tip="Logon… (Ctrl+L)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconPlugBody}" Fill="{StaticResource PlugBlueBrush}"/>
-            <Path Data="{StaticResource IconPlugProngs}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
-            <Path Data="{StaticResource IconPlugCord}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
+            <Path Data="{StaticResource IconPlugBody}" Fill="{DynamicResource PlugBlueBrush}"/>
+            <Path Data="{StaticResource IconPlugProngs}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
+            <Path Data="{StaticResource IconPlugCord}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2" StrokeLineCap="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Button Name="OptionsButton" Classes="tool" Click="OnMenuOptions" ToolTip.Tip="Options…">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
-            <Path Data="{StaticResource IconWrench}" Fill="{StaticResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconWrench}" Fill="{DynamicResource IconGrayBrush}"/>
           </Canvas></Viewbox>
         </Button>
 
@@ -392,7 +394,7 @@
                       HorizontalAlignment="Stretch" SelectionChanged="OnBrowserFilterChanged"/>
             <Button Grid.Column="2" Classes="tool" IsEnabled="False" HorizontalAlignment="Center" ToolTip.Tip="Browser Options (준비 중)">
               <Viewbox Width="13" Height="13"><Canvas Width="24" Height="24">
-                <Path Data="{StaticResource IconWrench}" Fill="{StaticResource IconGrayBrush}"/>
+                <Path Data="{StaticResource IconWrench}" Fill="{DynamicResource IconGrayBrush}"/>
               </Canvas></Viewbox>
             </Button>
           </Grid>
@@ -435,8 +437,8 @@
                      PlaceholderText="TableSearch" TextChanged="OnBrowserFilterChanged"/>
             <Button Grid.Column="2" Classes="tool" Margin="2,0,0,0" Click="OnBrowserFilterChanged" ToolTip.Tip="Search">
               <Viewbox Width="13" Height="13"><Canvas Width="24" Height="24">
-                <Path Data="{StaticResource IconSearchCircle}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.4"/>
-                <Path Data="{StaticResource IconSearchHandle}" Stroke="{StaticResource PlugBlueBrush}" StrokeThickness="2.8"/>
+                <Path Data="{StaticResource IconSearchCircle}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2.4"/>
+                <Path Data="{StaticResource IconSearchHandle}" Stroke="{DynamicResource PlugBlueBrush}" StrokeThickness="2.8"/>
               </Canvas></Viewbox>
             </Button>
           </Grid>

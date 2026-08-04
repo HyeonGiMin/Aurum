@@ -8,15 +8,16 @@ namespace PrismOne.Studio;
 
 /// <summary>
 /// Golden 에디터 배색: 키워드는 적갈색(maroon) 굵게, 문자열은 파랑, 주석은 초록.
+/// 다크 테마는 같은 위계를 어두운 배경에서 읽히는 색으로 옮긴 것.
 /// </summary>
 public static class SqlHighlighting
 {
     private const string Xshd = """
         <SyntaxDefinition name="GoldenSQL" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
-          <Color name="Keyword" foreground="#8B1A1A" fontWeight="bold"/>
-          <Color name="String" foreground="#1414B8"/>
-          <Color name="Comment" foreground="#207020"/>
-          <Color name="Number" foreground="#1A1A1A"/>
+          <Color name="Keyword" foreground="{KEYWORD}" fontWeight="bold"/>
+          <Color name="String" foreground="{STRING}"/>
+          <Color name="Comment" foreground="{COMMENT}"/>
+          <Color name="Number" foreground="{NUMBER}"/>
           <RuleSet ignoreCase="true">
             <Span color="Comment" begin="--" end="\n"/>
             <Span color="Comment" multiline="true" begin="/\*" end="\*/"/>
@@ -53,11 +54,24 @@ public static class SqlHighlighting
         </SyntaxDefinition>
         """;
 
-    private static readonly Lazy<IHighlightingDefinition> Cached = new(() =>
+    private static IHighlightingDefinition Load(string keyword, string str, string comment, string number)
     {
-        using var reader = XmlReader.Create(new StringReader(Xshd));
+        var xml = Xshd
+            .Replace("{KEYWORD}", keyword)
+            .Replace("{STRING}", str)
+            .Replace("{COMMENT}", comment)
+            .Replace("{NUMBER}", number);
+        using var reader = XmlReader.Create(new StringReader(xml));
         return HighlightingLoader.Load(reader, HighlightingManager.Instance);
-    });
+    }
 
-    public static IHighlightingDefinition Definition => Cached.Value;
+    private static readonly Lazy<IHighlightingDefinition> Light = new(() =>
+        Load("#8B1A1A", "#1414B8", "#207020", "#1A1A1A"));
+
+    private static readonly Lazy<IHighlightingDefinition> Dark = new(() =>
+        Load("#E06C75", "#6CA8FF", "#63A863", "#E6E6E6"));
+
+    public static IHighlightingDefinition Definition => Light.Value;
+
+    public static IHighlightingDefinition For(bool dark) => dark ? Dark.Value : Light.Value;
 }
