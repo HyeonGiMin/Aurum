@@ -16,6 +16,20 @@ public sealed class SqliteErdCatalog(ConnectionProfile profile) : IErdCatalog
     public Task<List<string>> GetSchemasAsync(CancellationToken ct = default) =>
         Task.FromResult(new List<string> { SqliteProvider.MainSchema });
 
+    /// <summary>테이블·컬럼만 — PRAGMA foreign_key_list/index_list 를 건너뛴다.</summary>
+    public async Task<ErdGraph> LoadTablesAsync(
+        IReadOnlyList<string> schemas, CancellationToken ct = default)
+    {
+        await using var conn = new SqliteConnection(new SqliteProvider().BuildConnectionString(profile));
+        await conn.OpenAsync(ct);
+
+        var tables = new List<ErdTable>();
+        foreach (var (name, isView) in await LoadTableNamesAsync(conn, ct))
+            tables.Add(new ErdTable(
+                SqliteProvider.MainSchema, name, isView, await LoadColumnsAsync(conn, name, ct)));
+        return new ErdGraph(tables, []);
+    }
+
     public async Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default)
     {
         await using var conn = new SqliteConnection(new SqliteProvider().BuildConnectionString(profile));

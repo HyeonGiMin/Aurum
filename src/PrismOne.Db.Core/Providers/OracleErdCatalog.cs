@@ -51,6 +51,23 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
         return result;
     }
 
+    /// <summary>
+    /// 관계를 빼면 1:1 판정용 상관 서브쿼리가 사라져 훨씬 빠르다.
+    /// FK 컬럼 표시는 all_cons_columns 단순 조인이라 그대로 둔다.
+    /// </summary>
+    public async Task<ErdGraph> LoadTablesAsync(
+        IReadOnlyList<string> schemas, CancellationToken ct = default)
+    {
+        if (schemas.Count == 0) return ErdGraph.Empty;
+        var owners = schemas.ToArray();
+
+        await using var conn = await OpenAsync(ct);
+        var pkColumns = await LoadKeyColumnsAsync(conn, owners, "P", ct);
+        var fkColumns = await LoadKeyColumnsAsync(conn, owners, "R", ct);
+        var tables = await LoadTablesAsync(conn, owners, pkColumns, fkColumns, ct);
+        return new ErdGraph(tables, []);
+    }
+
     public async Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default)
     {
         if (schemas.Count == 0) return ErdGraph.Empty;

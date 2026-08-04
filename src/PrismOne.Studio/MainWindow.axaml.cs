@@ -121,17 +121,9 @@ public partial class MainWindow : Window
         var isPostgres = profile.Kind == DbKind.PostgreSql;
         ExportButton.IsEnabled = profile.Provider.Capabilities.BulkExport;
 
-        if (isPostgres)
-        {
-            await LoadBrowserAsync(profile);
-        }
-        else
-        {
-            _schemaCache = null;
-            _allTables = [];
-            SchemaCombo.ItemsSource = null;   // 이전 PG 스키마 목록이 남지 않게
-            RefreshObjectList();
-        }
+        // SchemaCache 가 provider 별로 카탈로그를 읽으므로 Object Browser·자동완성도
+        // 모든 DB 에서 채워진다 (PG 이외는 ERD 카탈로그를 재활용)
+        await LoadBrowserAsync(profile);
 
         foreach (var v in AllViews())
         {

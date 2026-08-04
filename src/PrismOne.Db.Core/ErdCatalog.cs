@@ -14,6 +14,12 @@ public interface IErdCatalog
 
     /// <summary>주어진 스키마들의 테이블·컬럼·FK 를 한 번에 읽는다.</summary>
     Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default);
+
+    /// <summary>
+    /// 테이블·컬럼만 (관계는 비운다). 자동완성·Object Browser 처럼 FK 가 필요 없는 곳에 쓴다 —
+    /// Oracle 은 1:1 판정용 상관 서브쿼리가 비싸서 관계까지 읽으면 수십 초가 걸린다(실측 74초).
+    /// </summary>
+    Task<ErdGraph> LoadTablesAsync(IReadOnlyList<string> schemas, CancellationToken ct = default);
 }
 
 /// <summary>PostgreSQL 카탈로그(pg_class/pg_constraint) 기반 구현. 읽기 전용.</summary>
@@ -38,6 +44,20 @@ public sealed class PgErdCatalog(ConnectionProfile profile) : IErdCatalog
         while (await reader.ReadAsync(ct))
             result.Add(reader.GetString(0));
         return result;
+    }
+
+    /// <summary>PG 는 관계 쿼리도 싸지만 필요 없을 땐 건너뛴다.</summary>
+    public async Task<ErdGraph> LoadTablesAsync(
+        IReadOnlyList<string> schemas, CancellationToken ct = default)
+    {
+        if (schemas.Count == 0) return ErdGraph.Empty;
+        var names = schemas.ToArray();
+
+        await using var conn = await profile.OpenAsync(ct);
+        var pk = await LoadKeyColumnsAsync(conn, names, 'p', ct);
+        var fk = await LoadKeyColumnsAsync(conn, names, 'f', ct);
+        var tables = await LoadTablesAsync(conn, names, pk, fk, ct);
+        return new ErdGraph(tables, []);
     }
 
     public async Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default)

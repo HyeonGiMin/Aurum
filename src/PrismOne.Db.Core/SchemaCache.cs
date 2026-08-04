@@ -33,13 +33,49 @@ public sealed class SchemaCache(SchemaCache.Loader load)
     /// <summary>아직 안 읽었으면 빈 목록. UI 가 동기적으로 훑을 때 쓴다.</summary>
     public IReadOnlyList<TableInfo> LoadedTables => _snapshot?.Tables ?? [];
 
-    public static SchemaCache ForProfile(ConnectionProfile profile) => new(async ct =>
+    public static SchemaCache ForProfile(ConnectionProfile profile) =>
+        profile.Kind == Providers.DbKind.PostgreSql
+            ? new SchemaCache(async ct =>
+            {
+                // PG 전용 경로 — 테이블 목록과 전 컬럼을 각각 한 쿼리로 읽는다
+                await using var conn = await profile.OpenAsync(ct);
+                var tables = await SchemaCatalog.GetTablesAsync(conn, ct);
+                var columns = await SchemaCatalog.GetAllColumnsAsync(conn, ct);
+                return new SchemaSnapshot(tables, columns);
+            })
+            : new SchemaCache(ct => FromErdCatalogAsync(profile, ct));
+
+    /// <summary>
+    /// PG 이외는 ERD 카탈로그(IErdCatalog)를 재활용한다 — 이미 테이블·컬럼·FK 를
+    /// DB 중립 모델로 읽고 있어 자동완성·describe 에 그대로 쓸 수 있다.
+    /// </summary>
+    private static async Task<SchemaSnapshot> FromErdCatalogAsync(
+        ConnectionProfile profile, CancellationToken ct)
     {
-        await using var conn = await profile.OpenAsync(ct);
-        var tables = await SchemaCatalog.GetTablesAsync(conn, ct);
-        var columns = await SchemaCatalog.GetAllColumnsAsync(conn, ct);
+        var catalog = profile.Provider.CreateErdCatalog(profile);
+        var schemas = await catalog.GetSchemasAsync(ct);
+        if (schemas.Count == 0) return SchemaSnapshot.Empty;
+
+        // 관계는 필요 없다 — Oracle 은 관계까지 읽으면 수십 초가 걸린다
+        var graph = await catalog.LoadTablesAsync(schemas, ct);
+        var tables = new List<TableInfo>(graph.Tables.Count);
+        var columns = new Dictionary<string, List<ColumnInfo>>(StringComparer.Ordinal);
+
+        foreach (var table in graph.Tables)
+        {
+            tables.Add(new TableInfo(table.Schema, table.Name, table.IsView));
+            columns[table.Key] = table.Columns
+                .Select((c, i) => new ColumnInfo(
+                    i + 1,
+                    c.Name,
+                    c.Type,
+                    c.NotNull ? "no" : "yes",
+                    c.IsPk ? "P1" : "",
+                    c.IsFk ? "F1" : ""))
+                .ToList();
+        }
         return new SchemaSnapshot(tables, columns);
-    });
+    }
 
     public async Task<SchemaSnapshot> GetAsync(CancellationToken ct = default)
     {

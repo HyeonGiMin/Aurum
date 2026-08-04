@@ -77,6 +77,54 @@ public partial class ConnectDialog : Window
 
     private void OnFilterChanged(object? sender, TextChangedEventArgs e) => ApplyFilter();
 
+    // ---------- 컬럼 정렬 (Golden 의 헤더 클릭 정렬) ----------
+
+    /// <summary>null 이면 저장 순서(최근 사용순) 그대로 둔다.</summary>
+    private string? _sortKey;
+    private bool _sortDescending;
+
+    private IEnumerable<SavedConnection> Sort(IEnumerable<SavedConnection> items)
+    {
+        if (_sortKey is null) return items;
+
+        Func<SavedConnection, string> key = _sortKey switch
+        {
+            "Type" => c => c.TypeLabel,
+            "Username" => c => c.Username,
+            "Database" => c => c.DisplayDatabase,
+            "Category" => c => c.Category ?? "",
+            "Comment" => c => c.Comment ?? "",
+            _ => c => c.Name ?? "",
+        };
+        return _sortDescending
+            ? items.OrderByDescending(key, StringComparer.CurrentCultureIgnoreCase)
+            : items.OrderBy(key, StringComparer.CurrentCultureIgnoreCase);
+    }
+
+    /// <summary>같은 헤더를 다시 누르면 방향이 바뀐다. 세 번째면 정렬 해제(저장 순서).</summary>
+    private void OnSortHeader(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string key }) return;
+
+        if (_sortKey != key) { _sortKey = key; _sortDescending = false; }
+        else if (!_sortDescending) { _sortDescending = true; }
+        else { _sortKey = null; _sortDescending = false; }
+
+        UpdateSortHeaders();
+        ApplyFilter();
+    }
+
+    private void UpdateSortHeaders()
+    {
+        foreach (var button in new[] { SortName, SortType, SortUsername, SortDatabase, SortCategory, SortComment })
+        {
+            var label = (string)button.Tag!;
+            button.Content = _sortKey == label
+                ? $"{label} {(_sortDescending ? "▾" : "▴")}"
+                : label;
+        }
+    }
+
     /// <summary>자가 스크린샷 하니스 전용 — 필터 행을 연 상태로 만든다.</summary>
     public void ShowFilterForShot()
     {

@@ -1260,6 +1260,7 @@ public partial class QueryTabView : UserControl
         }
         ResultGrid.ItemsSource = transposed;
         _transposed = true;
+        ResultGrid.CanUserSortColumns = false;   // 전치 상태는 정렬이 의미 없다
         SetInfo($"Transposed — {_columns.Count} column(s) × {source.Count} row(s)");
     }
 
@@ -1563,12 +1564,17 @@ public partial class QueryTabView : UserControl
                     {
                         Mode = IsEditing ? BindingMode.TwoWay : BindingMode.OneWay,
                     },
+                    // 인덱서 경로라 기본(경로 반사) 정렬이 안 먹는다 — 컬럼마다 비교자를 붙인다
+                    CustomSortComparer = new CellComparer(i),
                     Width = DataGridLength.Auto,
                     // 거대한 값(JSONB 등)이 컬럼 폭 계산을 망가뜨리지 않게 상한
                     MaxWidth = 420,
                 });
             }
         }
+        // Golden 처럼 헤더 클릭으로 정렬. 단 **이미 fetch 된 행만** 정렬된다(점진 fetch).
+        // 전치 상태는 행/열이 뒤바뀌어 의미가 없고, 편집 모드는 행 순서가 흔들리면 혼란스럽다.
+        ResultGrid.CanUserSortColumns = !_transposed && !IsEditing;
         ResultGrid.IsReadOnly = !IsEditing;
         ResultGrid.ItemsSource = _rows;
         if (columns.Count > 0)
