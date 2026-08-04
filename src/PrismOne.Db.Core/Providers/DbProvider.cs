@@ -74,6 +74,12 @@ public interface IDbProvider
     /// <summary>식별자 인용. 필요할 때만 감싼다.</summary>
     string QuoteIdentifier(string identifier);
 
+    /// <summary>
+    /// n번째(1부터) 파라미터 자리표시자 — PG <c>$1</c>, SQLite <c>?</c>, Oracle <c>:p1</c>.
+    /// 값은 이름 없이 **추가한 순서대로** 바인딩한다 (ExecuteEditAsync 경로).
+    /// </summary>
+    string ParameterPlaceholder(int oneBasedIndex);
+
     /// <summary>상태바·창 제목용 짧은 표기.</summary>
     string Describe(ConnectionProfile profile);
 

@@ -74,6 +74,9 @@ public sealed class OracleProvider : IDbProvider
         return conn;
     }
 
+    /// <summary>이름은 형식일 뿐 — ODP.NET 기본(BindByName=false)은 추가한 순서로 바인딩한다.</summary>
+    public string ParameterPlaceholder(int oneBasedIndex) => $":p{oneBasedIndex}";
+
     /// <summary>
     /// Oracle 은 인용하지 않은 식별자를 대문자로 접는다. 이미 대문자·숫자·밑줄로만 되어
     /// 있고 숫자로 시작하지 않으면 그대로 두고, 아니면 큰따옴표로 감싼다.

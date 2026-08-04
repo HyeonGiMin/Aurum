@@ -57,6 +57,9 @@ public sealed class SqliteProvider : IDbProvider
         return conn;
     }
 
+    /// <summary>Microsoft.Data.Sqlite 는 이름 없는 `?` 를 지원하지 않는다 — 이름을 붙인다.</summary>
+    public string ParameterPlaceholder(int oneBasedIndex) => $"@p{oneBasedIndex}";
+
     public string QuoteIdentifier(string identifier) =>
         '"' + identifier.Replace("\"", "\"\"") + '"';
 

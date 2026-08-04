@@ -65,6 +65,8 @@ public sealed class PostgresProvider : IDbProvider
         return conn;
     }
 
+    public string ParameterPlaceholder(int oneBasedIndex) => $"${oneBasedIndex}";
+
     /// <summary>소문자·숫자·밑줄로만 되어 있고 숫자로 시작하지 않으면 그대로 둔다.</summary>
     public string QuoteIdentifier(string identifier) =>
         identifier.Length > 0

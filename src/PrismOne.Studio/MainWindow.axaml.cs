@@ -320,6 +320,7 @@ public partial class MainWindow : Window
             Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
             Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
             Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
+            Item("Import CSV/TSV…", () => OnMenuImportCsv(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -1081,6 +1082,15 @@ public partial class MainWindow : Window
             new SchemaDiffWindow(profile).Show(this);
         else
             StatusLabel.Text = "Schema Diff 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+    }
+
+    /// <summary>Tools > Import CSV/TSV — 파일을 테이블로 (전량 성공 아니면 전량 롤백).</summary>
+    private void OnMenuImportCsv(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile && _schemaCache is { } cache)
+            new CsvImportDialog(profile, cache).Show(this);
+        else
+            StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
     }
 
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
@@ -1918,6 +1928,20 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(diffWin, System.IO.Path.Combine(dir, "shot_diff.png"));
             diffWin.Close();
+
+            // CSV Import — 샘플 파일로 매핑·미리보기 렌더 확인 (접속 없이)
+            var importWin = new CsvImportDialog(ConnectionProfile.Default, sampleCache);
+            importWin.Show(this);
+            await Task.Delay(400);   // 테이블 목록 적재 대기
+            importWin.LoadText("study_batch.csv",
+                "study_key,study_id,study_dttm,modality,exam_note\n" +
+                "2001,ST20260804-0001,2026-08-04 09:10:00,CT,follow-up\n" +
+                "2002,ST20260804-0002,2026-08-04 09:25:00,MR,\n" +
+                "2003,\"ST20260804,0003\",2026-08-04 10:02:00,US,\"quoted, note\"\n");
+            importWin.TableCombo.SelectedIndex = 0;
+            await Task.Delay(500);
+            SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
+            importWin.Close();
 
             var dialog = new ConnectDialog();
             dialog.Show(this);

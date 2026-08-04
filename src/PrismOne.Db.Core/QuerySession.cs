@@ -256,8 +256,10 @@ public sealed class QuerySession : IAsyncDisposable
             await Current.AbortAsync();
 
         await using var cmd = NewCommand(statement.Sql);
+        var index = 0;
         foreach (var value in statement.Parameters)
         {
+            index++;
             // PG 는 unknown 으로 보내야 서버가 대상 컬럼 타입으로 캐스팅한다.
             // 다른 드라이버는 기본 추론에 맡긴다 (셀 값은 전부 문자열이라
             // 클라이언트에서 타입을 정하면 오히려 어긋난다).
@@ -270,6 +272,8 @@ public sealed class QuerySession : IAsyncDisposable
             else
             {
                 var p = cmd.CreateParameter();
+                // SQLite 는 이름 없는 파라미터를 거부한다 — placeholder(@pN/:pN)와 같은 이름으로
+                p.ParameterName = $"p{index}";
                 p.Value = (object?)value ?? DBNull.Value;
                 cmd.Parameters.Add(p);
             }
