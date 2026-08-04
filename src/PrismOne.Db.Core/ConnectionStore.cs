@@ -1,8 +1,14 @@
 using System.Text.Json;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Db.Core;
 
-/// <summary>저장된 접속 항목. Password 는 "Save password" 를 켠 경우에만 남는다.</summary>
+/// <summary>
+/// 저장된 접속 항목. Password 는 "Save password" 를 켠 경우에만 남는다.
+///
+/// <see cref="Kind"/> 는 **맨 뒤에 기본값과 함께** 두었다 — 이 필드가 없는 기존
+/// connections.json 이 PostgreSQL 로 읽히게 하기 위해서다(하위 호환).
+/// </summary>
 public sealed record SavedConnection(
     string Host,
     int Port,
@@ -11,16 +17,38 @@ public sealed record SavedConnection(
     string? Password,
     string? Name = null,
     string? Category = null,
-    string? Comment = null)
+    string? Comment = null,
+    DbKind Kind = DbKind.PostgreSql)
 {
-    public string DisplayName => $"{Username}@{Host}:{Port}/{Database}";
+    /// <summary>Login List 의 Type 컬럼 표기. JSON 에는 저장되지 않는 계산 값.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string TypeLabel =>
+        DbProviders.IsSupported(Kind) ? DbProviders.For(Kind).DisplayName : Kind.ToString();
 
-    /// <summary>Golden 의 Database 표기: host[:port]/db (5432 는 생략).</summary>
-    public string DisplayDatabase =>
-        Port == 5432 ? $"{Host}/{Database}" : $"{Host}:{Port}/{Database}";
+    /// <summary>파일 DB(SQLite)는 host/port/user 가 없어 경로만 쓴다.</summary>
+    private bool IsFileDb => Kind == DbKind.Sqlite;
 
+    public string DisplayName => IsFileDb
+        ? Database
+        : $"{Username}@{Host}:{Port}/{Database}";
+
+    /// <summary>Golden 의 Database 표기: host[:port]/db (기본 포트는 생략).</summary>
+    public string DisplayDatabase => IsFileDb
+        ? Database
+        : Port == DefaultPort(Kind) ? $"{Host}/{Database}" : $"{Host}:{Port}/{Database}";
+
+    /// <summary>종류가 다르면 같은 호스트·DB 라도 별개 항목이다.</summary>
     public bool SameTarget(ConnectionProfile p) =>
-        Host == p.Host && Port == p.Port && Database == p.Database && Username == p.Username;
+        Kind == p.Kind && Host == p.Host && Port == p.Port
+        && Database == p.Database && Username == p.Username;
+
+    public static int DefaultPort(DbKind kind) => kind switch
+    {
+        DbKind.Oracle => 1521,
+        DbKind.MongoDb => 27017,
+        DbKind.Sqlite => 0,
+        _ => 5432,
+    };
 }
 
 /// <summary>
@@ -76,7 +104,8 @@ public static class ConnectionStore
             savePassword ? profile.Password : null,
             prior?.Name ?? profile.Database,
             prior?.Category,
-            prior?.Comment));
+            prior?.Comment,
+            profile.Kind));
         if (list.Count > MaxEntries)
             list.RemoveRange(MaxEntries, list.Count - MaxEntries);
         Save(list);

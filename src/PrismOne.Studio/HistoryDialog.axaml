@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        x:Class="PrismOne.Studio.HistoryDialog"
+        Title="Query History - Aurum"
+        Width="760" Height="580"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <Grid Margin="16" RowDefinitions="Auto,*,Auto,1.1*,Auto">
+
+    <TextBox Grid.Row="0" Name="FilterBox" Margin="0,0,0,8" MinHeight="30" FontSize="13"
+             PlaceholderText="Filter (SQL 부분일치)" TextChanged="OnFilterChanged"/>
+
+    <ListBox Grid.Row="1" Name="HistoryList" SelectionChanged="OnSelectionChanged"
+             DoubleTapped="OnInsert">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="local:HistoryRow">
+          <StackPanel Spacing="1" Margin="0,2">
+            <TextBlock Text="{Binding When}" FontSize="11" Opacity="0.55"/>
+            <TextBlock Text="{Binding Preview}" FontSize="12.5"
+                       FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+                       TextTrimming="CharacterEllipsis"/>
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <TextBlock Grid.Row="2" Text="SQL" FontSize="13" Margin="0,10,0,4"/>
+
+    <TextBox Grid.Row="3" Name="SqlBox" AcceptsReturn="True" TextWrapping="NoWrap" FontSize="12.5"
+             FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+             IsReadOnly="True" VerticalContentAlignment="Top"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+
+    <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0" Name="StatusText" FontSize="12" Opacity="0.75"
+                 VerticalAlignment="Center"/>
+      <Button Grid.Column="1" Name="InsertButton" Content="Insert to Editor" MinHeight="32"
+              Click="OnInsert" IsEnabled="False" Margin="0,0,8,0"/>
+      <Button Grid.Column="2" Content="Close" MinHeight="32" MinWidth="80" Click="OnClose"/>
+    </Grid>
+  </Grid>
+</Window>

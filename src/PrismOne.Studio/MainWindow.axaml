@@ -35,6 +35,7 @@
       <MenuItem Header="Script">
         <MenuItem Header="Run Statement" InputGesture="F9" Click="OnMenuExecute"/>
         <MenuItem Header="Run Script" InputGesture="F5" Click="OnMenuRunScript"/>
+        <MenuItem Header="Run Selected" InputGesture="Ctrl+F7" Click="OnMenuRunSelected"/>
         <MenuItem Header="Explain Statement (plan tree)" Click="OnMenuExplain"/>
         <MenuItem Header="Explain Analyze (실제 실행·DML 자동 롤백)" Click="OnMenuExplainAnalyze"/>
         <MenuItem Header="Cancel" Click="OnMenuCancel"/>
@@ -60,7 +61,14 @@
         <Separator/>
         <MenuItem Header="Transpose Columns/Records" InputGesture="Ctrl+Shift+X" Click="OnMenuTranspose"/>
         <MenuItem Header="Size All Columns to Fit" Click="OnMenuSizeColumns"/>
-        <MenuItem Header="Filter Like Selected Cell" Click="OnMenuFilterCell"/>
+        <MenuItem Header="Goto Record Number…" InputGesture="Ctrl+G" Click="OnMenuGotoRecord"/>
+        <MenuItem Header="Cell Details…" InputGesture="Ctrl+F11" Click="OnMenuCellDetail"/>
+        <Separator/>
+        <MenuItem Header="Filter Records Like Selected Cell" Click="OnMenuFilterCellGrid"/>
+        <MenuItem Header="Clear Filter" Click="OnMenuClearFilter"/>
+        <MenuItem Header="Append Filter Clause to Editor" Click="OnMenuFilterCell"/>
+        <MenuItem Header="Clear Results" Click="OnMenuClearResults"/>
+        <MenuItem Header="Pin Results to New Window" Click="OnMenuPinResult"/>
         <Separator/>
         <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
         <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
@@ -78,10 +86,15 @@
       </MenuItem>
       <MenuItem Header="View">
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
+        <MenuItem Header="Toggle DataGrid/Text/Log View" InputGesture="F12" Click="OnMenuCycleResultView"/>
       </MenuItem>
       <MenuItem Header="Tools">
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
         <MenuItem Header="SQL Builder…" Click="OnMenuSqlBuilder"/>
+        <MenuItem Header="Diagram (ERD)…" Click="OnMenuErd"/>
+        <MenuItem Header="Schema Diff…" Click="OnMenuSchemaDiff"/>
+        <MenuItem Header="Import CSV/TSV…" Click="OnMenuImportCsv"/>
+        <MenuItem Header="Query History…" Click="OnMenuHistory"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
@@ -247,6 +260,12 @@
                 VerticalAlignment="Center" IsEnabled="False"
                 Content="Tx: Manual ▾" Click="OnTxButtonClick"/>
 
+        <!-- Golden 의 결과 보기 선택 (Show DataGrid / Show Text / Show Log) -->
+        <Button Name="ShowButton" Classes="tool" FontSize="11.5" Padding="9,3" Margin="4,0,0,0"
+                VerticalAlignment="Center"
+                Content="Show: DataGrid ▾" Click="OnShowButtonClick"
+                ToolTip.Tip="결과를 그리드 / 고정폭 텍스트 / 실행 로그 중 무엇으로 볼지"/>
+
         <Button Name="BindVarButton" Classes="tool" Click="OnMenuBindVars"
                 ToolTip.Tip="Bind Variables — 문장의 :var 값 입력 (실행 시 자동으로도 뜸)">
           <Viewbox Width="17" Height="17"><Canvas Width="24" Height="24">
@@ -306,7 +325,8 @@
     <Border DockPanel.Dock="Bottom" Padding="0" BorderThickness="0,1,0,0"
             BorderBrush="{DynamicResource ChromeBorderBrush}"
             Background="{DynamicResource ChromeBgBrush}">
-      <Grid ColumnDefinitions="*,88,196,124" Height="24">
+      <!-- Golden 상태바 구성: 메시지 | Modified | Selected N records | 커서 | Fetched | Script -->
+      <Grid ColumnDefinitions="*,76,150,88,196,124" Height="24">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0" Spacing="8">
           <!-- 접속 상태 pill: 미접속이면 빨강, 접속되면 초록 -->
           <Border Name="ConnPill" Background="#F3D6D6" BorderBrush="#D89A9A" BorderThickness="1"
@@ -324,12 +344,19 @@
           <TextBlock Name="StatusLabel" Classes="status" Text="Ready"/>
         </StackPanel>
         <Border Grid.Column="1" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
-          <TextBlock Name="CaretLabel" Classes="status" Text="" HorizontalAlignment="Center"/>
+          <TextBlock Name="ModifiedLabel" Classes="status" Text="" HorizontalAlignment="Center"
+                     ToolTip.Tip="에디터 내용이 마지막 저장 이후 바뀌었습니다"/>
         </Border>
         <Border Grid.Column="2" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+          <TextBlock Name="SelectionLabel" Classes="status" Text=""/>
+        </Border>
+        <Border Grid.Column="3" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
+          <TextBlock Name="CaretLabel" Classes="status" Text="" HorizontalAlignment="Center"/>
+        </Border>
+        <Border Grid.Column="4" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
           <TextBlock Name="RowsLabel" Classes="status" Text=""/>
         </Border>
-        <Border Grid.Column="3" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+        <Border Grid.Column="5" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
           <TextBlock Name="TimeLabel" Classes="status" Text=""/>
         </Border>
       </Grid>

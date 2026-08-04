@@ -1,6 +1,6 @@
 # 진행 상황 · 다음 작업 (인수인계용)
 
-마지막 갱신: 2026-08-03 · 브랜치 `main`
+마지막 갱신: 2026-08-04 · 브랜치 `feat/erd-and-result-views`
 
 > **repo 분리 (2026-08-03)**: 이 repo(aurum)는 GUI(Aurum)+Core 전용이다.
 > DB 초기 설치·패치 CLI(`iapdb`)와 mini-psql 실행기는 **iap-database repo 의
@@ -73,6 +73,100 @@
 
 **남은 Golden 기능**: 없음 — Golden 파리티 완료.
 
+- **SQL 검증 (2026-08-04, DATAGRIP_GAP §2)** — 타자 후 0.6초 쉬면 introspection
+  캐시와 대조해 없는 테이블/컬럼에 빨간 물결 밑줄 + 호버 툴팁.
+  `Core/SqlValidator`(순수 로직, 테스트 22개) + `Studio/SqlErrorRenderer`.
+  원칙은 "확신할 때만 표시" — 해석 안 되는 것(CTE·서브쿼리 별칭·모르는 스키마·
+  따옴표 식별자·함수)은 침묵한다. 오프라인 스크린샷에 `shot_validation.png` 추가.
+- **Explain Plan 시각화 (2026-08-04, DATAGRIP_GAP §4)** — 플랜 트리 노드마다
+  self 비중 막대 + %(50%↑ 빨강·20%↑ 주황·초록), 행수 예측 10배↑ 오차엔
+  `rows ×N` 배지. 누적치가 아니라 자식 몫을 뺀 self 로 강조한다(이전엔 루트가
+  항상 빨갰다). `PlanParser` 에 수치 필드·self 계산 추가 (테스트 6개),
+  오프라인 스크린샷 `shot_plan.png`.
+- **Schema Diff (2026-08-04, DATAGRIP_GAP §3a)** — Tools > Schema Diff, 읽기 전용.
+  표준 사이트에서 스냅샷(JSON)을 떠 두고 각 사이트에서 현재 접속과 비교하는 흐름.
+  `Core/SchemaDiff` + `SchemaSnapshotFile`(테스트 10개) + `SchemaDiffWindow`.
+  FK 는 제약 이름이 아니라 연결로 비교, 대소문자 무시(Oracle↔PG). DDL 은 만들지
+  않는다 — iapdb 원칙 유지. 오프라인 스크린샷 `shot_diff.png`.
+- **CSV/TSV Import (2026-08-04, DATAGRIP_GAP §5)** — Tools > Import CSV/TSV.
+  RFC 4180 파서(구분자 자동 감지) + 헤더 이름 매핑(무시 헤더·빠진 NOT NULL 미리
+  경고) + **전량 성공 아니면 전량 롤백**(실패 시 행 번호·DB 오류). 값은 문자열로
+  보내 서버가 캐스팅. 전용 접속에서 실행. `IDbProvider.ParameterPlaceholder`
+  추가 — Microsoft.Data.Sqlite 가 이름 없는 파라미터를 거부해 SQLite 는 `@pN`.
+  테스트 19개, 오프라인 스크린샷 `shot_import.png`.
+- **성능·안정성 (2026-08-04, 사용자 방향: "성능과 안정성이 최우선")**
+  - Import 대량 insert 를 **준비된 문장 재사용**(`QuerySession.ExecuteBatchAsync`,
+    Prepare + 파라미터 재사용)으로 — 행마다 명령 생성 제거. 5천 행 테스트 포함
+    전체 스위트가 0.2초 안에 돈다. 실패 행 번호는 `BatchRowException` 으로 유지
+  - SQL 검증에 **200K 자 상한** — 대형 덤프에서 UI 스레드 지연 방지 (밑줄보다 반응성)
+- **Query History 조회 창 (2026-08-04, 사용자 요청)** — Tools > Query History.
+  실행 시각 포함 최근 순, 부분일치 필터, 더블클릭/Insert 로 에디터 삽입.
+  `HistoryStore` 가 시각을 메모리에도 보존하도록 확장 (jsonl 형식은 그대로).
+  쿼리 앱 내 저장 = 기존 Favorites, 파일 열기/저장 = 기존 Ctrl+O/S 로 이미 충족.
+- **Pin Results (2026-08-04, DATAGRIP_GAP §6)** — Results > Pin Results to New
+  Window. 결과 영역 다중 탭 대신 **스냅샷을 별도 창에 고정** — 그리드 핵심 경로를
+  건드리지 않는 저위험 설계. 오프라인 스크린샷 `shot_history.png` · `shot_pin.png`.
+- **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
+  SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
+  Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·
+  취소 후 세션 복구.
+
+## 1.6 ERD 뷰어 (2026-08-04, MVP)
+
+Golden 에는 없던 기능. SQL Developer 의 relational model 대응으로 **Tools > Diagram (ERD)**
+창을 추가했다. 읽기 전용이며 DDL 을 만들지 않는다.
+
+구조 — PG 종속을 더 굳히지 않으려고 카탈로그만 먼저 provider 로 분리했다(§1.5 방향):
+
+| 파일 | 역할 |
+|---|---|
+| `Core/ErdModel.cs` | DB 중립 모델(`ErdTable`/`ErdRelation`/`ErdGraph`) + `Focus(N홉)`·`Filter` |
+| `Core/ErdCatalog.cs` | `IErdCatalog` 경계 + `PgErdCatalog`(pg_class/pg_constraint 읽기 전용) |
+| `Core/ErdLayout.cs` | 순수 레이아웃 — 연결요소 → 참조깊이 레이어 → 바리센터 정렬 → 패킹 → 직교 라우팅 |
+| `Studio/ErdCanvas.cs` | `DrawingContext` 직접 렌더 (줌은 좌표 배율 — 글자가 뭉개지지 않게) |
+| `Studio/ErdWindow.axaml(.cs)` | 창 — Schema/Filter/Focus·Depth/Columns, 줌·팬·Fit, Save PNG |
+
+- 카디널리티는 조회가 아니라 **추론**이다: 자식 FK 컬럼 집합이 자식 쪽 PK/UNIQUE 로 덮이면
+  1:1, 아니면 1:N. 자식 컬럼에 nullable 이 있으면 0..N(빈 원)
+- 전체 스키마는 한 화면에 못 읽으므로 **Focus(선택 + N홉)가 기본 시야**. 테이블 수가 많으면
+  상태바가 좁히라고 알린다
+- 레이아웃이 UI 와 분리돼 있어 단위 테스트가 붙는다 (`ErdLayoutTests` 18개 — 겹침 없음·
+  부모가 위·결정성·순환/자기참조 종료·Focus/Filter 경계)
+- 접속 없이 렌더를 확인할 수 있게 오프라인 스크린샷 하니스에 `shot_erd.png` 를 추가했다
+  (`MainWindow.SampleErdGraph()` 의 합성 스키마)
+
+**남은 것 (미착수)**: 배치 수동 드래그·저장, 테이블 더블클릭 → describe/SELECT 연동,
+SVG 내보내기·인쇄, 선택 영역 DDL 생성.
+**PG 실접속 전제 확인 완료 (2026-08-04)** — 개발 DB(`pg_constraint contype='f'`)에
+FK 제약 **prismone 185건**(+pgmq 2건) 존재. ERD 관계선이 그려지는 조건 충족.
+
+## 1.7 멀티 DB 현황 (2026-08-04)
+
+계획은 `MULTI_DB_PLAN.md`, 판단 근거는 `TOOL_COMPARISON.md` / `DATAGRIP_GAP.md`.
+
+| 기능 | PostgreSQL | Oracle | SQLite |
+|---|---|---|---|
+| 접속 (로그온 창 Type 선택) | ✅ | ✅ | ✅ |
+| 쿼리 실행·트랜잭션 | ✅ | ⚠️ 미검증 | ✅ (테스트) |
+| Object Browser·자동완성 | ✅ | ✅ | ✅ |
+| ERD (Tools > Diagram) | ✅ | ✅ 실접속 확인 | ✅ (테스트) |
+| 세션 격리 수준 | 4단계 | RC/Serializable | ❌ 없음 |
+| 그리드 편집 행 특정 | ctid | ROWID | rowid |
+| COPY 대량 내보내기 | ✅ | ❌ | ❌ |
+| 스키마 버전 pill | ✅ | ❌ (PG 전용) | ❌ |
+
+**실측 메모**
+
+- Oracle 카탈로그: 552테이블 적재 **2.2초**. 처음엔 FK 관계까지 읽어 74초가 걸려
+  `IErdCatalog.LoadTablesAsync`(관계 제외)를 따로 뒀다 — 자동완성엔 FK 가 필요 없다
+- Oracle ERD: 517테이블·293관계. 단독 테이블을 한 영역으로 묶어 주제영역
+  340개 → 8개, 높이 11520 → 8838. 그래도 전체 보기는 못 읽으니 Focus 가 기본
+
+**남은 것**: Oracle 쿼리 실행 실검증 — **이 개발 머신에는 Oracle 접속이 저장돼 있지
+않다** (2026-08-04 확인, 저장된 접속은 PG 1건뿐). Oracle 서버가 보이는 환경에서
+로그온 한 번 저장한 뒤 검증할 것. 그 외: AS SYSDBA·Read Only(Oracle 은 접속 수준
+읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
+
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
 
 Golden 파리티가 끝나면 다음 단계는 **DataGrip 처럼 쓰이는 DB 툴**로 넓히는 것.
@@ -90,7 +184,11 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 - Mongo 는 SQL 이 아니라 문서·파이프라인 모델이라 에디터(쿼리 언어)·그리드(중첩 문서
   표시)·자동완성(컬렉션/필드)·편집(_id 기준) 모두 별도 UX 가 필요 — Studio3T 가
   참고 대상. 드라이버는 공식 MongoDB.Driver(.NET)
-- 아직 미착수 — §2·3 CLI 이후, 별도 계획 문서로 시작한다
+- **계획 문서 작성됨 (2026-08-04): `MULTI_DB_PLAN.md`** — Oracle·SQLite 까지 범위를
+  넓혔고, 결합도 측정(Core 8개 파일이 Npgsql 직접 참조)·드라이버 선정·기능별 대응
+  가능성 표·단계(0 경계 → 1 SQLite → 2 Oracle → 3 Mongo)를 담았다.
+  SQLite 를 Oracle 보다 먼저 두는 이유는 **파일 DB 라 단위 테스트로 검증 가능**해서다.
+  구현은 아직 미착수
 
 ## 2·3. CLI — iap-database repo 로 이관
 
@@ -121,7 +219,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
-- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 130개)
+- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 281개)
 - **실접속 검증 현황** (2026-08-03, 사내 개발 DB 접속 가능한 환경에서 확인):
   1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
      Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,
@@ -167,4 +265,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 | `GOLDEN_BEHAVIOR.md` | Golden 동작 명세 + 갭 목록 (바이너리·매뉴얼 근거) |
 | `PG_FEATURES.md` | pgAdmin·PostgreSQL 고유 기능 채택 계획 |
 | `STUDIO_PLAN.md` | 초기 파리티 계획 (P1~P5) |
+| `TOOL_COMPARISON.md` | **Golden vs DataGrip 장단점** — Aurum 이 무엇을 취하고 무엇을 버릴지 |
+| `DATAGRIP_GAP.md` | DataGrip 대비 기능 갭과 우선순위 |
+| `MULTI_DB_PLAN.md` | **멀티 DB 계획** — PG/Oracle/SQLite/MongoDB provider 단계 |
 | `STATUS.md` | 이 문서 — 진행 상황과 다음 작업 |

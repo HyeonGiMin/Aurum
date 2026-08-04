@@ -4,7 +4,8 @@
         x:Class="PrismOne.Studio.FavoritesDialog"
         Title="Favorites - Aurum"
         Width="720" Height="560"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <Grid Margin="16" RowDefinitions="Auto,*,Auto,Auto,1.1*,Auto,Auto">
 
     <TextBox Grid.Row="0" Name="FilterBox" Margin="0,0,0,8" MinHeight="30" FontSize="13"

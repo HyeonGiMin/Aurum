@@ -3,7 +3,8 @@
         x:Class="PrismOne.Studio.LoginItemDialog"
         Title="Editing existing Login Item"
         Width="420" SizeToContent="Height" CanResize="False"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <!-- Golden 의 "Editing existing Login Item" — 접속 정보(호스트·계정)는 그대로 두고
        리스트 표시용 메타(Name / Category / Comment)만 고친다 -->
   <StackPanel Margin="16" Spacing="4">

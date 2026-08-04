@@ -46,6 +46,13 @@ if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $stageDir -Force | Out-Null
 Copy-Item (Join-Path $publishDir '*') $stageDir -Recurse -Force
 
+# 네이티브 라이브러리의 pdb 는 DebugType=none 으로 빠지지 않는다
+# (SkiaSharp 80MB, HarfBuzz 20MB). 배포본에는 필요 없으므로 지운다
+Get-ChildItem $stageDir -Filter '*.pdb' -Recurse | ForEach-Object {
+    Write-Output ("   제외: {0} ({1} MB)" -f $_.Name, [math]::Round($_.Length / 1MB, 1))
+    Remove-Item $_.FullName -Force
+}
+
 # 실행 파일 이름을 제품명으로 (작업 표시줄·시작 메뉴에 그대로 노출된다)
 $publishedExe = Join-Path $stageDir 'Aurum.exe'
 $targetExe = Join-Path $stageDir "$appName.exe"

@@ -41,6 +41,18 @@
       <!-- EXPLAIN (ANALYZE) 플랜 트리 (pgAdmin 그래픽 플랜의 트리 버전) -->
       <TreeView Name="PlanTree" IsVisible="False" Background="{DynamicResource ContentBgBrush}"
                 FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12"/>
+      <!-- Golden "Show Text" — 결과를 고정폭 텍스트로 (복사해 붙이기 좋게) -->
+      <ScrollViewer Name="TextPane" IsVisible="False" Background="{DynamicResource ContentBgBrush}"
+                    HorizontalScrollBarVisibility="Auto">
+        <SelectableTextBlock Name="ResultText" Margin="10,8"
+                             FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12.5"/>
+      </ScrollViewer>
+      <!-- Golden "Show Log" — 이 탭에서 실행한 문장의 시각·소요·결과 기록 -->
+      <ScrollViewer Name="LogPane" IsVisible="False" Background="{DynamicResource ContentBgBrush}"
+                    HorizontalScrollBarVisibility="Auto">
+        <SelectableTextBlock Name="LogText" Margin="10,8"
+                             FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12.5"/>
+      </ScrollViewer>
       <ScrollViewer Name="ErrorPane" IsVisible="False" Background="{DynamicResource ContentBgBrush}">
         <SelectableTextBlock Name="ErrorText" Margin="12" TextWrapping="Wrap"
                              FontFamily="Consolas,Menlo,Monaco,monospace" FontSize="12.5"

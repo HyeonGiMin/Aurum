@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Npgsql;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
 
@@ -23,6 +24,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TabItem> _tabs = [];
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
+    /// <summary>접속당 하나 — 테이블·컬럼을 한 번만 읽는다 (DataGrip introspection 캐시).</summary>
+    private SchemaCache? _schemaCache;
     private AppOptions _options = AppOptions.Load();
     private readonly FavoritesStore _favorites = FavoritesStore.Load();
     private NativeMenu? _nativeFavoritesMenu;   // macOS 네이티브 메뉴바의 Favorites 하위
@@ -112,9 +115,21 @@ public partial class MainWindow : Window
         Title = $"{profile.DisplayName} - Aurum";
         StatusLabel.Text = $"Connected: {profile.DisplayName}";
 
+        // 쿼리 실행은 이제 드라이버 중립(QuerySession 이 DbConnection 을 쓴다)이지만,
+        // Object Browser·자동완성 캐시·스키마 버전 pill 은 아직 PG 카탈로그에 묶여 있다.
+        // COPY 기반 대량 내보내기도 provider 가 지원한다고 할 때만 켠다.
+        var isPostgres = profile.Kind == DbKind.PostgreSql;
+        ExportButton.IsEnabled = profile.Provider.Capabilities.BulkExport;
+
+        // SchemaCache 가 provider 별로 카탈로그를 읽으므로 Object Browser·자동완성도
+        // 모든 DB 에서 채워진다 (PG 이외는 ERD 카탈로그를 재활용)
         await LoadBrowserAsync(profile);
+
         foreach (var v in AllViews())
+        {
             v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
+            v.SchemaCache = _schemaCache;      // 컬럼 완성도 캐시에서 (접속 안 염)
+        }
 
         // Golden: 메인 접속 하나를 공유 세션으로 열고 탭들에 붙인다
         if (_sharedSession is not null)
@@ -126,11 +141,19 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             StatusLabel.Text = $"Connect failed: {ex.Message}";
+            await ErrorDialog.ShowAsync(this, "Connection failed",
+                $"세션을 열지 못했습니다.\n{profile.DisplayName}", ex);
             return;
         }
 
         UpdateConnectionPill();
-        await UpdateSchemaVersionPillAsync(profile);
+        // 스키마 버전 pill 은 PRISMONE.schema_version(PG) 을 읽는다
+        if (isPostgres)
+            await UpdateSchemaVersionPillAsync(profile);
+        else
+            StatusLabel.Text =
+                $"Connected: {profile.DisplayName} · {profile.Provider.DisplayName} — " +
+                "쿼리 실행과 Diagram 은 되고, Object Browser·자동완성은 아직 PostgreSQL 전용입니다";
 
         var orphans = AllViews().Where(v => !v.IsConnected).ToList();
         if (orphans.Count > 0)
@@ -173,6 +196,7 @@ public partial class MainWindow : Window
         var view = new QueryTabView
         {
             CompletionTables = _allTables,
+            SchemaCache = _schemaCache,
             Options = _options,
             PreferredSchema = SchemaCombo.SelectedItem as string,
         };
@@ -268,7 +292,14 @@ public partial class MainWindow : Window
             new NativeMenuItemSeparator(),
             Item("Transpose Columns/Records (⇧⌘X)", () => OnMenuTranspose(this, args)),
             Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
-            Item("Filter Like Selected Cell", () => OnMenuFilterCell(this, args)),
+            Item("Goto Record Number… (⌘G)", () => OnMenuGotoRecord(this, args)),
+            Item("Cell Details… (⌃F11)", () => OnMenuCellDetail(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Filter Records Like Selected Cell", () => OnMenuFilterCellGrid(this, args)),
+            Item("Clear Filter", () => OnMenuClearFilter(this, args)),
+            Item("Append Filter Clause to Editor", () => OnMenuFilterCell(this, args)),
+            Item("Clear Results", () => OnMenuClearResults(this, args)),
+            Item("Pin Results to New Window", () => OnMenuPinResult(this, args)),
             new NativeMenuItemSeparator(),
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
@@ -283,10 +314,15 @@ public partial class MainWindow : Window
         _nativeFavoritesMenu = favorites.Menu;
         root.Items.Add(favorites);
         root.Items.Add(Sub("View",
-            Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
+            Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args)),
+            Item("Toggle DataGrid/Text/Log View (F12)", () => OnMenuCycleResultView(this, args))));
         root.Items.Add(Sub("Tools",
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
             Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
+            Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
+            Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
+            Item("Import CSV/TSV…", () => OnMenuImportCsv(this, args)),
+            Item("Query History…", () => OnMenuHistory(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -328,7 +364,9 @@ public partial class MainWindow : Window
             StatusLabel.Text = view.InTransaction ? $"[TX] {view.InfoMessage}" : view.InfoMessage;
             RowsLabel.Text = view.InfoRows;
             TimeLabel.Text = view.InfoTime;
+            UpdateEditorStatus(view);
             UpdateTxState();
+            UpdateShowButton();
         }
     }
 
@@ -342,6 +380,13 @@ public partial class MainWindow : Window
         UpdateTxState();
     }
 
+    /// <summary>Golden 상태바의 Modified / Selected N records.</summary>
+    private void UpdateEditorStatus(QueryTabView view)
+    {
+        ModifiedLabel.Text = view.IsModified ? "Modified" : "";
+        SelectionLabel.Text = view.InfoSelection;
+    }
+
     private void OnTabCaretChanged(QueryTabView view, int line, int col)
     {
         if (ReferenceEquals(view, ActiveView))
@@ -352,10 +397,12 @@ public partial class MainWindow : Window
 
     private async Task LoadBrowserAsync(ConnectionProfile profile)
     {
+        // DataGrip 식 introspection — 접속당 한 번만 읽고 describe·자동완성은 캐시에서.
+        // (예전엔 테이블을 고를 때마다 새 접속을 열어 컬럼을 조회했다)
+        _schemaCache = SchemaCache.ForProfile(profile);
         try
         {
-            await using var conn = await profile.OpenAsync();
-            _allTables = await SchemaCatalog.GetTablesAsync(conn);
+            _allTables = [.. await _schemaCache.GetTablesAsync()];
         }
         catch (Exception ex)
         {
@@ -404,13 +451,13 @@ public partial class MainWindow : Window
 
     private async void OnObjectSelected(object? sender, SelectionChangedEventArgs e)
     {
-        if (ObjectsGrid.SelectedItem is not ObjectRow row || _profile is null)
+        if (ObjectsGrid.SelectedItem is not ObjectRow row || _schemaCache is null)
             return;
         DescribeTitle.Text = $"{row.Type.ToUpperInvariant()} {row.Info.Schema}.{row.Info.Name}";
         try
         {
-            await using var conn = await _profile.OpenAsync();
-            DescribeGrid.ItemsSource = await SchemaCatalog.GetColumnsAsync(conn, row.Info);
+            // 캐시에서 즉시 — 접속을 새로 열지 않는다
+            DescribeGrid.ItemsSource = await _schemaCache.GetColumnsAsync(row.Info);
         }
         catch (Exception ex)
         {
@@ -452,6 +499,12 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             OnMenuRollback(sender, e);
+        }
+        else if (e.Key == Key.F7 && cmdOrCtrl)
+        {
+            // Golden: Ctrl+F7 = Run Selected — 무수식 F7 보다 먼저 판정해야 한다
+            e.Handled = true;
+            _ = ActiveView?.ExecuteSelectedAsync();
         }
         else if (e.Key == Key.F9 || e.Key == Key.F7 || (e.Key == Key.Enter && cmdOrCtrl))
         {
@@ -553,10 +606,27 @@ public partial class MainWindow : Window
             e.Handled = true;
             OnMenuToggleBrowser(sender, e);
         }
+        else if (e.Key == Key.F11 && cmdOrCtrl)
+        {
+            // Golden 6: Cell Details Window = Ctrl+F11 (F11 단독은 우리 Run and Edit 별칭)
+            e.Handled = true;
+            OnMenuCellDetail(sender, e);
+        }
         else if (e.Key == Key.F11)
         {
             e.Handled = true;
             OnMenuRunAndEdit(sender, e);
+        }
+        else if (e.Key == Key.F12)
+        {
+            // Golden 6 View 메뉴: Toggle DataGrid/Text View/Log View
+            e.Handled = true;
+            OnMenuCycleResultView(sender, e);
+        }
+        else if (e.Key == Key.G && cmdOrCtrl)
+        {
+            e.Handled = true;
+            OnMenuGotoRecord(sender, e);
         }
         else if (e.Key == Key.P && cmdOrCtrl)
         {
@@ -605,6 +675,12 @@ public partial class MainWindow : Window
     {
         if (ActiveView is { } view)
             await view.RunScriptAsync();
+    }
+
+    private async void OnMenuRunSelected(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.ExecuteSelectedAsync();
     }
 
     private async void OnMenuExplain(object? sender, RoutedEventArgs e)
@@ -766,6 +842,8 @@ public partial class MainWindow : Window
             SizeToContent = SizeToContent.Height,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            // Golden 처럼 작업표시줄에는 메인 창 하나만 — 부속 창은 창 선택 목록에 안 뜬다
+            ShowInTaskbar = false,
             Content = new StackPanel
             {
                 Margin = new Avalonia.Thickness(20),
@@ -962,7 +1040,7 @@ public partial class MainWindow : Window
         if (_allTables.Count == 0)
             StatusLabel.Text = "SQL Builder: 로그온하면 테이블 목록이 채워집니다 (Ctrl+L)";
 
-        var dialog = new SqlBuilderDialog(_allTables, _profile);
+        var dialog = new SqlBuilderDialog(_allTables, _profile) { SchemaCache = _schemaCache };
         await dialog.ShowDialog(this);
         if (dialog.Result is not { Length: > 0 } sql)
             return;
@@ -973,6 +1051,24 @@ public partial class MainWindow : Window
         StatusLabel.Text = "SQL Builder: 에디터에 삽입했습니다 (F9 로 실행)";
     }
 
+    /// <summary>
+    /// Tools > Diagram (ERD) — SQL Developer 의 relational model 대응. 읽기 전용.
+    /// Object Browser 에서 테이블을 골라둔 상태면 그 테이블을 Focus 로 열어준다.
+    /// </summary>
+    private void OnMenuErd(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is not { } profile)
+        {
+            StatusLabel.Text = "Diagram 은 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+            return;
+        }
+
+        var focus = ObjectsGrid.SelectedItem is ObjectRow row
+            ? $"{row.Info.Schema}.{row.Info.Name}"
+            : null;
+        new ErdWindow(profile, focus).Show(this);
+    }
+
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
         if (_profile is { } profile)
@@ -981,8 +1077,44 @@ public partial class MainWindow : Window
             StatusLabel.Text = "Session Monitor 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
     }
 
+    /// <summary>Tools > Schema Diff — 읽기 전용 비교 (기준 스냅샷/접속 ↔ 현재 접속).</summary>
+    private void OnMenuSchemaDiff(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile)
+            new SchemaDiffWindow(profile).Show(this);
+        else
+            StatusLabel.Text = "Schema Diff 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+    }
+
+    /// <summary>Tools > Import CSV/TSV — 파일을 테이블로 (전량 성공 아니면 전량 롤백).</summary>
+    private void OnMenuImportCsv(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile && _schemaCache is { } cache)
+            new CsvImportDialog(profile, cache).Show(this);
+        else
+            StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+    }
+
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
     private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
+
+    /// <summary>Results > Pin — 현재 결과 스냅샷을 새 창에 (다음 쿼리와 나란히 비교).</summary>
+    private void OnMenuPinResult(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView?.SnapshotResult() is { } snap)
+            new PinnedResultWindow(snap.Sql ?? "results", snap.Columns, snap.Rows).Show(this);
+        else
+            StatusLabel.Text = "고정할 결과가 없습니다 (편집 모드에서는 고정할 수 없습니다)";
+    }
+
+    /// <summary>Tools > Query History — 검색해서 에디터에 삽입 (실행은 사용자가).</summary>
+    private async void OnMenuHistory(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new HistoryDialog();
+        await dialog.ShowDialog(this);
+        if (dialog.SelectedSql is { } sql && ActiveView is { } view)
+            view.InsertAtCaret(sql);
+    }
 
     private async void OnMenuCommit(object? sender, RoutedEventArgs e)
     {
@@ -1056,6 +1188,46 @@ public partial class MainWindow : Window
         }
         flyout.ShowAt(TxButton);
     }
+
+    /// <summary>Golden 의 결과 보기 드롭다운 — 그리드 / 고정폭 텍스트 / 실행 로그.</summary>
+    private void OnShowButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+
+        var flyout = new MenuFlyout();
+        foreach (var (mode, label) in ResultViewChoices)
+        {
+            var item = new MenuItem { Header = $"{(view.ResultView == mode ? "✓ " : "     ")}Show {label}" };
+            var target = mode;
+            item.Click += (_, _) => SetResultView(view, target);
+            flyout.Items.Add(item);
+        }
+        flyout.ShowAt(ShowButton);
+    }
+
+    private static readonly (ResultViewMode Mode, string Label)[] ResultViewChoices =
+    [
+        (ResultViewMode.Grid, "DataGrid"),
+        (ResultViewMode.Text, "Text"),
+        (ResultViewMode.Log, "Log"),
+    ];
+
+    private void SetResultView(QueryTabView view, ResultViewMode mode)
+    {
+        view.ResultView = mode;
+        UpdateShowButton();
+        StatusLabel.Text = $"Show → {Label(mode)}";
+    }
+
+    /// <summary>탭을 옮기면 그 탭의 보기 상태로 라벨을 맞춘다.</summary>
+    private void UpdateShowButton()
+    {
+        if (ShowButton is null) return;
+        ShowButton.Content = $"Show: {Label(ActiveView?.ResultView ?? ResultViewMode.Grid)} ▾";
+    }
+
+    private static string Label(ResultViewMode mode) =>
+        ResultViewChoices.First(c => c.Mode == mode).Label;
 
     private void SetTxMode(QueryTabView view, bool auto)
     {
@@ -1173,6 +1345,67 @@ public partial class MainWindow : Window
     private void OnMenuTranspose(object? sender, RoutedEventArgs e) => ActiveView?.ToggleTranspose();
     private void OnMenuSizeColumns(object? sender, RoutedEventArgs e) => ActiveView?.SizeColumnsToFit();
     private void OnMenuFilterCell(object? sender, RoutedEventArgs e) => ActiveView?.FilterBySelectedCell();
+
+    // Golden 파리티 (Golden 6 Results/View 메뉴 실물 확인 기준)
+    private void OnMenuFilterCellGrid(object? sender, RoutedEventArgs e) => ActiveView?.FilterBySelectedCellInGrid();
+    private void OnMenuClearFilter(object? sender, RoutedEventArgs e) => ActiveView?.ClearFilter();
+    private void OnMenuClearResults(object? sender, RoutedEventArgs e) => ActiveView?.ClearResults();
+    private void OnMenuCellDetail(object? sender, RoutedEventArgs e) => ActiveView?.ShowCellDetail();
+
+    /// <summary>Golden F12 — DataGrid → Text → Log 순환. 툴바 라벨도 같이 맞춘다.</summary>
+    private void OnMenuCycleResultView(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+        view.CycleResultView();
+        UpdateShowButton();
+        StatusLabel.Text = $"Show → {Label(view.ResultView)}";
+    }
+
+    /// <summary>Golden "Goto Record Number" (Ctrl+G) — 행 번호를 물어보고 그 행으로 간다.</summary>
+    private async void OnMenuGotoRecord(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+
+        var input = new TextBox { Width = 160, PlaceholderText = "record number" };
+        var ok = new Button { Content = "Go", IsDefault = true, MinWidth = 70 };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 70 };
+        var dialog = new Window
+        {
+            Title = "Goto Record Number",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = false,
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    input,
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { ok, cancel },
+                    },
+                },
+            },
+        };
+
+        int? result = null;
+        ok.Click += (_, _) =>
+        {
+            if (int.TryParse(input.Text?.Trim(), out var no)) result = no;
+            dialog.Close();
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Opened += (_, _) => input.Focus();
+        await dialog.ShowDialog(this);
+
+        if (result is { } record) view.GotoRecord(record);
+    }
 
     private async void OnMenuExportTsv(object? sender, RoutedEventArgs e)
         => await SaveGridAsAsync(GridExportFormat.Tsv, "result.tsv", "tsv", "Tab-separated");
@@ -1591,6 +1824,24 @@ public partial class MainWindow : Window
                 new TableInfo("prismone", "examlist", false),
                 new TableInfo("prismone", "v_study_summary", true),
             ];
+            // SQL 검증 밑줄도 오프라인으로 확인한다 — 샘플 카탈로그로 캐시를 채워둔다
+            var sampleColumns = new Dictionary<string, List<ColumnInfo>>(StringComparer.Ordinal)
+            {
+                ["prismone.study"] =
+                [
+                    new(1, "study_key", "bigint", "no", "P1", ""),
+                    new(2, "study_id", "varchar(64)", "no", "", ""),
+                    new(3, "patient_key", "bigint", "no", "", "F1"),
+                    new(4, "patient_id", "varchar(64)", "no", "", ""),
+                    new(5, "study_dttm", "timestamp", "yes", "", ""),
+                    new(6, "modality", "varchar(16)", "yes", "", ""),
+                ],
+            };
+            var sampleCache = new SchemaCache(
+                _ => Task.FromResult(new SchemaSnapshot(_allTables, sampleColumns)));
+            await sampleCache.GetAsync();
+            view.SchemaCache = sampleCache;
+
             SchemaCombo.ItemsSource = new[] { "prismone" };
             SchemaCombo.SelectedIndex = 0;
             RefreshObjectList();
@@ -1615,6 +1866,128 @@ public partial class MainWindow : Window
             await Task.Delay(800);
             SaveShot(this, System.IO.Path.Combine(dir, "shot_main.png"));
 
+            // Golden 의 결과 보기 전환 (Show Text) — 접속 없이도 렌더를 확인한다
+            if (ActiveView is { } textView)
+            {
+                SetResultView(textView, ResultViewMode.Text);
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "shot_text.png"));
+                // F12 경로로 한 번 더 돌려 Log 보기까지 확인 (Text → Log)
+                OnMenuCycleResultView(this, new RoutedEventArgs());
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "shot_log.png"));
+                SetResultView(textView, ResultViewMode.Grid);
+            }
+
+            // SQL 검증 — 없는 컬럼(study_dtm)·없는 테이블(stduy)에 물결 밑줄
+            view.SetSql("""
+                select s.study_key, s.study_dtm
+                  from prismone.study s;
+
+                select * from prismone.stduy;
+                """);
+            await Task.Delay(1200);   // 검증 타이머(0.6s) 경과 대기
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_validation.png"));
+
+            // Explain Plan 시각화 — self 비중 막대 + 행수 예측 오차 배지
+            var samplePlan = PlanParser.Parse("""
+                [{
+                  "Plan": {
+                    "Node Type": "Nested Loop", "Join Type": "Inner",
+                    "Startup Cost": 0.4, "Total Cost": 1650.2, "Plan Rows": 120,
+                    "Actual Total Time": 48.2, "Actual Rows": 118, "Actual Loops": 1,
+                    "Plans": [
+                      { "Node Type": "Seq Scan", "Relation Name": "study", "Alias": "s",
+                        "Startup Cost": 0, "Total Cost": 1520.0, "Plan Rows": 40,
+                        "Actual Total Time": 41.3, "Actual Rows": 4183, "Actual Loops": 1,
+                        "Filter": "(study_dttm >= '2026-07-01'::timestamp)",
+                        "Rows Removed by Filter": 95817 },
+                      { "Node Type": "Index Scan", "Relation Name": "examlist", "Alias": "e",
+                        "Index Name": "pk_examlist",
+                        "Startup Cost": 0.4, "Total Cost": 3.2, "Plan Rows": 1,
+                        "Actual Total Time": 0.001, "Actual Rows": 1, "Actual Loops": 4183,
+                        "Index Cond": "(study_key = s.study_key)" }
+                    ]
+                  },
+                  "Planning Time": 0.42,
+                  "Execution Time": 48.9
+                }]
+                """);
+            view.BindPlanTree(samplePlan!, analyze: true);
+            await Task.Delay(500);
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_plan.png"));
+
+            // Schema Diff — 합성 기준/대상 그래프로 렌더 확인 (접속 없이)
+            var diffBaseline = new ErdGraph(
+                [
+                    new ErdTable("prismone", "study", false,
+                    [
+                        new ErdColumn("study_key", "bigint", true, true, false),
+                        new ErdColumn("study_dttm", "timestamp", false, false, false),
+                        new ErdColumn("audit_yn", "char(1)", true, false, false),
+                    ]),
+                    new ErdTable("prismone", "study_note", false,
+                        [new ErdColumn("note_key", "bigint", true, true, false)]),
+                ],
+                [new ErdRelation("fk_note_study", "prismone.study_note", ["study_key"],
+                    "prismone.study", ["study_key"], false, false)]);
+            var diffTarget = new ErdGraph(
+                [
+                    new ErdTable("prismone", "study", false,
+                    [
+                        new ErdColumn("study_key", "bigint", true, true, false),
+                        new ErdColumn("study_dttm", "timestamptz", true, false, false),
+                    ]),
+                    new ErdTable("prismone", "scratch_tmp", false,
+                        [new ErdColumn("id", "integer", false, false, false)]),
+                ],
+                []);
+            var diffWin = new SchemaDiffWindow();
+            diffWin.Show(this);
+            diffWin.BindResult(SchemaDiff.Compare(diffBaseline, diffTarget));
+            await Task.Delay(500);
+            SaveShot(diffWin, System.IO.Path.Combine(dir, "shot_diff.png"));
+            diffWin.Close();
+
+            // CSV Import — 샘플 파일로 매핑·미리보기 렌더 확인 (접속 없이)
+            var importWin = new CsvImportDialog(ConnectionProfile.Default, sampleCache);
+            importWin.Show(this);
+            await Task.Delay(400);   // 테이블 목록 적재 대기
+            importWin.LoadText("study_batch.csv",
+                "study_key,study_id,study_dttm,modality,exam_note\n" +
+                "2001,ST20260804-0001,2026-08-04 09:10:00,CT,follow-up\n" +
+                "2002,ST20260804-0002,2026-08-04 09:25:00,MR,\n" +
+                "2003,\"ST20260804,0003\",2026-08-04 10:02:00,US,\"quoted, note\"\n");
+            importWin.TableCombo.SelectedIndex = 0;
+            await Task.Delay(500);
+            SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
+            importWin.Close();
+
+            // Query History — 가짜 항목으로 렌더 확인 (실제 히스토리 파일을 읽지 않는다)
+            var historyWin = new HistoryDialog(
+            [
+                new HistoryEntry("select * from prismone.study where study_dttm >= '2026-07-01' order by study_dttm desc",
+                    new DateTime(2026, 8, 3, 14, 22, 5)),
+                new HistoryEntry("update prismone.examlist set status = 'DONE' where exam_key = 1234",
+                    new DateTime(2026, 8, 3, 15, 2, 41)),
+                new HistoryEntry("select e.exam_key, e.status from prismone.examlist e join prismone.study s on s.study_key = e.study_key",
+                    new DateTime(2026, 8, 4, 9, 12, 0)),
+            ]);
+            historyWin.Show(this);
+            await Task.Delay(400);
+            SaveShot(historyWin, System.IO.Path.Combine(dir, "shot_history.png"));
+            historyWin.Close();
+
+            // Pin Results — 샘플 그리드 스냅샷을 새 창에
+            if (ActiveView?.SnapshotResult() is { } pinSnap)
+            {
+                var pin = new PinnedResultWindow(pinSnap.Sql ?? "study search", pinSnap.Columns, pinSnap.Rows);
+                pin.Show(this);
+                await Task.Delay(500);
+                SaveShot(pin, System.IO.Path.Combine(dir, "shot_pin.png"));
+                pin.Close();
+            }
+
             var dialog = new ConnectDialog();
             dialog.Show(this);
             await Task.Delay(500);
@@ -1636,11 +2009,74 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(favorites, System.IO.Path.Combine(dir, "shot_favorites.png"));
             favorites.Close();
+
+            var erd = new ErdWindow(SampleErdGraph());
+            erd.Show(this);
+            await Task.Delay(700);
+            SaveShot(erd, System.IO.Path.Combine(dir, "shot_erd.png"));
+            erd.Close();
         }
         finally
         {
             Environment.Exit(0);
         }
+    }
+
+    /// <summary>스크린샷용 합성 스키마 — 접속 없이 ERD 렌더를 눈으로 확인하기 위한 가짜 데이터.</summary>
+    private static ErdGraph SampleErdGraph()
+    {
+        static ErdColumn Pk(string name) => new(name, "bigint", true, IsPk: true, IsFk: false);
+        static ErdColumn Fk(string name) => new(name, "bigint", true, IsPk: false, IsFk: true);
+        static ErdColumn Col(string name, string type, bool notNull = true) =>
+            new(name, type, notNull, IsPk: false, IsFk: false);
+        static ErdRelation Rel(string child, string parent, string column, bool optional = false) =>
+            new($"fk_{child}_{parent}", $"public.{child}", [column], $"public.{parent}", [column],
+                ChildUnique: false, ChildOptional: optional);
+
+        var tables = new List<ErdTable>
+        {
+            // Dicom Image 도메인
+            new("public", "patient", false, [Pk("patient_key"), Col("patient_id", "varchar(64)")]),
+            new("public", "study", false,
+                [Pk("study_key"), Fk("patient_key"), Col("study_dttm", "timestamp", notNull: false)]),
+            new("public", "series", false, [Pk("series_key"), Fk("study_key"), Col("modality", "varchar(16)")]),
+            new("public", "image", false, [Pk("image_key"), Fk("series_key"), Col("sop_uid", "varchar(128)")]),
+            new("public", "study_note", false, [Pk("note_key"), Fk("study_key"), Col("body", "text", false)]),
+            // Interface 도메인
+            new("public", "interface_msg", false,
+                [Pk("msg_key"), Col("msg_type", "varchar(16)"), Col("payload", "text", false)]),
+            new("public", "interface_log", false, [Pk("log_key"), Fk("msg_key"), Col("result", "varchar(16)")]),
+            new("public", "interface_queue", false, [Pk("queue_key"), Fk("msg_key"), Col("retry_cnt", "int")]),
+            // Routing 도메인
+            new("public", "router", false, [Pk("router_key"), Col("router_name", "varchar(64)")]),
+            new("public", "routing_rule", false,
+                [Pk("rule_key"), Fk("router_key"), Col("priority", "int"), Col("expr", "text", false)]),
+            // Archive 도메인
+            new("public", "archive_job", false, [Pk("job_key"), Col("state", "varchar(16)")]),
+            new("public", "archive_target", false, [Pk("target_key"), Fk("job_key"), Col("path", "text")]),
+            // User Management 도메인
+            new("public", "app_user", false, [Pk("user_key"), Col("login_id", "varchar(64)")]),
+            new("public", "user_role", false, [Pk("user_key"), Fk("role_key")]),
+            new("public", "role_perm", false, [Pk("role_key"), Pk("perm_code"), Col("granted", "boolean")]),
+            // 그 밖
+            new("public", "folder", false, [Pk("folder_key"), Fk("parent_key"), Col("name", "text")]),
+            new("public", "v_study_summary", true, [Col("study_key", "bigint"), Col("series_cnt", "bigint")]),
+        };
+        var relations = new List<ErdRelation>
+        {
+            Rel("study", "patient", "patient_key"),
+            Rel("series", "study", "study_key"),
+            Rel("image", "series", "series_key"),
+            Rel("study_note", "study", "study_key", optional: true),
+            Rel("interface_log", "interface_msg", "msg_key"),
+            Rel("interface_queue", "interface_msg", "msg_key"),
+            Rel("routing_rule", "router", "router_key"),
+            Rel("archive_target", "archive_job", "job_key"),
+            Rel("user_role", "app_user", "user_key"),
+            Rel("user_role", "role_perm", "role_key"),
+            Rel("folder", "folder", "parent_key", optional: true),
+        };
+        return new ErdGraph(tables, relations);
     }
 
     /// <summary>앱 아이콘: Aurum(Au, 금) — 주기율표 타일. 다크 배경 + 금 그라데이션 "Au" + 원자번호 79.</summary>
@@ -1744,6 +2180,7 @@ public partial class MainWindow : Window
             Height = 180,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
+            ShowInTaskbar = false,
             Content = new StackPanel
             {
                 Margin = new Avalonia.Thickness(20),

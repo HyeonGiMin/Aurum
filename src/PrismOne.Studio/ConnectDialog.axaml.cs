@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
 
@@ -24,9 +25,12 @@ public partial class ConnectDialog : Window
     public ConnectDialog(ConnectionProfile initial)
     {
         InitializeComponent();
+        DbTypeCombo.ItemsSource = DbProviders.All.Select(p => p.DisplayName).ToList();
+        DbTypeCombo.SelectedIndex = Math.Max(0, DbProviders.All.ToList().FindIndex(p => p.Kind == initial.Kind));
         UsernameBox.Text = initial.Username;
         PasswordBox.Text = initial.Password;
-        DatabaseCombo.Text = FormatDatabase(initial.Host, initial.Port, initial.Database);
+        DatabaseCombo.Text = FormatDatabase(initial.Host, initial.Port, initial.Database, initial.Kind);
+        ApplyDbTypeToFields();
         RefreshSavedList();
         if (_saved.Count > 0)
             SavedGrid.SelectedIndex = 0;   // 최근 사용 로그인 기본 선택
@@ -73,6 +77,54 @@ public partial class ConnectDialog : Window
 
     private void OnFilterChanged(object? sender, TextChangedEventArgs e) => ApplyFilter();
 
+    // ---------- 컬럼 정렬 (Golden 의 헤더 클릭 정렬) ----------
+
+    /// <summary>null 이면 저장 순서(최근 사용순) 그대로 둔다.</summary>
+    private string? _sortKey;
+    private bool _sortDescending;
+
+    private IEnumerable<SavedConnection> Sort(IEnumerable<SavedConnection> items)
+    {
+        if (_sortKey is null) return items;
+
+        Func<SavedConnection, string> key = _sortKey switch
+        {
+            "Type" => c => c.TypeLabel,
+            "Username" => c => c.Username,
+            "Database" => c => c.DisplayDatabase,
+            "Category" => c => c.Category ?? "",
+            "Comment" => c => c.Comment ?? "",
+            _ => c => c.Name ?? "",
+        };
+        return _sortDescending
+            ? items.OrderByDescending(key, StringComparer.CurrentCultureIgnoreCase)
+            : items.OrderBy(key, StringComparer.CurrentCultureIgnoreCase);
+    }
+
+    /// <summary>같은 헤더를 다시 누르면 방향이 바뀐다. 세 번째면 정렬 해제(저장 순서).</summary>
+    private void OnSortHeader(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string key }) return;
+
+        if (_sortKey != key) { _sortKey = key; _sortDescending = false; }
+        else if (!_sortDescending) { _sortDescending = true; }
+        else { _sortKey = null; _sortDescending = false; }
+
+        UpdateSortHeaders();
+        ApplyFilter();
+    }
+
+    private void UpdateSortHeaders()
+    {
+        foreach (var button in new[] { SortName, SortType, SortUsername, SortDatabase, SortCategory, SortComment })
+        {
+            var label = (string)button.Tag!;
+            button.Content = _sortKey == label
+                ? $"{label} {(_sortDescending ? "▾" : "▴")}"
+                : label;
+        }
+    }
+
     /// <summary>자가 스크린샷 하니스 전용 — 필터 행을 연 상태로 만든다.</summary>
     public void ShowFilterForShot()
     {
@@ -108,6 +160,9 @@ public partial class ConnectDialog : Window
     {
         if (SavedGrid.SelectedItem is SavedConnection c)
         {
+            // 종류를 먼저 맞춰야 Database 칸 해석(기본 포트·파일 경로)이 어긋나지 않는다
+            var index = DbProviders.All.ToList().FindIndex(p => p.Kind == c.Kind);
+            if (index >= 0) DbTypeCombo.SelectedIndex = index;
             UsernameBox.Text = c.Username;
             PasswordBox.Text = c.Password ?? "";
             // 편집형 콤보: 항목 선택과 텍스트를 모두 맞춰야 표시가 확실하다
@@ -166,6 +221,39 @@ public partial class ConnectDialog : Window
 
     private void OnLoginFieldChanged(object? sender, RoutedEventArgs e) => UpdateHeader();
 
+    /// <summary>지금 고른 DB 종류.</summary>
+    private DbKind SelectedKind =>
+        DbTypeCombo?.SelectedIndex is int i && i >= 0 && i < DbProviders.All.Count
+            ? DbProviders.All[i].Kind
+            : DbKind.PostgreSql;
+
+    private void OnDbTypeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DatabaseCombo is null) return;   // InitializeComponent 중
+        ApplyDbTypeToFields();
+        UpdateHeader();
+    }
+
+    /// <summary>종류마다 필요한 입력이 다르다 — SQLite 는 파일 경로 하나뿐이다.</summary>
+    private void ApplyDbTypeToFields()
+    {
+        var kind = SelectedKind;
+        var fileDb = kind == DbKind.Sqlite;
+
+        UsernameBox.IsEnabled = !fileDb;
+        PasswordBox.IsEnabled = !fileDb;
+        UsernameLabel.Opacity = fileDb ? 0.4 : 1;
+        PasswordLabel.Opacity = fileDb ? 0.4 : 1;
+
+        DatabaseLabel.Text = fileDb ? "File:" : "Database:";
+        DatabaseCombo.PlaceholderText = kind switch
+        {
+            DbKind.Sqlite => "C:\\path\\to\\file.db",
+            DbKind.Oracle => "host[:1521]/service",
+            _ => "host[:port]/database",
+        };
+    }
+
     private void UpdateHeader()
     {
         var user = UsernameBox?.Text?.Trim();
@@ -181,38 +269,60 @@ public partial class ConnectDialog : Window
     {
         ErrorText.IsVisible = false;
 
-        if (ParseDatabase(DatabaseCombo.Text) is not var (host, port, database))
+        var kind = SelectedKind;
+        ConnectionProfile profile;
+
+        if (kind == DbKind.Sqlite)
         {
-            ShowError("Database must be host[:port]/database (e.g. stg-ihp5022/prismone).");
-            return;
+            var path = DatabaseCombo.Text?.Trim() ?? "";
+            if (path.Length == 0)
+            {
+                ShowError("SQLite 는 DB 파일 경로가 필요합니다.");
+                return;
+            }
+            profile = ConnectionProfile.ForFile(path, kind, ReadOnlyBox.IsChecked == true);
         }
-
-        var profile = new ConnectionProfile(
-            host, port, database,
-            UsernameBox.Text?.Trim() ?? "",
-            PasswordBox.Text ?? "",
-            ReadOnly: ReadOnlyBox.IsChecked == true);
-
-        // Golden: 비밀번호 미저장 항목은 비밀번호만 채우면 바로 로그인
-        if (string.IsNullOrEmpty(profile.Password))
+        else
         {
-            ShowError($"Enter password for {profile.Username}:");
-            PasswordBox.Focus();
-            return;
+            if (ParseDatabase(DatabaseCombo.Text, kind) is not var (host, port, database))
+            {
+                ShowError(kind == DbKind.Oracle
+                    ? "Database must be host[:port]/service (e.g. ora-host/ORCLPDB)."
+                    : "Database must be host[:port]/database (e.g. db-host/prismone).");
+                return;
+            }
+
+            profile = new ConnectionProfile(
+                host, port, database,
+                UsernameBox.Text?.Trim() ?? "",
+                PasswordBox.Text ?? "",
+                ReadOnly: ReadOnlyBox.IsChecked == true,
+                Kind: kind);
+
+            // Golden: 비밀번호 미저장 항목은 비밀번호만 채우면 바로 로그인
+            if (string.IsNullOrEmpty(profile.Password))
+            {
+                ShowError($"Enter password for {profile.Username}:");
+                PasswordBox.Focus();
+                return;
+            }
         }
 
         ConnectButton.IsEnabled = false;
         try
         {
             // 접속 검증만 하고 닫는다. 실제 세션은 MainWindow/탭이 연다.
-            await using var conn = await profile.OpenAsync();
+            await using var conn = await profile.OpenDbAsync();
             ConnectionStore.Remember(profile, savePassword: true);   // 항상 암호화 저장
             Result = profile;
             Close();
         }
         catch (Exception ex)
         {
+            // Golden 처럼 인라인으로도 남기되, 이유를 놓치지 않게 팝업으로도 띄운다
             ShowError(ex.Message);
+            await ErrorDialog.ShowAsync(this, "Connection failed",
+                $"{profile.Provider.DisplayName} 접속에 실패했습니다.\n{profile.DisplayName}", ex);
         }
         finally
         {
@@ -221,28 +331,35 @@ public partial class ConnectDialog : Window
     }
 
     /// <summary>"host[:port]/db" → (host, port, db). "db" 만 쓰면 localhost:5432/db.</summary>
-    private static (string Host, int Port, string Database)? ParseDatabase(string? text)
+    /// <summary>
+    /// host[:port]/database 파싱. 포트를 안 쓰면 종류별 기본 포트를 넣는다
+    /// (PG 5432 · Oracle 1521). Oracle 은 database 자리가 **서비스 이름**이다.
+    /// </summary>
+    private static (string Host, int Port, string Database)? ParseDatabase(string? text, DbKind kind)
     {
         var s = text?.Trim() ?? "";
         if (s.Length == 0) return null;
+        var defaultPort = SavedConnection.DefaultPort(kind);
 
         var slash = s.IndexOf('/');
         if (slash < 0)
-            return ("localhost", 5432, s);
+            return ("localhost", defaultPort, s);
         var left = s[..slash].Trim();
         var db = s[(slash + 1)..].Trim();
         if (left.Length == 0 || db.Length == 0) return null;
 
         var colon = left.LastIndexOf(':');
         if (colon < 0)
-            return (left, 5432, db);
+            return (left, defaultPort, db);
         if (!int.TryParse(left[(colon + 1)..], out var port) || port is <= 0 or > 65535)
             return null;
         return (left[..colon], port, db);
     }
 
-    private static string FormatDatabase(string host, int port, string database) =>
-        port == 5432 ? $"{host}/{database}" : $"{host}:{port}/{database}";
+    private static string FormatDatabase(string host, int port, string database, DbKind kind) =>
+        kind == DbKind.Sqlite ? database
+        : port == SavedConnection.DefaultPort(kind) ? $"{host}/{database}"
+        : $"{host}:{port}/{database}";
 
     private void ShowError(string message)
     {

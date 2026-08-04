@@ -57,6 +57,7 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 | Run Script From Cursor | F6 | ✅ F6 (우리 F5 도 커서부터 — Golden 8 시맨틱) |
 | Run One Statement At Cursor | F7 / Ctrl+Enter | ✅ + F9 (Golden 8 기준) |
 | **Run Script And Go To Edit Mode** | **Ctrl+E** | ✅ + F11 별칭 |
+| **Run Selected** | **Ctrl+F7** | ✅ 동일 — 선택 영역만 실행 (선택이 없으면 실행 안 함) |
 | Commit / Rollback | Ctrl+F5 / Ctrl+F6 | ✅ 동일 |
 | Login | Ctrl+L / Ctrl+J | ✅ 동일 |
 | New Tab / Private | Ctrl+N / Shift+Ctrl+Alt+N | ✅ Ctrl+N·T / +Shift |
@@ -133,3 +134,58 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 
 상태바 형식("Done, ran x of y statements."), Ctrl+L 로그온,
 점진 fetch 자체, 커서 문장 실행, Explain, 로그온 리스트 구조는 이미 일치.
+
+## 6. Golden 6 실물 확인 (2026-08-04)
+
+`C:\Program Files\Benthic\Golden6.exe` 를 직접 띄워 메뉴를 확인했다. 위 §1~5 는 Golden 8
+바이너리에서 추출한 문자열 기반이고, 이 절은 **Golden 6 화면 실물**이 근거다.
+(접속 정보는 기록하지 않는다 — 사내 위키 참조)
+
+### View 메뉴 (실물)
+
+| 항목 | 키 | 우리 상태 |
+|---|---|---|
+| SQL Builder | F9 | ✅ Tools 메뉴 (우리 F9 는 문장 실행이라 키는 다름) |
+| DBMS OUTPUT Window | F10 | △ Messages 패널로 대응 (별도 창 아님) |
+| Cell Details Window | Ctrl+F11 | ✅ 구현됨 (2026-08-04) |
+| Scratch Window of current results | F11 | ❌ 미구현 (우리 F11 은 Run and Edit) |
+| **Toggle DataGrid/Text View/Log View** | **F12** | ✅ 구현됨 (2026-08-04, 툴바 `Show: ▾` + F12) |
+| Data View ▸ | | ❌ 미구현 |
+| Toggle SQL/DataGrid Orientation | | ❌ 미구현 (에디터·그리드 좌우 배치) |
+| Next / Previous Tab | Ctrl+Tab / ⇧Ctrl+Tab | ✅ 동일 |
+| Change tab order or names… | | ❌ 미구현 |
+
+### Results 메뉴 (실물)
+
+| 항목 | 키 | 우리 상태 |
+|---|---|---|
+| Find in Results… | | ❌ 미구현 (에디터 Find 만 있음) |
+| Goto Record Number… | Ctrl+G | ✅ 구현됨 (2026-08-04) |
+| Spreadsheet Autosize ▸ | | △ Size All Columns to Fit 단일 명령 |
+| Clear Spreadsheet | | ✅ Clear Results 로 구현됨 (2026-08-04) |
+| Bind Variable Cursors ▸ | | ❌ 미구현 |
+| Format Column… / Clear Column Format | | ❌ 미구현 |
+| Filter records like selected cell. | | ✅ 구현됨 (2026-08-04, 그리드 실제 필터) |
+| Clear Filter | | ✅ 구현됨 (2026-08-04) |
+| Advanced Export… | | ❌ 미구현 |
+| Export results to Excel | Ctrl+Alt+E | ✅ xlsx 저장 (키는 다름) |
+| Export results to OpenOffice Calc | | ❌ 미구현 |
+| Export results to a CSV file… | | ✅ 구현됨 |
+| Export results to an XML File… | | ❌ 미구현 |
+
+### 로그인 창 (실물)
+
+`Login: <id>` 헤더 + Username / Password / Database / Read Only,
+버튼 Login · Close · **Help** · **Options…**,
+Login List 컬럼 Name / Username / Database / **AltSchema** / …,
+버튼 New · Edit · Delete · Filter ▾ · **Import/Export ▾**
+
+우리 미구현: **AltSchema 컬럼**, **로그인 목록 Import/Export**, Help·Options 버튼.
+
+### 남은 갭 (우선순위)
+
+1. Toggle SQL/DataGrid Orientation (와이드 모니터에서 체감 큼)
+2. Find in Results (결과 그리드 내 검색)
+3. 탭 이름 변경 / 순서 바꾸기
+4. 로그인 목록 Import/Export, AltSchema
+5. XML export, Advanced Export, Format Column, Scratch Window, Data View

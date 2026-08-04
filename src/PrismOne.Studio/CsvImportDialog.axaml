@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.CsvImportDialog"
+        Title="Import CSV/TSV - Aurum"
+        Width="820" Height="600"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <Grid Margin="14" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,8">
+      <Button Grid.Column="0" Content="File…" MinHeight="30" Click="OnPickFile"/>
+      <TextBlock Grid.Column="1" Name="FileLabel" Text="CSV/TSV 파일을 선택하세요"
+                 FontSize="13" Opacity="0.8" VerticalAlignment="Center" Margin="10,0"/>
+      <TextBlock Grid.Column="2" Text="구분자:" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+      <ComboBox Grid.Column="3" Name="DelimiterCombo" MinHeight="30" FontSize="13" MinWidth="110"
+                SelectedIndex="0" SelectionChanged="OnOptionsChanged">
+        <ComboBoxItem>자동</ComboBoxItem>
+        <ComboBoxItem>콤마 ,</ComboBoxItem>
+        <ComboBoxItem>탭</ComboBoxItem>
+        <ComboBoxItem>세미콜론 ;</ComboBoxItem>
+      </ComboBox>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,8">
+      <TextBlock Grid.Column="0" Text="대상 테이블:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox Grid.Column="1" Name="TableCombo" MinHeight="30" FontSize="13"
+                HorizontalAlignment="Stretch" SelectionChanged="OnOptionsChanged"/>
+      <CheckBox Grid.Column="2" Name="HeaderCheck" Content="첫 줄은 헤더" IsChecked="True"
+                Margin="12,0,0,0" IsCheckedChanged="OnHeaderChanged"/>
+      <CheckBox Grid.Column="3" Name="EmptyNullCheck" Content="빈 값은 NULL" IsChecked="True"
+                Margin="12,0,0,0"/>
+    </Grid>
+
+    <TextBlock Grid.Row="2" Name="MappingText" FontSize="12" Opacity="0.8" Margin="0,0,0,6"
+               Text="파일과 테이블을 고르면 헤더 ↔ 컬럼 매핑을 보여줍니다."/>
+
+    <ListBox Grid.Row="3" Name="PreviewList" FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+             FontSize="12" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+
+    <TextBlock Grid.Row="4" Name="StatusText" FontSize="12" Opacity="0.85" Margin="0,8,0,8"
+               Text="전량 성공 아니면 전량 롤백입니다 — 절반만 들어간 테이블을 만들지 않습니다."/>
+
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Name="ImportButton" Content="Import" MinHeight="32" MinWidth="96"
+              Click="OnImport" IsEnabled="False"/>
+      <Button Content="Close" MinHeight="32" MinWidth="80" Click="OnClose"/>
+    </StackPanel>
+  </Grid>
+</Window>

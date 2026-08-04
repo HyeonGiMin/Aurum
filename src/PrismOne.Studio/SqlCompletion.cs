@@ -151,6 +151,45 @@ public static class SqlCompletion
             || word.Equals("table", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 컬럼이 올 자리인지 — where/and/or/on/having/by/set/select 뒤, 또는 콤마 뒤.
+    /// Golden 처럼 WHERE 뒤에서 컬럼명이 바로 뜨게 하려는 판정이다.
+    /// </summary>
+    public static bool IsColumnPosition(string text, int wordStart)
+    {
+        var i = wordStart;
+        while (i > 0 && char.IsWhiteSpace(text[i - 1])) i--;
+        if (i > 0 && text[i - 1] == ',') return true;   // select a, b
+
+        var end = i;
+        while (i > 0 && (char.IsLetterOrDigit(text[i - 1]) || text[i - 1] == '_')) i--;
+        return ColumnKeywords.Contains(text[i..end]);
+    }
+
+    private static readonly HashSet<string> ColumnKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "where", "and", "or", "on", "having", "by", "set", "select", "not", "using",
+    };
+
+    /// <summary>
+    /// FROM/JOIN 에 등장한 테이블들 — WHERE 뒤 컬럼 완성 대상.
+    /// 별칭과 테이블명이 같은 대상을 가리켜도 한 번만 담는다.
+    /// </summary>
+    public static List<TableInfo> ReferencedTables(IReadOnlyList<TableInfo> tables, string sql)
+    {
+        var result = new List<TableInfo>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (schema, table) in ExtractAliases(sql).Values)
+        {
+            var match = tables.FirstOrDefault(t =>
+                t.Name.Equals(table, StringComparison.OrdinalIgnoreCase) &&
+                (schema is null || t.Schema.Equals(schema, StringComparison.OrdinalIgnoreCase)));
+            if (match is not null && seen.Add(match.QualifiedName))
+                result.Add(match);
+        }
+        return result;
+    }
+
     /// <summary>테이블 자리: 테이블 + 스키마만 (키워드 잡음 없이).
     /// preferredSchema 의 테이블을 맨 위로 올린다 (브라우저에서 고른 스키마).</summary>
     public static List<SqlCompletionItem> TablesOnly(IReadOnlyList<TableInfo> tables, string? preferredSchema = null)

@@ -19,8 +19,36 @@ using PrismOne.Db.Core;
 namespace PrismOne.Studio;
 
 /// <summary>그리드 한 행: Golden 처럼 왼쪽에 행번호(No)를 붙인다. Raw 는 잘린 셀의 원문.</summary>
-public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
+/// <summary>Golden 툴바의 결과 보기 선택 — Show DataGrid / Show Text / Show Log.</summary>
+public enum ResultViewMode
 {
+    Grid,
+    Text,
+    Log,
+}
+
+public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
+    : System.ComponentModel.INotifyPropertyChanged
+{
+    private int _seq;
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// 그리드 맨 왼쪽 순번. 정렬해도 **위에서부터 1,2,3…** 이 되도록 화면 순서로 다시 매긴다
+    /// (<see cref="No"/> 는 fetch 순서 그대로라 정렬하면 뒤섞인다).
+    /// </summary>
+    public int Seq
+    {
+        get => _seq == 0 ? No : _seq;
+        set
+        {
+            if (_seq == value) return;
+            _seq = value;
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Seq)));
+        }
+    }
+
     /// <summary>편집 모드(Run and Edit)의 행 식별자 — PG ctid. 새로 추가한 행이면 null.</summary>
     public string? RowId { get; init; }
 
@@ -69,6 +97,11 @@ public partial class QueryTabView : UserControl
     private AvaloniaEdit.CodeCompletion.CompletionWindow? _completion;
     private readonly Dictionary<string, List<ColumnInfo>> _columnCache = new(StringComparer.OrdinalIgnoreCase);
 
+    // SQL 검증 (DATAGRIP_GAP §2): 타자 후 잠깐 쉬면 introspection 캐시와 대조해 밑줄
+    private readonly SqlErrorRenderer _errorRenderer = new();
+    private readonly DispatcherTimer _validateTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private bool _schemaLoadKicked;
+
     /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
     public List<TableInfo> CompletionTables { get; set; } = [];
 
@@ -84,6 +117,18 @@ public partial class QueryTabView : UserControl
     public string InfoMessage { get; private set; } = "Ready";
     public string InfoRows { get; private set; } = "";
     public string InfoTime { get; private set; } = "";
+
+    /// <summary>Golden 상태바의 "Selected N records" — 여러 행을 골랐을 때만 채운다.</summary>
+    public string InfoSelection =>
+        ResultGrid.SelectedItems.Count > 1
+            ? $"Selected {ResultGrid.SelectedItems.Count:N0} records"
+            : "";
+
+    /// <summary>
+    /// Golden 상태바의 "Modified" — 에디터 내용이 마지막 저장/열기 이후 바뀌었는지.
+    /// AvaloniaEdit 의 UndoStack 이 이미 추적하므로 따로 dirty 플래그를 두지 않는다.
+    /// </summary>
+    public bool IsModified => !Editor.Document.UndoStack.IsOriginalFile;
     public event Action<QueryTabView>? InfoChanged;
     public event Action<QueryTabView, int, int>? CaretChanged;
 
@@ -129,6 +174,22 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // 셀 더블클릭 → 전문 상세 창 (jsonb 는 pretty-print)
         ResultGrid.DoubleTapped += OnCellDoubleTapped;
+        // 맨 왼쪽 순번을 그리기 직전에 화면 위치로 매긴다 (정렬해도 1,2,3… 유지)
+        ResultGrid.LoadingRow += OnResultRowLoading;
+        // 상태바의 Selected / Modified 갱신 (Golden 파리티)
+        ResultGrid.SelectionChanged += (_, _) => InfoChanged?.Invoke(this);
+        Editor.Document.TextChanged += (_, _) => InfoChanged?.Invoke(this);
+
+        // SQL 검증: 타자 후 0.6초 쉬면 없는 테이블/컬럼에 빨간 물결 밑줄 + 호버 툴팁
+        Editor.TextArea.TextView.BackgroundRenderers.Add(_errorRenderer);
+        _validateTimer.Tick += (_, _) =>
+        {
+            _validateTimer.Stop();
+            ValidateSql();
+        };
+        Editor.Document.TextChanged += (_, _) => RestartValidation();
+        Editor.TextArea.TextView.PointerHover += OnEditorHover;
+        Editor.TextArea.TextView.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(Editor, false);
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
@@ -202,9 +263,18 @@ public partial class QueryTabView : UserControl
         if (qualifier is null)
         {
             // 테이블 자리(from/join/into/update 뒤)면 테이블만 — 키워드 잡음 제거
-            items = SqlCompletion.IsTablePosition(text, wordStart)
-                ? SqlCompletion.TablesOnly(CompletionTables, PreferredSchema)
-                : SqlCompletion.General(CompletionTables, PreferredSchema);
+            if (SqlCompletion.IsTablePosition(text, wordStart))
+            {
+                items = SqlCompletion.TablesOnly(CompletionTables, PreferredSchema);
+            }
+            else
+            {
+                items = SqlCompletion.General(CompletionTables, PreferredSchema);
+                // WHERE/AND/ON/SELECT 뒤라면 FROM 에 적힌 테이블들의 컬럼을 맨 위에 붙인다
+                // (Golden 동작). 카탈로그가 provider 별로 채워지므로 PG·Oracle 모두 동작한다
+                if (SqlCompletion.IsColumnPosition(text, wordStart))
+                    items = [.. await ColumnsInScopeAsync(text), .. items];
+            }
         }
         else
         {
@@ -228,6 +298,114 @@ public partial class QueryTabView : UserControl
         window.Show();
     }
 
+    /// <summary>접속당 공용 introspection 캐시 (MainWindow 가 주입). 없으면 직접 조회한다.</summary>
+    public SchemaCache? SchemaCache
+    {
+        get => _schemaCache;
+        set
+        {
+            _schemaCache = value;
+            // 접속이 바뀌면 이전 스키마 기준 밑줄은 무효 — 새 캐시로 다시 검증한다
+            _schemaLoadKicked = false;
+            _errorRenderer.Issues = [];
+            Editor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+            RestartValidation();
+        }
+    }
+
+    private SchemaCache? _schemaCache;
+
+    private void RestartValidation()
+    {
+        _validateTimer.Stop();
+        _validateTimer.Start();
+    }
+
+    /// <summary>
+    /// 에디터 전체를 캐시와 대조한다. 캐시가 아직 안 읽혔으면 한 번만 적재를 걸어두고,
+    /// 끝나면 다시 들어온다 — 타자마다 접속을 여는 일은 없다.
+    /// </summary>
+    private void ValidateSql()
+    {
+        if (SchemaCache?.Loaded is not { } snapshot)
+        {
+            if (_schemaCache is { } cache && !_schemaLoadKicked)
+            {
+                _schemaLoadKicked = true;
+                _ = cache.GetAsync().ContinueWith(
+                    _ => Dispatcher.UIThread.Post(ValidateSql), TaskScheduler.Default);
+            }
+            return;
+        }
+        _errorRenderer.Issues = SqlValidator.Validate(Editor.Text ?? "", snapshot);
+        Editor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+    }
+
+    private void OnEditorHover(object? sender, Avalonia.Input.PointerEventArgs e)
+    {
+        if (_errorRenderer.Issues.Count == 0) return;
+        var textView = Editor.TextArea.TextView;
+        var pos = textView.GetPositionFloor(e.GetPosition(textView) + textView.ScrollOffset);
+        if (pos is null) return;
+        var offset = Editor.Document.GetOffset(pos.Value.Location);
+        foreach (var issue in _errorRenderer.Issues)
+        {
+            if (offset >= issue.Start && offset <= issue.Start + issue.Length)
+            {
+                ToolTip.SetTip(Editor, issue.Message);
+                ToolTip.SetIsOpen(Editor, true);
+                return;
+            }
+        }
+        ToolTip.SetIsOpen(Editor, false);
+    }
+
+    /// <summary>
+    /// FROM/JOIN 에 적힌 테이블들의 컬럼 — WHERE 뒤 완성용.
+    /// 테이블이 여럿이면 어느 테이블 것인지 설명에 붙인다.
+    /// </summary>
+    private async Task<List<SqlCompletionItem>> ColumnsInScopeAsync(string sql)
+    {
+        var tables = SqlCompletion.ReferencedTables(CompletionTables, sql);
+        if (tables.Count == 0) return [];
+
+        var items = new List<SqlCompletionItem>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var table in tables)
+        {
+            List<ColumnInfo> columns;
+            try
+            {
+                columns = SchemaCache is { } cache
+                    ? [.. await cache.GetColumnsAsync(table)]
+                    : await LoadColumnsDirectlyAsync(table);
+            }
+            catch
+            {
+                continue;   // 한 테이블을 못 읽어도 나머지는 보여준다
+            }
+
+            foreach (var c in columns)
+            {
+                // 같은 이름이 여러 테이블에 있으면 첫 번째만 (별칭으로 구분하면 되니까)
+                if (!seen.Add(c.Name)) continue;
+                var detail = tables.Count > 1 ? $"{table.Name} · {c.Type}" : c.Type;
+                if (c.Pk.Length > 0) detail += " · PK";
+                if (c.Fk.Length > 0) detail += " · FK";
+                // 컬럼을 키워드·테이블보다 위로 (가중치 5)
+                items.Add(new SqlCompletionItem(c.Name, detail, 5, SqlCompletionKind.Column));
+            }
+        }
+        return items;
+    }
+
+    /// <summary>캐시가 없을 때의 예전 경로 — 그 테이블만 조회.</summary>
+    private async Task<List<ColumnInfo>> LoadColumnsDirectlyAsync(TableInfo table)
+    {
+        await using var conn = await _session!.Profile.OpenAsync();
+        return await SchemaCatalog.GetColumnsAsync(conn, table);
+    }
+
     private async Task<List<SqlCompletionItem>> ColumnItemsAsync(string qualifier, string sql)
     {
         if (SqlCompletion.ResolveTable(CompletionTables, qualifier, sql) is not { } table || _session is null)
@@ -237,8 +415,10 @@ public partial class QueryTabView : UserControl
         {
             try
             {
-                await using var conn = await _session.Profile.OpenAsync();
-                columns = await SchemaCatalog.GetColumnsAsync(conn, table);
+                // 공용 introspection 캐시가 있으면 접속을 열지 않는다 (DataGrip 방식)
+                columns = SchemaCache is { } cache
+                    ? [.. await cache.GetColumnsAsync(table)]
+                    : await LoadColumnsDirectlyAsync(table);
                 _columnCache[key] = columns;
             }
             catch
@@ -339,6 +519,10 @@ public partial class QueryTabView : UserControl
             await _session.DisposeAsync();
         _session = null;
     }
+
+    /// <summary>Results > Pin — 현재 그리드의 스냅샷 (없으면 null). 편집 모드는 제외.</summary>
+    public (IReadOnlyList<string> Columns, IReadOnlyList<RowItem> Rows, string? Sql)? SnapshotResult() =>
+        _columns.Count == 0 || IsEditing ? null : (_columns, _rows.ToList(), LastGridSql);
 
     public void FocusEditor() => Editor.Focus();
 
@@ -828,6 +1012,21 @@ public partial class QueryTabView : UserControl
         return ExecuteStatementsAsync(statements, explain: false);
     }
 
+    /// <summary>
+    /// Golden 의 Run Selected (Ctrl+F7) — <b>선택 영역만</b> 실행한다.
+    /// 선택이 없으면 커서 문장으로 넘어가지 않고 아무것도 실행하지 않는다
+    /// (그 동작은 F7/F9 의 몫이다).
+    /// </summary>
+    public Task ExecuteSelectedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Editor.SelectedText))
+        {
+            SetInfo("선택된 SQL 이 없습니다");
+            return Task.CompletedTask;
+        }
+        return ExecuteStatementsAsync(StatementSplitter.Split(Editor.SelectedText), explain: false);
+    }
+
     /// <summary>커서 문장을 EXPLAIN (FORMAT JSON) 으로 실행해 플랜 트리로 표시.
     /// analyze=true 면 실제 실행 — DML 은 pgAdmin 처럼 자동 롤백으로 보호한다.</summary>
     public async Task ExecuteExplainAsync(bool analyze)
@@ -914,9 +1113,11 @@ public partial class QueryTabView : UserControl
         }
     }
 
-    private void BindPlanTree(PlanResult plan, bool analyze)
+    internal void BindPlanTree(PlanResult plan, bool analyze)
     {
-        var totalMs = plan.ExecutionMs ?? plan.Root.TotalMs ?? 0;
+        // 막대의 분모 — ANALYZE 면 실제 self 시간, 아니면 self 비용 (둘 다 누적이 아니라 자기 몫)
+        var useMs = analyze && plan.SelfMsTotal > 0;
+        var selfTotal = useMs ? plan.SelfMsTotal : plan.SelfCostTotal;
         var items = new List<TreeViewItem>();
         if (analyze)
         {
@@ -929,20 +1130,54 @@ public partial class QueryTabView : UserControl
                 },
             });
         }
-        items.Add(BuildPlanItem(plan.Root, totalMs));
+        items.Add(BuildPlanItem(plan.Root, selfTotal, useMs));
         PlanTree.ItemsSource = items;
         PlanTree.IsVisible = true;
         ResultGrid.IsVisible = false;
         NoRecordsPanel.IsVisible = false;
     }
 
-    private static TreeViewItem BuildPlanItem(PlanNode node, double totalMs)
+    private static TreeViewItem BuildPlanItem(PlanNode node, double selfTotal, bool useMs)
     {
-        var fraction = totalMs > 0 && node.TotalMs is { } ms ? ms / totalMs : 0;
+        var self = useMs ? node.SelfMs ?? 0 : node.SelfCost;
+        var fraction = selfTotal > 0 ? Math.Clamp(self / selfTotal, 0, 1) : 0;
+
+        // DataGrip 식 비용 막대: 이 노드 자신이 전체에서 차지하는 몫
+        var barFill = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
+                    : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
+                    : Avalonia.Media.Brushes.MediumSeaGreen;
+        var bar = new Border
+        {
+            Width = 56,
+            Height = 9,
+            CornerRadius = new Avalonia.CornerRadius(2),
+            Background = Avalonia.Media.Brushes.Gainsboro,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Avalonia.Thickness(0, 0, 4, 0),
+            Child = new Border
+            {
+                Width = Math.Max(fraction * 56, self > 0 ? 2 : 0),
+                CornerRadius = new Avalonia.CornerRadius(2),
+                Background = barFill,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            },
+        };
+        ToolTip.SetTip(bar, useMs
+            ? $"self {self:0.###} ms — 전체 실행 시간의 {fraction:P0}"
+            : $"self cost {self:0.##} — 전체 비용의 {fraction:P0}");
+        var pct = new TextBlock
+        {
+            Text = $"{fraction * 100,3:0}%",
+            FontSize = 10.5,
+            Width = 30,
+            Foreground = Avalonia.Media.Brushes.Gray,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+
         var title = new TextBlock
         {
             Text = node.Title,
-            FontWeight = fraction >= 0.5 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
+            FontWeight = fraction >= 0.2 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
             Foreground = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
                        : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
                        : Avalonia.Media.Brushes.Black,
@@ -956,13 +1191,37 @@ public partial class QueryTabView : UserControl
         var header = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Children = { title, detail },
+            Children = { bar, pct, title, detail },
         };
+
+        // 행수 예측이 10배 이상 어긋난 노드 — 플랜이 틀어진 원인일 때가 많다
+        if (node.RowsEstimateError is { } error && error >= 10)
+        {
+            var badge = new Border
+            {
+                Background = Avalonia.Media.Brushes.DarkOrange,
+                CornerRadius = new Avalonia.CornerRadius(3),
+                Padding = new Avalonia.Thickness(4, 0),
+                Margin = new Avalonia.Thickness(6, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = $"rows ×{error:0}",
+                    FontSize = 10.5,
+                    Foreground = Avalonia.Media.Brushes.White,
+                },
+            };
+            ToolTip.SetTip(badge,
+                $"예측 {node.PlanRows:0} 행 vs 실제 {node.ActualRows:0} 행 — {error:0}배 어긋남.\n" +
+                "통계가 오래됐거나(ANALYZE 필요) 조건 상관관계를 planner 가 모르는 경우입니다.");
+            header.Children.Add(badge);
+        }
+
         var item = new TreeViewItem { Header = header, IsExpanded = true };
         if (node.Extra is not null)
             ToolTip.SetTip(item, node.Extra);
         foreach (var child in node.Children)
-            item.Items.Add(BuildPlanItem(child, totalMs));
+            item.Items.Add(BuildPlanItem(child, selfTotal, useMs));
         return item;
     }
 
@@ -1077,11 +1336,21 @@ public partial class QueryTabView : UserControl
                     gridShown = true;
                     LastGridSql = stmt.Text;
                     await FetchMoreAsync();
+
+                    // Golden 기본처럼 실행 즉시 끝까지 가져온다 (옵션, 기본 꺼짐).
+                    // 이러면 로드된 행 수 = 전체라 스크롤바가 정확해지고 COUNT 도 필요 없다
+                    if (Options.FetchAllOnExecute)
+                        await FetchUntilDoneAsync();
+                    // 점진 fetch 로 둔 경우에만 전체 건수를 따로 센다 (옵션, 기본 꺼짐)
+                    else if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
+                        _ = CountTotalAsync(stmt.Text);
+                    AppendLog(stmt.Text, $"{_rows.Count:N0} row(s), {ScriptTime()}");
                 }
                 else
                 {
                     affectedTotal += Math.Max(0, query.RowsAffected);
                     _current = null;
+                    AppendLog(stmt.Text, $"{Math.Max(0, query.RowsAffected)} row(s) affected, {ScriptTime()}");
                 }
             }
             _scriptWatch.Stop();
@@ -1101,6 +1370,7 @@ public partial class QueryTabView : UserControl
         {
             _scriptWatch.Stop();
             SetInfo("Cancelled", InfoRows, ScriptTime());
+            AppendLog(statements[^1].Text, "Cancelled");
             await RecoverAsync();
         }
         catch (PostgresException ex)
@@ -1108,12 +1378,14 @@ public partial class QueryTabView : UserControl
             _scriptWatch.Stop();
             ShowError($"{ex.Severity} {ex.SqlState}: {ex.MessageText}" +
                       (ex.Position > 0 ? $"  (position {ex.Position})" : ""));
+            AppendLog(statements[^1].Text, $"{ex.Severity} {ex.SqlState}: {ex.MessageText}");
             await RecoverAsync();
         }
         catch (Exception ex)
         {
             _scriptWatch.Stop();
             ShowError(ex.Message);
+            AppendLog(statements[^1].Text, $"Error: {ex.Message}");
             await RecoverAsync();
         }
         finally
@@ -1124,9 +1396,85 @@ public partial class QueryTabView : UserControl
         }
     }
 
+    // ---------- 결과 보기 전환 (Golden: Show DataGrid / Show Text / Show Log) ----------
+
+    private ResultViewMode _resultView = ResultViewMode.Grid;
+    private readonly List<string> _log = [];
+
+    /// <summary>
+    /// Golden 툴바의 보기 드롭다운. Text/Log 패널은 결과 영역 위에 불투명하게 덮으므로
+    /// 그리드·플랜·에러의 기존 표시 규칙은 그대로 둔다(에러는 여전히 맨 위에 뜬다).
+    /// </summary>
+    public ResultViewMode ResultView
+    {
+        get => _resultView;
+        set
+        {
+            _resultView = value;
+            ApplyResultView();
+        }
+    }
+
+    private void ApplyResultView()
+    {
+        if (_resultView == ResultViewMode.Text)
+        {
+            var (columns, rows) = Snapshot();
+            ResultText.Text = columns.Count == 0
+                ? "결과 없음 — 쿼리를 실행하면 여기에 텍스트로 표시됩니다."
+                : TextResultRenderer.Render(columns, rows);
+        }
+        else if (_resultView == ResultViewMode.Log)
+        {
+            LogText.Text = _log.Count == 0
+                ? "로그 없음 — 이 탭에서 문장을 실행하면 기록됩니다."
+                : string.Join('\n', _log);
+        }
+
+        TextPane.IsVisible = _resultView == ResultViewMode.Text;
+        LogPane.IsVisible = _resultView == ResultViewMode.Log;
+    }
+
+    /// <summary>실행 기록 한 줄. 시각은 HH:mm:ss, SQL 은 첫 줄만 남긴다.</summary>
+    private void AppendLog(string sql, string outcome)
+    {
+        var oneLine = sql.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (oneLine.Length > 120) oneLine = oneLine[..117] + "…";
+        _log.Add($"[{DateTime.Now:HH:mm:ss}] {oneLine} — {outcome}");
+        if (_resultView == ResultViewMode.Log) ApplyResultView();
+    }
+
+    /// <summary>
+    /// 그리드에 행을 붙인다. DataGridCollectionView 로 감싸 **정렬·필터로 순서가 바뀔 때마다
+    /// 맨 왼쪽 순번을 화면 순서로 다시 매긴다** — 그러지 않으면 정렬 후 1,2,3 이 뒤섞인다.
+    /// </summary>
+    private Avalonia.Collections.DataGridCollectionView? _gridView;
+
+    private void SetGridSource(System.Collections.IEnumerable rows)
+    {
+        _gridView = new Avalonia.Collections.DataGridCollectionView(rows);
+        ResultGrid.ItemsSource = _gridView;
+    }
+
+    /// <summary>
+    /// 맨 왼쪽 순번은 **행이 그려지기 직전**에 화면 위치로 매긴다.
+    ///
+    /// 정렬이 끝난 뒤 따로 매기면 정렬된 행이 먼저 그려지고 번호가 나중에 고쳐져
+    /// "숫자가 섞였다가 1로 돌아오는" 깜빡임이 생긴다. LoadingRow 는 그리기 직전이라
+    /// 깜빡임이 없고, 가상화 덕에 보이는 행만 계산한다(대량 결과에도 싸다).
+    /// </summary>
+    private void OnResultRowLoading(object? sender, DataGridRowEventArgs e)
+    {
+        if (e.Row.DataContext is RowItem row)
+            row.Seq = e.Row.Index + 1;
+    }
+
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
     private void ClearResultArea()
     {
+        // 새 문장을 실행하면 이전 전체 건수는 무효 — 세던 것도 취소한다
+        _countCts?.Cancel();
+        _totalRecords = null;
         _columns = [];
         _rows = [];
         ResultGrid.Columns.Clear();
@@ -1187,6 +1535,7 @@ public partial class QueryTabView : UserControl
         }
         ResultGrid.ItemsSource = transposed;
         _transposed = true;
+        ResultGrid.CanUserSortColumns = false;   // 전치 상태는 정렬이 의미 없다
         SetInfo($"Transposed — {_columns.Count} column(s) × {source.Count} row(s)");
     }
 
@@ -1212,7 +1561,7 @@ public partial class QueryTabView : UserControl
                 MaxWidth = 420,
             });
         }
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         _transposed = false;
     }
 
@@ -1243,6 +1592,102 @@ public partial class QueryTabView : UserControl
         Editor.Document.Insert(Editor.Document.TextLength, $"\n-- filter: WHERE {clause}\n");
         Editor.Focus();
         SetInfo($"Filter clause appended: {clause}");
+    }
+
+    // ---------- Golden 파리티: 그리드 필터 / Goto / Clear ----------
+
+    /// <summary>필터가 걸려 있으면 원본 행을 여기 보관한다. null 이면 필터 없음.</summary>
+    private ObservableCollection<RowItem>? _unfiltered;
+
+    public bool HasFilter => _unfiltered is not null;
+
+    /// <summary>
+    /// Golden "Filter records like selected cell" 의 그리드 판 — 선택 셀과 같은 값의 행만 남긴다.
+    /// 편집 모드·Transpose 중에는 행 대응이 깨지므로 막는다.
+    /// </summary>
+    public void FilterBySelectedCellInGrid()
+    {
+        if (_transposed || IsEditing)
+        {
+            SetInfo("Filter는 편집 모드·Transpose 중에는 쓸 수 없습니다");
+            return;
+        }
+        if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;   // 0번은 행번호 컬럼
+        if (index < 0 || index >= _columns.Count) return;
+
+        var wanted = row.Cells[index];
+        var source = _unfiltered ?? _rows;
+        var kept = new ObservableCollection<RowItem>(
+            source.Where(r => index < r.Cells.Length && r.Cells[index] == wanted));
+
+        _unfiltered ??= _rows;
+        _rows = kept;
+        SetGridSource(_rows);
+        SetInfo($"Filtered: {_columns[index]} = {wanted ?? "NULL"}", $"{kept.Count:N0} of {source.Count:N0} record(s)");
+    }
+
+    /// <summary>Golden "Clear Filter" — 필터를 풀고 원본 행으로 되돌린다.</summary>
+    public void ClearFilter()
+    {
+        if (_unfiltered is null)
+        {
+            SetInfo("걸린 필터가 없습니다");
+            return;
+        }
+        _rows = _unfiltered;
+        _unfiltered = null;
+        SetGridSource(_rows);
+        SetInfo("Filter cleared", $"{_rows.Count:N0} record(s)");
+    }
+
+    /// <summary>Golden "Goto Record Number" (Ctrl+G) — 행 번호로 스크롤·선택.</summary>
+    public void GotoRecord(int recordNo)
+    {
+        var target = _rows.FirstOrDefault(r => r.No == recordNo);
+        if (target is null)
+        {
+            SetInfo($"Record {recordNo} 없음 (로드된 행 {_rows.Count:N0}개)");
+            return;
+        }
+        ResultGrid.SelectedItem = target;
+        ResultGrid.ScrollIntoView(target, null);
+        ResultGrid.Focus();
+        SetInfo($"Record {recordNo}");
+    }
+
+    /// <summary>Golden "Clear Spreadsheet" — 결과 영역만 비운다(에디터·로그는 그대로).</summary>
+    public void ClearResults()
+    {
+        _unfiltered = null;
+        ClearResultArea();
+        ApplyResultView();
+        SetInfo("Results cleared", "", "");
+    }
+
+    /// <summary>Golden F12 — DataGrid → Text → Log 순환.</summary>
+    public void CycleResultView() => ResultView = ResultView switch
+    {
+        ResultViewMode.Grid => ResultViewMode.Text,
+        ResultViewMode.Text => ResultViewMode.Log,
+        _ => ResultViewMode.Grid,
+    };
+
+    /// <summary>Golden "Cell Details Window" (Ctrl+F11) — 선택 셀을 별도 창으로.</summary>
+    public void ShowCellDetail()
+    {
+        if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;
+        if (index < 0 || index >= _columns.Count) return;
+        OpenCellDetail(_columns[index], row.No, row.Raw?[index] ?? row.Cells[index]);
     }
 
     /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>
@@ -1374,9 +1819,12 @@ public partial class QueryTabView : UserControl
             var noColumn = new DataGridTextColumn
             {
                 Header = "#",
-                Binding = new Binding(nameof(RowItem.No)),
+                // 화면 순서 순번 — 정렬해도 위에서부터 1,2,3… 을 유지한다
+                Binding = new Binding(nameof(RowItem.Seq)),
                 Width = new DataGridLength(46),
                 IsReadOnly = true,
+                // 순번 자체로는 정렬하지 않는다 (재번호와 맞물려 의미가 없다)
+                CanUserSort = false,
             };
             noColumn.CellStyleClasses.Add("rownum");
             ResultGrid.Columns.Add(noColumn);
@@ -1394,14 +1842,19 @@ public partial class QueryTabView : UserControl
                     {
                         Mode = IsEditing ? BindingMode.TwoWay : BindingMode.OneWay,
                     },
+                    // 인덱서 경로라 기본(경로 반사) 정렬이 안 먹는다 — 컬럼마다 비교자를 붙인다
+                    CustomSortComparer = new CellComparer(i),
                     Width = DataGridLength.Auto,
                     // 거대한 값(JSONB 등)이 컬럼 폭 계산을 망가뜨리지 않게 상한
                     MaxWidth = 420,
                 });
             }
         }
+        // Golden 처럼 헤더 클릭으로 정렬. 단 **이미 fetch 된 행만** 정렬된다(점진 fetch).
+        // 전치 상태는 행/열이 뒤바뀌어 의미가 없고, 편집 모드는 행 순서가 흔들리면 혼란스럽다.
+        ResultGrid.CanUserSortColumns = !_transposed && !IsEditing;
         ResultGrid.IsReadOnly = !IsEditing;
-        ResultGrid.ItemsSource = _rows;
+        SetGridSource(_rows);
         if (columns.Count > 0)
             Dispatcher.UIThread.Post(HookScrollBar, DispatcherPriority.Loaded);
     }
@@ -1421,9 +1874,10 @@ public partial class QueryTabView : UserControl
         try
         {
             var want = FetchBatch;
-            if (Options.RecordsetLimit > 0)
+            var limit = EffectiveRowLimit;
+            if (limit > 0)
             {
-                var remain = Options.RecordsetLimit - _rows.Count;
+                var remain = limit - _rows.Count;
                 if (remain <= 0)
                 {
                     SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records (limit reached)", InfoTime);
@@ -1466,16 +1920,39 @@ public partial class QueryTabView : UserControl
     }
 
     /// <summary>Ctrl+End — 끝까지 fetch (Golden 동작).</summary>
+    /// <summary>
+    /// 끝까지(또는 RecordsetLimit 까지) 가져온다.
+    ///
+    /// 상한에 걸리면 FetchMoreAsync 는 아무 행도 넣지 않고 돌아오지만 Completed 는
+    /// 여전히 false 다 — 진행이 없으면 빠져나와야 무한 루프가 되지 않는다.
+    /// </summary>
+    /// <summary>
+    /// 실제로 적용할 행 상한. 사용자가 무제한으로 뒀더라도 **풀 fetch 일 때는**
+    /// 안전 상한을 건다 — 운영 DB 에서 수백만 행을 통째로 끌어오면 곤란하다.
+    /// 0 이하면 무제한.
+    /// </summary>
+    private int EffectiveRowLimit =>
+        Options.RecordsetLimit > 0 ? Options.RecordsetLimit
+        : Options.FetchAllOnExecute ? AppOptions.FetchAllSafetyCap
+        : 0;
+
+    private async Task FetchUntilDoneAsync()
+    {
+        while (_current is { Completed: false } && _cts is { IsCancellationRequested: false })
+        {
+            var before = _rows.Count;
+            await FetchMoreAsync();
+            if (_rows.Count == before) break;   // 상한 도달 등 — 더 못 가져온다
+            SetInfo("Fetching…", $"Fetched {_rows.Count:N0} records", InfoTime);
+        }
+    }
+
     public async Task FetchAllAsync()
     {
         if (_current is null || _cts is null || _executing) return;
         try
         {
-            while (!_current.Completed && !_cts.IsCancellationRequested)
-            {
-                await FetchMoreAsync();
-                SetInfo("Fetching…", $"Fetched {_rows.Count:N0} records", InfoTime);
-            }
+            await FetchUntilDoneAsync();
             UpdateFetchInfo();
             SetInfo("Done.", InfoRows, InfoTime);
         }
@@ -1491,11 +1968,53 @@ public partial class QueryTabView : UserControl
         }
     }
 
+    // ---------- 전체 건수 (Golden 이 레코드 수를 따로 조회하는 방식) ----------
+
+    private long? _totalRecords;
+    private CancellationTokenSource? _countCts;
+
     private void UpdateFetchInfo()
     {
         if (_current is null) return;
         var more = _current.Completed ? "" : " (more)";
-        SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records{more}", ScriptTime());
+        var text = _totalRecords is { } total
+            ? $"Fetched {_rows.Count:N0} of {total:N0} records"
+            : $"Fetched {_rows.Count:N0} records{more}";
+        SetInfo(InfoMessage, text, ScriptTime());
+    }
+
+    /// <summary>
+    /// COUNT(*) 를 **별도 접속**으로 센다. 공유 세션은 reader 를 하나만 열 수 있어
+    /// 여기서 문장을 던지면 진행 중인 결과 fetch 가 끊긴다.
+    /// 실패·취소는 조용히 넘긴다 — 어디까지나 표시용이다.
+    /// </summary>
+    private async Task CountTotalAsync(string sql)
+    {
+        _countCts?.Cancel();
+        _countCts = new CancellationTokenSource();
+        var ct = _countCts.Token;
+        _totalRecords = null;
+
+        if (_session is null) return;
+        var inner = sql.TrimEnd().TrimEnd(';');
+        if (inner.Length == 0) return;
+
+        try
+        {
+            await using var conn = await _session.Profile.OpenDbAsync(ct);
+            await using var cmd = conn.CreateCommand();
+            // 원본 문장을 그대로 감싼다 (별칭은 PG·Oracle·SQLite 모두 이 형태를 받는다)
+            cmd.CommandText = $"select count(*) from ({inner}) aurum_count";
+            var value = await cmd.ExecuteScalarAsync(ct);
+            if (ct.IsCancellationRequested || value is null || value is DBNull) return;
+
+            _totalRecords = Convert.ToInt64(value);
+            UpdateFetchInfo();
+        }
+        catch
+        {
+            // 세지 못해도 결과 표시에는 지장이 없다 (권한·구문·시간 초과 등)
+        }
     }
 
     private string ScriptTime() => $"Script: {_scriptWatch.Elapsed.TotalSeconds:0.000}s";

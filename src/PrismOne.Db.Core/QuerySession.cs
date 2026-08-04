@@ -1,6 +1,8 @@
 using System.Data;
+using System.Data.Common;
 using System.Diagnostics;
 using Npgsql;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Db.Core;
 
@@ -69,7 +71,12 @@ public static class TransactionIsolationExtensions
 public sealed class QuerySession : IAsyncDisposable
 {
     public ConnectionProfile Profile { get; }
-    public NpgsqlConnection Connection { get; private set; }
+
+    /// <summary>ADO.NET 공통 타입 — 드라이버별 차이는 Provider 가 흡수한다.</summary>
+    public DbConnection Connection { get; private set; }
+
+    private IDbProvider Provider => Profile.Provider;
+
     public bool IsAlive => Connection.State == ConnectionState.Open;
 
     /// <summary>수동 커밋 모드에서 열린 트랜잭션이 있는지 (Golden 의 Commit/Rollback 대상).</summary>
@@ -104,7 +111,7 @@ public sealed class QuerySession : IAsyncDisposable
     /// <summary>RAISE NOTICE/WARNING 등 서버 메시지 (pgAdmin 의 Messages 탭).</summary>
     public event Action<string>? NoticeReceived;
 
-    private QuerySession(ConnectionProfile profile, NpgsqlConnection conn)
+    private QuerySession(ConnectionProfile profile, DbConnection conn)
     {
         Profile = profile;
         Connection = conn;
@@ -112,20 +119,36 @@ public sealed class QuerySession : IAsyncDisposable
     }
 
     public static async Task<QuerySession> CreateAsync(ConnectionProfile profile, CancellationToken ct = default)
-        => new(profile, await profile.OpenAsync(ct));
+        => new(profile, await profile.OpenDbAsync(ct));
 
-    private void HookNotices(NpgsqlConnection conn) =>
-        conn.Notice += (_, e) =>
-            NoticeReceived?.Invoke($"{e.Notice.Severity}: {e.Notice.MessageText}");
+    /// <summary>서버 메시지는 PG 고유 기능 — 다른 드라이버는 그냥 넘어간다.</summary>
+    private void HookNotices(DbConnection conn)
+    {
+        if (conn is NpgsqlConnection pg)
+            pg.Notice += (_, e) =>
+                NoticeReceived?.Invoke($"{e.Notice.Severity}: {e.Notice.MessageText}");
+    }
+
+    private DbCommand NewCommand(string sql)
+    {
+        var cmd = Connection.CreateCommand();
+        cmd.CommandText = sql;
+        return cmd;
+    }
 
     public async Task<ActiveQuery> ExecuteAsync(
         string sql, CancellationToken ct = default, IReadOnlyDictionary<string, string?>? binds = null)
     {
-        var cmd = new NpgsqlCommand(binds is { Count: > 0 } ? BindVariables.Rewrite(sql) : sql, Connection);
+        var cmd = NewCommand(binds is { Count: > 0 } ? BindVariables.Rewrite(sql) : sql);
         if (binds is { Count: > 0 })
         {
             foreach (var (name, value) in binds)
-                cmd.Parameters.AddWithValue(name, (object?)value ?? DBNull.Value);
+            {
+                var p = cmd.CreateParameter();
+                p.ParameterName = name;
+                p.Value = (object?)value ?? DBNull.Value;
+                cmd.Parameters.Add(p);
+            }
         }
         // 접속 하나에 reader 하나 — 이전 결과가 열려 있으면 먼저 닫는다 (공유 세션 시맨틱)
         if (Current is { Completed: false })
@@ -152,7 +175,7 @@ public sealed class QuerySession : IAsyncDisposable
     {
         if (IsAlive) return;
         try { await Connection.DisposeAsync(); } catch { /* 이미 죽은 접속 */ }
-        Connection = await Profile.OpenAsync(ct);
+        Connection = await Profile.OpenDbAsync(ct);
         HookNotices(Connection);
         InTransaction = false;
         // 새 접속은 DB 기본값으로 시작하므로 고른 격리 수준을 다시 걸어준다
@@ -167,7 +190,9 @@ public sealed class QuerySession : IAsyncDisposable
     /// </summary>
     public async Task ApplyIsolationAsync(TransactionIsolation level, CancellationToken ct = default)
     {
-        await ExecSimpleAsync(level.ToSessionSql(), ct);
+        // 지원하지 않는 DB·수준이면 문장을 보내지 않는다 (Oracle 은 RC/Serializable 만)
+        if (Provider.SessionIsolationSql(level) is { } sql)
+            await ExecSimpleAsync(sql, ct);
         Isolation = level;
     }
 
@@ -176,7 +201,9 @@ public sealed class QuerySession : IAsyncDisposable
     public async Task EnsureTransactionAsync(CancellationToken ct = default)
     {
         if (InTransaction) return;
-        await ExecSimpleAsync("BEGIN", ct);
+        // Oracle 은 DML 이 암시적으로 연다 — 보낼 문장이 없다
+        if (Provider.BeginTransactionSql is { } sql)
+            await ExecSimpleAsync(sql, ct);
         InTransaction = true;
     }
 
@@ -228,28 +255,91 @@ public sealed class QuerySession : IAsyncDisposable
         if (Current is { Completed: false })
             await Current.AbortAsync();
 
-        await using var cmd = new NpgsqlCommand(statement.Sql, Connection);
+        await using var cmd = NewCommand(statement.Sql);
+        var index = 0;
         foreach (var value in statement.Parameters)
         {
-            cmd.Parameters.Add(new NpgsqlParameter
+            index++;
+            // PG 는 unknown 으로 보내야 서버가 대상 컬럼 타입으로 캐스팅한다.
+            // 다른 드라이버는 기본 추론에 맡긴다 (셀 값은 전부 문자열이라
+            // 클라이언트에서 타입을 정하면 오히려 어긋난다).
+            if (cmd.CreateParameter() is NpgsqlParameter pg)
             {
-                NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown,
-                Value = (object?)value ?? DBNull.Value,
-            });
+                pg.NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown;
+                pg.Value = (object?)value ?? DBNull.Value;
+                cmd.Parameters.Add(pg);
+            }
+            else
+            {
+                var p = cmd.CreateParameter();
+                // SQLite 는 이름 없는 파라미터를 거부한다 — placeholder(@pN/:pN)와 같은 이름으로
+                p.ParameterName = $"p{index}";
+                p.Value = (object?)value ?? DBNull.Value;
+                cmd.Parameters.Add(p);
+            }
         }
         return await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>
+    /// 같은 문장을 값만 바꿔 반복 실행한다 (CSV import 등 대량 insert).
+    /// 명령·파라미터를 **한 번 만들어 재사용**하고 가능하면 Prepare 한다 —
+    /// 행마다 명령을 새로 만드는 것보다 훨씬 싸다. 실패하면 몇 번째 행인지 실어 던진다.
+    /// </summary>
+    public async Task<int> ExecuteBatchAsync(
+        string sql, IReadOnlyList<IReadOnlyList<string?>> rows,
+        IProgress<int>? progress = null, CancellationToken ct = default)
+    {
+        if (rows.Count == 0) return 0;
+        // 접속 하나에 reader 하나 — 열린 결과가 있으면 먼저 닫는다
+        if (Current is { Completed: false })
+            await Current.AbortAsync();
+
+        await using var cmd = NewCommand(sql);
+        var parameters = new DbParameter[rows[0].Count];
+        for (var i = 0; i < parameters.Length; i++)
+        {
+            var p = cmd.CreateParameter();
+            if (p is NpgsqlParameter pg)
+                pg.NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Unknown;   // 서버가 컬럼 타입으로 캐스팅
+            else
+                p.ParameterName = $"p{i + 1}";   // SQLite 는 이름 없는 파라미터를 거부한다
+            parameters[i] = p;
+            cmd.Parameters.Add(p);
+        }
+        try { await cmd.PrepareAsync(ct); } catch { /* Prepare 미지원 드라이버 — 그냥 간다 */ }
+
+        var done = 0;
+        foreach (var row in rows)
+        {
+            ct.ThrowIfCancellationRequested();
+            for (var i = 0; i < parameters.Length; i++)
+                parameters[i].Value = (object?)(i < row.Count ? row[i] : null) ?? DBNull.Value;
+            try
+            {
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new BatchRowException(done + 1, ex);
+            }
+            done++;
+            if (done % 500 == 0)
+                progress?.Report(done);
+        }
+        return done;
+    }
+
     private async Task ExecSimpleAsync(string sql, CancellationToken ct)
     {
-        await using var cmd = new NpgsqlCommand(sql, Connection);
+        await using var cmd = NewCommand(sql);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>첫 컬럼을 원문 그대로(표시용 잘라내기 없이) 이어붙여 돌려준다 — EXPLAIN JSON 용.</summary>
     public async Task<string> ExecuteTextAsync(string sql, CancellationToken ct = default)
     {
-        await using var cmd = new NpgsqlCommand(sql, Connection);
+        await using var cmd = NewCommand(sql);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var sb = new System.Text.StringBuilder();
         while (await reader.ReadAsync(ct))
@@ -263,6 +353,13 @@ public sealed class QuerySession : IAsyncDisposable
     }
 }
 
+/// <summary>배치 실행 중 몇 번째 행(1부터)에서 실패했는지를 실은 예외.</summary>
+public sealed class BatchRowException(int rowNumber, Exception inner)
+    : Exception($"{rowNumber}번째 행: {inner.Message}", inner)
+{
+    public int RowNumber { get; } = rowNumber;
+}
+
 /// <summary>fetch 된 행 하나. Raw 는 표시용으로 잘린 셀의 원문만 담는다 (없으면 null).</summary>
 public readonly record struct FetchedRow(string?[] Cells, string?[]? Raw);
 
@@ -272,8 +369,8 @@ public readonly record struct FetchedRow(string?[] Cells, string?[]? Raw);
 /// </summary>
 public sealed class ActiveQuery : IAsyncDisposable
 {
-    private readonly NpgsqlCommand _cmd;
-    private readonly NpgsqlDataReader _reader;
+    private readonly DbCommand _cmd;
+    private readonly DbDataReader _reader;
     private FetchedRow? _lookahead;
 
     public IReadOnlyList<string> Columns { get; }
@@ -284,7 +381,7 @@ public sealed class ActiveQuery : IAsyncDisposable
     /// <summary>첫 행이 도착할 때까지의 실행 시간.</summary>
     public TimeSpan ExecuteElapsed { get; }
 
-    private ActiveQuery(NpgsqlCommand cmd, NpgsqlDataReader reader, string[] columns, TimeSpan elapsed)
+    private ActiveQuery(DbCommand cmd, DbDataReader reader, string[] columns, TimeSpan elapsed)
     {
         _cmd = cmd;
         _reader = reader;
@@ -292,7 +389,7 @@ public sealed class ActiveQuery : IAsyncDisposable
         ExecuteElapsed = elapsed;
     }
 
-    internal static async Task<ActiveQuery> CreateAsync(NpgsqlCommand cmd, NpgsqlDataReader reader, TimeSpan elapsed)
+    internal static async Task<ActiveQuery> CreateAsync(DbCommand cmd, DbDataReader reader, TimeSpan elapsed)
     {
         var columns = new string[reader.FieldCount];
         for (var i = 0; i < columns.Length; i++)
