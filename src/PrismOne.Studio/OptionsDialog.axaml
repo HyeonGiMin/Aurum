@@ -24,9 +24,12 @@
     <CheckBox Name="AutoCommitOption" Content="AutoCommit (끄면 Golden 식 수동 커밋)" FontSize="13"/>
     <CheckBox Name="AllowNonSelectFavoritesOption" FontSize="13"
               Content="Favorites 메뉴에서 SELECT 이외의 문장도 실행 허용"/>
+    <CheckBox Name="FetchAllOnExecuteOption" FontSize="13"
+              Content="실행 즉시 전체 fetch (Golden 기본 동작)"
+              ToolTip.Tip="결과를 끝까지 가져옵니다. 로드된 행 수 = 전체라 스크롤바가 정확해집니다.&#x0a;대용량 결과에서는 느리므로 위의 &quot;최대 로드 행수&quot;와 함께 쓰세요."/>
     <CheckBox Name="CountTotalRecordsOption" FontSize="13"
               Content="전체 레코드 수 조회 (COUNT(*) 를 따로 실행)"
-              ToolTip.Tip="상태바에 'Fetched N of M records' 로 표시합니다.&#x0a;대용량 테이블에서는 COUNT(*) 가 느릴 수 있어 기본은 꺼둡니다."/>
+              ToolTip.Tip="점진 fetch 로 둘 때만 씁니다. 상태바에 'Fetched N of M records' 로 표시합니다.&#x0a;대용량 테이블에서는 COUNT(*) 가 느릴 수 있어 기본은 꺼둡니다."/>
 
     <TextBlock Text="변경은 새로 실행하는 문장부터 적용됩니다." FontSize="12" Opacity="0.65" TextWrapping="Wrap"/>
 

@@ -1182,8 +1182,13 @@ public partial class QueryTabView : UserControl
                     gridShown = true;
                     LastGridSql = stmt.Text;
                     await FetchMoreAsync();
-                    // 첫 배치를 보여준 뒤 전체 건수를 백그라운드로 센다 (옵션, 기본 꺼짐)
-                    if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
+
+                    // Golden 기본처럼 실행 즉시 끝까지 가져온다 (옵션, 기본 꺼짐).
+                    // 이러면 로드된 행 수 = 전체라 스크롤바가 정확해지고 COUNT 도 필요 없다
+                    if (Options.FetchAllOnExecute)
+                        await FetchUntilDoneAsync();
+                    // 점진 fetch 로 둔 경우에만 전체 건수를 따로 센다 (옵션, 기본 꺼짐)
+                    else if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
                         _ = CountTotalAsync(stmt.Text);
                     AppendLog(stmt.Text, $"{_rows.Count:N0} row(s), {ScriptTime()}");
                 }
@@ -1760,16 +1765,29 @@ public partial class QueryTabView : UserControl
     }
 
     /// <summary>Ctrl+End — 끝까지 fetch (Golden 동작).</summary>
+    /// <summary>
+    /// 끝까지(또는 RecordsetLimit 까지) 가져온다.
+    ///
+    /// 상한에 걸리면 FetchMoreAsync 는 아무 행도 넣지 않고 돌아오지만 Completed 는
+    /// 여전히 false 다 — 진행이 없으면 빠져나와야 무한 루프가 되지 않는다.
+    /// </summary>
+    private async Task FetchUntilDoneAsync()
+    {
+        while (_current is { Completed: false } && _cts is { IsCancellationRequested: false })
+        {
+            var before = _rows.Count;
+            await FetchMoreAsync();
+            if (_rows.Count == before) break;   // 상한 도달 등 — 더 못 가져온다
+            SetInfo("Fetching…", $"Fetched {_rows.Count:N0} records", InfoTime);
+        }
+    }
+
     public async Task FetchAllAsync()
     {
         if (_current is null || _cts is null || _executing) return;
         try
         {
-            while (!_current.Completed && !_cts.IsCancellationRequested)
-            {
-                await FetchMoreAsync();
-                SetInfo("Fetching…", $"Fetched {_rows.Count:N0} records", InfoTime);
-            }
+            await FetchUntilDoneAsync();
             UpdateFetchInfo();
             SetInfo("Done.", InfoRows, InfoTime);
         }

@@ -21,6 +21,8 @@ public partial class OptionsDialog : Window
         TimeoutBox.Text = current.StatementTimeoutMs.ToString(CultureInfo.InvariantCulture);
         AutoCommitOption.IsChecked = current.AutoCommit;
         AllowNonSelectFavoritesOption.IsChecked = current.AllowNonSelectFavorites;
+        FetchAllOnExecuteOption.IsChecked = current.FetchAllOnExecute;
+        CountTotalRecordsOption.IsChecked = current.CountTotalRecords;
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
@@ -36,6 +38,7 @@ public partial class OptionsDialog : Window
             AutoCommit = AutoCommitOption.IsChecked == true,
             AllowNonSelectFavorites = AllowNonSelectFavoritesOption.IsChecked == true,
             CountTotalRecords = CountTotalRecordsOption.IsChecked == true,
+            FetchAllOnExecute = FetchAllOnExecuteOption.IsChecked == true,
         };
         options.Save();
         Result = options;

@@ -34,6 +34,16 @@ public sealed class AppOptions
     /// </summary>
     public bool CountTotalRecords { get; set; }
 
+    /// <summary>
+    /// 실행 즉시 결과를 끝까지 가져온다 (Golden 의 기본 동작 — 점진 fetch 는 Golden 8 에서
+    /// 옵션으로 추가된 것이고, 체크하지 않으면 전부 가져오는 게 원래 방식이다).
+    ///
+    /// 켜면 로드된 행 수가 곧 전체 건수라 **스크롤바가 정확**해지고 COUNT(*) 도 필요 없다.
+    /// **기본은 끔** — 운영 DB 에서 수백만 행을 통째로 끌어오면 곤란하다.
+    /// <see cref="RecordsetLimit"/> 을 함께 걸어 상한을 두는 것을 권한다.
+    /// </summary>
+    public bool FetchAllOnExecute { get; set; }
+
     /// <summary>DataGrip 의 Tx Isolation — 새 세션에 걸 격리 수준. 기본은 DB 설정을 따른다.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter<TransactionIsolation>))]
     public TransactionIsolation Isolation { get; set; } = TransactionIsolation.DatabaseDefault;
