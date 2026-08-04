@@ -151,7 +151,7 @@ public partial class QueryTabView : UserControl
     public QueryTabView()
     {
         InitializeComponent();
-        Editor.SyntaxHighlighting = SqlHighlighting.Definition;
+        Editor.SyntaxHighlighting = SqlHighlighting.For(ThemeBrushes.IsDark);
         _search = AvaloniaEdit.Search.SearchPanel.Install(Editor);   // Ctrl+F 내장
         Editor.TextArea.Caret.PositionChanged += (_, _) =>
             CaretChanged?.Invoke(this, Editor.TextArea.Caret.Line, Editor.TextArea.Caret.Column);
@@ -523,6 +523,9 @@ public partial class QueryTabView : UserControl
     /// <summary>Results > Pin — 현재 그리드의 스냅샷 (없으면 null). 편집 모드는 제외.</summary>
     public (IReadOnlyList<string> Columns, IReadOnlyList<RowItem> Rows, string? Sql)? SnapshotResult() =>
         _columns.Count == 0 || IsEditing ? null : (_columns, _rows.ToList(), LastGridSql);
+
+    /// <summary>테마 전환 시 에디터 배색 교체 (MainWindow 가 호출).</summary>
+    public void ApplyEditorTheme(bool dark) => Editor.SyntaxHighlighting = SqlHighlighting.For(dark);
 
     public void FocusEditor() => Editor.Focus();
 
@@ -1142,16 +1145,21 @@ public partial class QueryTabView : UserControl
         var self = useMs ? node.SelfMs ?? 0 : node.SelfCost;
         var fraction = selfTotal > 0 ? Math.Clamp(self / selfTotal, 0, 1) : 0;
 
+        // 강조 팔레트는 diff 와 공유 (빨강=뜨거움 · 주황=주의 · 초록=정상) — 테마 종속
+        var hot = ThemeBrushes.Get("DiffRemovedBrush", "#C62828");
+        var warm = ThemeBrushes.Get("DiffChangedBrush", "#C77400");
+        var cool = ThemeBrushes.Get("DiffAddedBrush", "#2E7D32");
+
         // DataGrip 식 비용 막대: 이 노드 자신이 전체에서 차지하는 몫
-        var barFill = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
-                    : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
-                    : Avalonia.Media.Brushes.MediumSeaGreen;
+        var barFill = fraction >= 0.5 ? hot
+                    : fraction >= 0.2 ? warm
+                    : cool;
         var bar = new Border
         {
             Width = 56,
             Height = 9,
             CornerRadius = new Avalonia.CornerRadius(2),
-            Background = Avalonia.Media.Brushes.Gainsboro,
+            Background = ThemeBrushes.Get("PlanBarTrackBrush", "#DCDCDC"),
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
             Margin = new Avalonia.Thickness(0, 0, 4, 0),
             Child = new Border
@@ -1178,9 +1186,9 @@ public partial class QueryTabView : UserControl
         {
             Text = node.Title,
             FontWeight = fraction >= 0.2 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
-            Foreground = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
-                       : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
-                       : Avalonia.Media.Brushes.Black,
+            Foreground = fraction >= 0.5 ? hot
+                       : fraction >= 0.2 ? warm
+                       : ThemeBrushes.Get("TextPrimaryBrush", "#1A1A1A"),
         };
         var detail = new TextBlock
         {

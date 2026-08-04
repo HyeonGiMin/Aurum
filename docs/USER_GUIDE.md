@@ -415,9 +415,17 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
   저장하고 그대로 복원합니다 (Golden 의 Workspace).
 - **Tools > Options…** (툴바 렌치) — fetch 배치 크기, 탭별 최대 행수(-1 무제한),
   NULL 표시 문자열, `statement_timeout`(ms), AutoCommit(Tx mode) 기본값,
-  Favorites 에서 SELECT 이외 문장 실행 허용 여부.
+  Favorites 에서 SELECT 이외 문장 실행 허용 여부, **테마**.
   Tx isolation 기본값은 툴바에서 고른 값이 그대로 저장됩니다.
   설정은 `~/.prismone-studio/options.json` 에 저장되고 새 실행부터 적용됩니다.
+
+### 테마 (라이트 / 다크)
+
+- **View > Dark Mode** — 라이트↔다크 즉시 전환. 전환은 바로 반영되고 저장됩니다.
+- **Tools > Options… > 테마** — Light(기본, Golden 배색) / Dark /
+  **System**(OS 다크 모드 설정을 따름) 중 선택.
+- 에디터 구문 배색, 그리드, 플랜 막대, Schema Diff 색까지 함께 바뀝니다.
+  ERD 캔버스와 인쇄물은 항상 라이트("종이") 배색입니다.
 
 ## 12. 데이터 파일 · 문제 해결
 

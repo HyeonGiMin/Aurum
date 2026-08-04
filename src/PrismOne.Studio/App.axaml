@@ -3,7 +3,7 @@
              x:Class="PrismOne.Studio.App"
              Name="Aurum"
              RequestedThemeVariant="Light">
-    <!-- Golden(Benthic) 은 라이트 Windows 크롬 — 테마를 Light 로 고정한다 -->
+    <!-- 기본 Light (Golden 정체성). 옵션의 Theme 값으로 App.ApplyTheme 가 바꾼다 -->
 
     <Application.Styles>
         <FluentTheme />

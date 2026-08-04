@@ -106,6 +106,11 @@
 - **Pin Results (2026-08-04, DATAGRIP_GAP §6)** — Results > Pin Results to New
   Window. 결과 영역 다중 탭 대신 **스냅샷을 별도 창에 고정** — 그리드 핵심 경로를
   건드리지 않는 저위험 설계. 오프라인 스크린샷 `shot_history.png` · `shot_pin.png`.
+- **다크 모드 (2026-08-04, UI_POLISH P1-1)** — View > Dark Mode 토글 +
+  Options 의 Light/Dark/System. GoldenTheme 을 ThemeDictionaries 로 재구성
+  (브러시 28종 DynamicResource), 에디터 구문 배색·플랜 막대·diff 색까지 테마
+  대응. 기본은 Light(Golden 정체성). ERD·인쇄물은 라이트 고정.
+  스크린샷 하니스 `IAPDM_SHOT_THEME=dark` — 라이트/다크 12종씩 회귀 확인.
 - **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
   SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
   Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·

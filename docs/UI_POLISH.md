@@ -13,12 +13,16 @@
 
 ## P1 — 매일 체감 (다음 사이클)
 
-1. **다크 모드** (가장 크고 가장 체감 큼)
-   - Avalonia FluentTheme `ThemeVariant` 대응. 옵션: Light / Dark / System.
-   - 선행 작업: 하드코딩 색을 DynamicResource 로 —
-     `SqlErrorRenderer`(빨강), Explain 막대(Firebrick/Chocolate/SeaGreen),
-     Schema Diff 트리 색, 자동완성 배지 6색, ERD 주제영역 팔레트, `rows ×N` 배지.
-   - 스크린샷 하니스에 다크 변형 추가 (`IAPDM_SHOT_THEME=dark`).
+1. ~~**다크 모드**~~ ✅ 구현됨 (2026-08-04)
+   - `GoldenTheme.axaml` 을 ThemeDictionaries(Light/Dark)로 재구성, 테마 종속
+     브러시 28종 전부 DynamicResource. View > Dark Mode 토글 + Options 의
+     Light/Dark/System 콤보 (`AppOptions.Theme`, 기본 Light — Golden 정체성).
+   - 코드 색: 에디터 구문 배색(`SqlHighlighting.For(dark)`, 전환 시 전 탭 재적용),
+     Explain 막대·Schema Diff 는 diff 팔레트 공유(`ThemeBrushes.Get`).
+   - 남긴 것(의도): ERD 캔버스·인쇄물은 라이트 고정("종이"), 자동완성 배지·
+     상태 pill 은 자체 배경이 있는 칩이라 그대로. 코드가 만든 트리는 전환 시
+     재실행 때 새 색을 입는다.
+   - 스크린샷 하니스 다크 변형: `IAPDM_SHOT_THEME=dark`.
 2. **긴 작업 로딩 피드백** — 지금은 상태바 텍스트뿐이라 멈춘 것처럼 보인다.
    접속, 카탈로그 적재(Oracle 2.2초), ERD 로드(3.9초), Schema Diff Compare,
    Import 에 **버튼 스피너 또는 프로그레스 바**. Cancel 가능한 것은 Cancel 노출.
