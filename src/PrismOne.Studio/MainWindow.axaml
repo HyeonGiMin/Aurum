@@ -35,6 +35,7 @@
       <MenuItem Header="Script">
         <MenuItem Header="Run Statement" InputGesture="F9" Click="OnMenuExecute"/>
         <MenuItem Header="Run Script" InputGesture="F5" Click="OnMenuRunScript"/>
+        <MenuItem Header="Refresh Results" InputGesture="Shift+F5" Click="OnMenuRefreshResults"/>
         <MenuItem Header="Explain Statement (plan tree)" Click="OnMenuExplain"/>
         <MenuItem Header="Explain Analyze (실제 실행·DML 자동 롤백)" Click="OnMenuExplainAnalyze"/>
         <MenuItem Header="Cancel" Click="OnMenuCancel"/>

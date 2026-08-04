@@ -1333,6 +1333,20 @@ public partial class QueryTabView : UserControl
         PlanTree.IsVisible = false;
     }
 
+    /// <summary>
+    /// 결과 새로고침 — 마지막으로 그리드를 채운 문장을 그대로 다시 실행한다.
+    /// 커서가 어디 있든 같은 결과를 다시 본다는 점이 F9(커서 문장 실행)와 다르다.
+    /// </summary>
+    public async Task RefreshResultsAsync()
+    {
+        if (LastGridSql is not { Length: > 0 } sql)
+        {
+            SetInfo("다시 실행할 결과가 없습니다");
+            return;
+        }
+        await ExecuteStatementsAsync([new SqlStatement(sql, 0, sql.Length)], explain: false);
+    }
+
     public void Cancel() => _cts?.Cancel();
 
     // ---------- 그리드 기능 (Golden: Transpose / Size Columns / Filter) ----------

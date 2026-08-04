@@ -6,8 +6,13 @@ namespace PrismOne.Db.Core;
 /// <summary>앱 옵션 (~/.prismone-studio/options.json). Golden 의 Options 다이얼로그 대응.</summary>
 public sealed class AppOptions
 {
-    /// <summary>초기/추가 fetch 배치 크기 (Golden 기본 100).</summary>
-    public int FetchBatch { get; set; } = 100;
+    /// <summary>
+    /// 점진 fetch 배치 크기. Golden 은 100, DataGrip 은 500 단위로 끊어 보여준다 —
+    /// 왕복이 줄어 스크롤이 덜 끊기므로 500 을 기본으로 쓴다.
+    /// (전부 가져오기가 기본이라 이 값은 <see cref="FetchAllOnExecute"/> 를 껐을 때와
+    /// 상한에 걸린 뒤 이어 받을 때 쓰인다.)
+    /// </summary>
+    public int FetchBatch { get; set; } = 500;
 
     /// <summary>탭별 최대 로드 행수. -1 이면 무제한.</summary>
     public int RecordsetLimit { get; set; } = -1;

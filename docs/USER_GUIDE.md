@@ -58,6 +58,7 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 |---|---|
 | **F9** (또는 Cmd/Ctrl+Enter) | **커서 위치 문장 하나** 실행. 선택 영역이 있으면 선택만 |
 | **F5** (또는 Shift+Enter) | **Run Script — 커서 문장부터 끝까지** 순차 실행 |
+| **Shift+F5** | **Refresh Results** — 지금 그리드를 채운 문장을 **그대로 다시 실행**. 커서 위치와 무관하므로 결과만 새로 고칠 때 씁니다 (Ctrl+F5 는 Golden 키맵의 Commit 이라 비워 둡니다) |
 | ⚡ᴱ | **Explain** — 커서 문장의 실행 계획을 트리로 (실행 안 함) |
 | ⚡ᴬ | **Explain Analyze** — 실제 실행 후 노드별 실측 시간 트리. **DML 은 자동 롤백**되어 안전. 전체 시간의 50%↑ 노드는 빨강, 20%↑ 주황. 노드에 마우스를 올리면 Filter/Index Cond 표시 |
 | 툴바 ⊘ | 실행 취소 (서버에 cancel 전송) |
@@ -79,10 +80,12 @@ select * from prismone.study where study_key = :key and modality = :mod;
 문자열·주석·달러쿼팅 안의 `:`, 타입 캐스트(`::date`)는 변수로 보지 않습니다.
 값은 SQL 에 문자열로 끼워 넣지 않고 **파라미터로 전달**되므로 인젝션 걱정이 없습니다.
 
-## 4. 결과 그리드 — 점진 fetch
+## 4. 결과 그리드 — 전체 fetch + 점진 fetch
 
-- 첫 **100행**이 즉시 표시되고, **스크롤을 내리면 100행씩 이어서** 가져옵니다
-  (상태바 `Fetched 300 records (more)`). 큰 테이블도 LIMIT 없이 바로 조회하세요.
+- **기본은 전부 가져오기**입니다(최대 5만 행). 로드된 행 수가 곧 전체 건수라 스크롤바가 정확합니다.
+- Options 에서 전체 fetch 를 끄거나 5만 행 상한에 걸리면 **점진 fetch(무한 스크롤)** 로 넘어갑니다 —
+  **500행씩** 이어서 가져옵니다 (상태바 `Fetched 1500 records (more)`). DataGrip 과 같은 단위입니다.
+  큰 테이블도 LIMIT 없이 바로 조회하세요.
 - **Ctrl+End** = 끝까지 전부 fetch.
 - 셀 값이 아주 크면(예: dcmdataset 의 JSONB) 표시는 500자에서 잘리고
   `… (+N chars)` 로 표기됩니다.
@@ -102,7 +105,7 @@ select * from prismone.study where study_key = :key and modality = :mod;
 | **Clear Results** | 결과 영역만 비움 (에디터·로그는 유지) |
 | **컬럼 정렬** | 컬럼 헤더 클릭. 숫자로 읽히는 값은 숫자 크기순(문자열순이 아님), NULL 은 맨 앞. **이미 fetch 된 행만** 정렬됩니다(점진 fetch). Transpose·편집 모드에서는 꺼집니다 |
 | **맨 왼쪽 `#`** | 화면 순서 순번 — 정렬해도 항상 1, 2, 3… 입니다(정렬 대상 아님) |
-| **실행 즉시 전체 fetch** | **기본 켜짐.** 결과를 끝까지 가져와 **로드된 행 수 = 전체**가 되고 **스크롤바가 정확**해집니다(Golden 의 원래 동작). 무제한으로 두어도 **5만 행에서 자동으로 멈춥니다** — 운영 DB 사고 방지용 안전 상한이고, 걸리면 상태바에 `(limit reached)` 가 뜹니다. 그 뒤는 스크롤이나 `Ctrl+End` 로 이어 가져옵니다. 끄면 100행씩 점진 fetch(무한 스크롤) |
+| **실행 즉시 전체 fetch** | **기본 켜짐.** 결과를 끝까지 가져와 **로드된 행 수 = 전체**가 되고 **스크롤바가 정확**해집니다(Golden 의 원래 동작). 무제한으로 두어도 **5만 행에서 자동으로 멈춥니다** — 운영 DB 사고 방지용 안전 상한이고, 걸리면 상태바에 `(limit reached)` 가 뜹니다. 그 뒤는 스크롤이나 `Ctrl+End` 로 이어 가져옵니다. 끄면 500행씩 점진 fetch(무한 스크롤) |
 | **전체 레코드 수** | Options 의 *전체 레코드 수 조회* — 점진 fetch 로 둘 때만 씁니다. SELECT 실행 후 `COUNT(*)` 를 따로 돌려 상태바에 `Fetched 2,000 of 12,345 records` 로 보여줍니다. **기본은 꺼짐**. 세는 동안 결과 표시는 막히지 않고(별도 접속), 실패하면 조용히 건너뜁니다 |
 | **Goto Record Number…** (Ctrl+G) | 행 번호로 이동·선택 |
 | **Cell Details…** (Ctrl+F11) | 선택 셀을 별도 창으로 (더블클릭과 동일, jsonb pretty-print) |
@@ -319,6 +322,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 |---|---|---|---|---|
 | Ctrl+L / Ctrl+J | 로그온 | | F9 / F7 / Ctrl+Enter | 문장 실행 |
 | F5 / F6 / Shift+Enter | 스크립트 실행 (커서부터) | | Ctrl+End | 전체 fetch |
+| **Shift+F5** | **결과 새로고침 (재실행)** | | | |
 | **Ctrl+E** / F11 | **Run and Edit (편집 모드)** | | Ctrl+Shift+S | Submit Edits |
 | **Ctrl+F5** | **Commit** | | **Ctrl+F6** | **Rollback** |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F / Ctrl+H | 찾기 / 바꾸기 |

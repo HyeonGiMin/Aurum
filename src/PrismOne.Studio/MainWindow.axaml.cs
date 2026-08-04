@@ -502,6 +502,13 @@ public partial class MainWindow : Window
             e.Handled = true;
             _ = ActiveView?.ExecuteAtCaretAsync();
         }
+        else if (e.Key == Key.F5 && shift)
+        {
+            // 결과 새로고침 — 마지막 결과 문장을 그대로 다시 실행.
+            // Ctrl+F5 는 Golden 키맵에서 Commit 이라 Shift+F5 로 뺐다.
+            e.Handled = true;
+            _ = ActiveView?.RefreshResultsAsync();
+        }
         else if (e.Key == Key.F5 || e.Key == Key.F6 || (e.Key == Key.Enter && shift))
         {
             // Golden: F5/Shift+Enter = Run Script, F6 = Run Script From Cursor —
@@ -665,6 +672,12 @@ public partial class MainWindow : Window
     {
         if (ActiveView is { } view)
             await view.RunScriptAsync();
+    }
+
+    private async void OnMenuRefreshResults(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view)
+            await view.RefreshResultsAsync();
     }
 
     private async void OnMenuExplain(object? sender, RoutedEventArgs e)
