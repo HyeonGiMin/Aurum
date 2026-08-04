@@ -1,34 +1,99 @@
 # Aurum
 
-**Au(금, 79)** — Oracle 시절 쓰던 Benthic **Golden** 의 후계자. PostgreSQL용 데스크톱
-쿼리 툴로, Golden 의 UI·동작(공유 세션·점진 fetch·EditMode·Favorites…)을 재현하고
-PG 고유 기능(EXPLAIN 트리·COPY export·RAISE NOTICE 수신)을 얹었다. .NET 10 + Avalonia 12
-(Windows·macOS·Linux).
+**Au(금, 79)** — Oracle 시절 쓰던 Benthic **Golden** 의 후계자.
+**PostgreSQL · Oracle · SQLite** 를 지원하는 데스크톱 DB 쿼리 툴로, Golden 의
+가벼움·키맵·세션 모델을 그대로 유지하면서 DataGrip 의 "스키마를 아는" 기능
+(introspection 캐시 · SQL 검증 · Explain Plan 시각화 · ERD · Schema Diff)을 얹었다.
+.NET 10 + Avalonia 12 (Windows · macOS · Linux), 외부 라이브러리 최소.
 
-원래 [iap-database](https://github.com/inftai111/iap-database) repo 의 `tools/` 로 시작했고,
-2026-08 에 별도 repo 로 분리했다 (히스토리 보존). **DB 초기 설치·패치 CLI(`iapdb`)는
-iap-database 쪽에 남아 있다** — 설계 원칙: 초기화·패치는 배포 키트(iapdb + sql/ + patches/)의
-몫이고, Aurum 은 스키마 버전에 종속되지 않는 조회·관리 도구다.
+| 라이트 (기본, Golden 배색) | 다크 |
+|---|---|
+| ![main light](docs/img/main-light.png) | ![main dark](docs/img/main-dark.png) |
 
-- **사용법: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)** · **진행 상황: [docs/STATUS.md](docs/STATUS.md)**
-- Golden 동작 명세: [docs/GOLDEN_BEHAVIOR.md](docs/GOLDEN_BEHAVIOR.md) · 초기 파리티 계획: [docs/STUDIO_PLAN.md](docs/STUDIO_PLAN.md)
-- PostgreSQL·pgAdmin 기능 분석: [docs/PG_FEATURES.md](docs/PG_FEATURES.md)
+## 주요 기능
 
-주요 키: **Ctrl+L** 로그온 · **F9** 문장 실행 · **F5/Shift+Enter** 스크립트 실행(커서부터 끝까지) ·
-**Ctrl+End** 전체 fetch · **F8** Object Browser · **F11** Run and Edit · **Ctrl+T/W** 탭 열기/닫기.
-저장된 접속의 비밀번호는 AES-256-GCM 으로 암호화되어 `~/.prismone-studio/` 에 보관됩니다.
+**쿼리 실행 (Golden 파리티 완료)**
+- **F9** 커서 문장 실행 · **F5/Shift+Enter** 스크립트(커서부터 끝까지) · Cancel
+- 공유 세션 모델 + 전용 세션 탭(Ctrl+Shift+T), 수동 커밋 기본(Ctrl+F5/F6),
+  Tx Isolation 툴바
+- 실행 즉시 전체 fetch(5만 행 안전 상한) 또는 점진 fetch — 결과는
+  DataGrid / Text / Log 3종 보기(F12), 결과 스냅샷을 새 창에 고정(Pin)
+- **Run and Edit(F11)** — 그리드에서 셀 수정·행 추가·삭제 → 한 트랜잭션 Submit
+- 내보내기: CSV(COPY) · TSV · INSERT · **xlsx**(외부 라이브러리 없이 10만 행 ≈ 0.2초)
+- **CSV/TSV Import** — 헤더 매핑, 전량 성공 아니면 전량 롤백
+- Favorites(앱 내 쿼리 저장) · **Query History 조회 창**(시각·검색) · 워크스페이스
+
+**스키마를 아는 에디터**
+- 자동완성(테이블·컬럼·별칭 해석, 3개 DB 공통) — introspection 캐시로 접속 왕복 없음
+- **SQL 검증** — 없는 테이블/컬럼에 빨간 물결 밑줄 + 툴팁 (실행 전에 오타를 잡는다)
+- **Explain Plan 시각화** — 노드별 self 비용 막대·%·행수 예측 오차 배지 (PG)
+
+![explain plan](docs/img/explain-plan.png)
+
+**스키마 도구 (읽기 전용 — DDL 을 만들지 않는다)**
+- **ERD** (Tools > Diagram) — FK 관계·카디널리티 추론, Focus(선택+N홉), PNG 저장
+- **Schema Diff** — 표준 스키마 스냅샷(JSON)과 현재 접속을 비교. 패치 누락·드리프트 탐지
+- Object Browser(F8) · describe(Ctrl+D) · Session Monitor · 스키마 버전 pill
+
+![erd](docs/img/erd.png)
+
+**UI**
+- 라이트(기본, Golden 배색) / 다크 / 시스템 테마 — **View > Dark Mode** 로 즉시 전환
+- 창 위치·크기 기억, 긴 작업 진행 표시, 모든 다이얼로그 Esc 닫기
+
+전체 사용법은 **[docs/USER_GUIDE.md](docs/USER_GUIDE.md)** 참조.
+
+## 빠른 시작
+
+1. **실행** — 배포본(`Aurum.app` / `Aurum.exe`)을 실행하면 로그온 창이 뜬다.
+2. **접속** — Type(PostgreSQL/Oracle/SQLite) 선택, `host[:port]/database` + 계정 입력.
+   접속 정보는 AES-256-GCM 으로 암호화되어 `~/.prismone-studio/` 에 저장된다.
+3. **실행** — 에디터에 SQL 을 쓰고 **F9**. 자동완성은 `.` 입력 또는 Ctrl+Space.
+4. 이후는 키맵이 곧 사용법이다:
+
+| 키 | 동작 |
+|---|---|
+| Ctrl+L | 로그온 (Login List) |
+| F9 / F5 | 문장 실행 / 스크립트 실행 |
+| Ctrl+F5 / Ctrl+F6 | Commit / Rollback |
+| F8 | Object Browser |
+| Ctrl+D | 커서 위치 테이블 describe |
+| F11 | Run and Edit (그리드 편집) |
+| F12 | 결과 보기 전환 (Grid/Text/Log) |
+| Ctrl+End | 끝까지 fetch |
+| Ctrl+↑/↓ | 히스토리 순환 (조회 창은 Tools > Query History) |
+| Ctrl+Shift+F | 즐겨찾기 추가 |
+| Ctrl+O / Ctrl+S | SQL 파일 열기 / 저장 |
+
+## 위치
+
+원래 [iap-database](https://github.com/inftai111/iap-database) repo 의 `tools/` 로
+시작했고 2026-08 에 분리했다. **DB 초기 설치·패치 CLI(`iapdb`)는 iap-database 에
+남아 있다** — 설계 원칙: 초기화·패치는 배포 키트(iapdb + sql/ + patches/)의 몫이고,
+Aurum 은 스키마 버전에 종속되지 않는 조회·관리 도구다. 그래서 Aurum 의 스키마
+도구는 전부 읽기 전용이며 동기화 DDL 을 생성하지 않는다.
 
 ## 구조
 
 ```
 Aurum.sln
 src/
-  PrismOne.Db.Core/    # 쿼리 세션 · 그리드 편집 · export(xlsx 포함) · 히스토리/즐겨찾기 · 스키마 카탈로그
+  PrismOne.Db.Core/    # 드라이버 중립 코어: 세션·fetch·편집·export/import·카탈로그·diff·검증 (테스트 281개)
   PrismOne.Studio/     # GUI (제품명 Aurum) — 네임스페이스는 역사적 이유로 PrismOne.Studio 유지
 tests/
   PrismOne.Db.Core.Tests/
 packaging/             # macOS .app · Windows 단일 exe
+docs/                  # 사용법·설계 문서 (아래 문서 지도)
 ```
+
+| 문서 | 내용 |
+|---|---|
+| [USER_GUIDE.md](docs/USER_GUIDE.md) | **사용법 전체** |
+| [STATUS.md](docs/STATUS.md) | 진행 상황 · 다음 작업 (인수인계용) |
+| [TOOL_COMPARISON.md](docs/TOOL_COMPARISON.md) | Golden vs DataGrip — 무엇을 취하고 버렸나 |
+| [DATAGRIP_GAP.md](docs/DATAGRIP_GAP.md) | DataGrip 대비 갭과 구현 기록 |
+| [MULTI_DB_PLAN.md](docs/MULTI_DB_PLAN.md) | 멀티 DB 계획 (PG/Oracle/SQLite/MongoDB) |
+| [UI_POLISH.md](docs/UI_POLISH.md) | UI 로드맵 (P1 완료 · P2 진행 예정) |
 
 ## 빌드 · 배포
 
@@ -47,7 +112,7 @@ sh packaging/macos/make-app.sh          # → dist/Aurum.app
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
-# → dist/Aurum/Aurum.exe (self-contained 단일 exe)
+# → dist/Aurum/Aurum.exe (self-contained 단일 exe, 약 48MB)
 ```
 
 > `packaging/windows/*.ps1` 은 **UTF-8 BOM** 으로 저장한다. PowerShell 5.1 은 BOM 없는
@@ -55,8 +120,11 @@ powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
 
 ## 자가 검증 (스크린샷 하니스)
 
+화면 회귀는 사람 눈이 아니라 스크린샷으로 잡는다:
+
 ```bash
-IAPDM_SHOT_DIR=/tmp/shots dotnet run --project src/PrismOne.Studio   # 샘플 데이터 UI 캡처
+IAPDM_SHOT_DIR=/tmp/shots dotnet run --project src/PrismOne.Studio   # 샘플 데이터 12종 캡처
+IAPDM_SHOT_THEME=dark ...                                            # 다크 테마 변형
 # IAPDM_SHOT_CONN="host[:port]/db|user|pass" 를 주면 실접속 재현 (+IAPDM_SHOT_RAE=1 은 편집 검증)
 # 앱 아이콘 재생성: IAPDM_RENDER_ICON=<png경로>
 ```
