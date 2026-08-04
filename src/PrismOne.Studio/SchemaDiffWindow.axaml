@@ -1,0 +1,29 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.SchemaDiffWindow"
+        Title="Schema Diff - Aurum"
+        Width="860" Height="640"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <Grid Margin="14" RowDefinitions="Auto,Auto,*,Auto">
+
+    <!-- 기준 선택: 스냅샷 파일 또는 저장된 접속 -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,0,0,8">
+      <TextBlock Grid.Column="0" Text="기준(표준):" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <ComboBox Grid.Column="1" Name="BaselineCombo" MinHeight="30" FontSize="13"
+                HorizontalAlignment="Stretch" SelectionChanged="OnBaselineChanged"/>
+      <Button Grid.Column="2" Name="CompareButton" Content="Compare" MinHeight="30" Margin="8,0,0,0"
+              Click="OnCompare" IsEnabled="False"/>
+      <Button Grid.Column="3" Name="SnapshotButton" Content="Save Snapshot…" MinHeight="30" Margin="8,0,0,0"
+              Click="OnSaveSnapshot"/>
+    </Grid>
+
+    <TextBlock Grid.Row="1" Name="DirectionText" FontSize="12" Opacity="0.7" Margin="0,0,0,6"
+               Text="기준을 고르면 현재 접속과 비교합니다. 빠짐 = 기준에는 있는데 현재 접속에 없음."/>
+
+    <TreeView Grid.Row="2" Name="ResultTree" FontSize="12.5"/>
+
+    <TextBlock Grid.Row="3" Name="StatusText" FontSize="12" Opacity="0.85" Margin="0,8,0,0"
+               Text="읽기 전용 비교입니다 — DDL 을 만들거나 실행하지 않습니다."/>
+  </Grid>
+</Window>

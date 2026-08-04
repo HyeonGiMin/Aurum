@@ -6,7 +6,8 @@ public sealed record ErdColumn(string Name, string Type, bool NotNull, bool IsPk
 /// <summary>ERD 박스 하나 = 테이블/뷰. DB 중립 (PG 의 schema = Oracle 의 owner).</summary>
 public sealed record ErdTable(string Schema, string Name, bool IsView, IReadOnlyList<ErdColumn> Columns)
 {
-    /// <summary>그래프 안에서 테이블을 식별하는 키.</summary>
+    /// <summary>그래프 안에서 테이블을 식별하는 키. (계산 값 — 스냅샷 JSON 에서 제외)</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public string Key => $"{Schema}.{Name}";
 }
 
@@ -24,9 +25,11 @@ public sealed record ErdRelation(
     bool ChildUnique,
     bool ChildOptional)
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public bool IsSelfReference => ChildKey == ParentKey;
 
     /// <summary>툴팁용: child(a, b) → parent(x, y)</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
     public string Describe =>
         $"{ChildKey}({string.Join(", ", ChildColumns)}) → {ParentKey}({string.Join(", ", ParentColumns)})";
 }

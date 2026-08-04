@@ -84,7 +84,7 @@
 | DataGrip | 멀티 DB | 계획 수립됨 (MULTI_DB_PLAN.md) |
 | DataGrip | SQL 검증(없는 테이블/컬럼) | ✅ 구현됨 (2026-08-04, 물결 밑줄+툴팁) |
 | DataGrip | Explain Plan 시각화 | ✅ 구현됨 (2026-08-04, self 막대·행수 오차 배지) |
-| DataGrip | 스키마 **읽기 전용 diff** | 빈도는 낮지만 싸다 (ERD 카탈로그 재사용) |
+| DataGrip | 스키마 **읽기 전용 diff** | ✅ 구현됨 (2026-08-04, Tools > Schema Diff) |
 
 ### 취하지 않는다 (의도적)
 

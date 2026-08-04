@@ -83,6 +83,11 @@
   `rows ×N` 배지. 누적치가 아니라 자식 몫을 뺀 self 로 강조한다(이전엔 루트가
   항상 빨갰다). `PlanParser` 에 수치 필드·self 계산 추가 (테스트 6개),
   오프라인 스크린샷 `shot_plan.png`.
+- **Schema Diff (2026-08-04, DATAGRIP_GAP §3a)** — Tools > Schema Diff, 읽기 전용.
+  표준 사이트에서 스냅샷(JSON)을 떠 두고 각 사이트에서 현재 접속과 비교하는 흐름.
+  `Core/SchemaDiff` + `SchemaSnapshotFile`(테스트 10개) + `SchemaDiffWindow`.
+  FK 는 제약 이름이 아니라 연결로 비교, 대소문자 무시(Oracle↔PG). DDL 은 만들지
+  않는다 — iapdb 원칙 유지. 오프라인 스크린샷 `shot_diff.png`.
 - **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
   SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
   Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·
@@ -194,7 +199,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
-- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 250개)
+- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 260개)
 - **실접속 검증 현황** (2026-08-03, 사내 개발 DB 접속 가능한 환경에서 확인):
   1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
      Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,

@@ -91,6 +91,7 @@
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
         <MenuItem Header="SQL Builder…" Click="OnMenuSqlBuilder"/>
         <MenuItem Header="Diagram (ERD)…" Click="OnMenuErd"/>
+        <MenuItem Header="Schema Diff…" Click="OnMenuSchemaDiff"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>

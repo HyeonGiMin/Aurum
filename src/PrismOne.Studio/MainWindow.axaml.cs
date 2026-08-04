@@ -319,6 +319,7 @@ public partial class MainWindow : Window
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
             Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
             Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
+            Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -1071,6 +1072,15 @@ public partial class MainWindow : Window
             new SessionMonitorWindow(profile).Show(this);
         else
             StatusLabel.Text = "Session Monitor 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+    }
+
+    /// <summary>Tools > Schema Diff — 읽기 전용 비교 (기준 스냅샷/접속 ↔ 현재 접속).</summary>
+    private void OnMenuSchemaDiff(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile)
+            new SchemaDiffWindow(profile).Show(this);
+        else
+            StatusLabel.Text = "Schema Diff 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
     }
 
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
@@ -1876,6 +1886,38 @@ public partial class MainWindow : Window
             view.BindPlanTree(samplePlan!, analyze: true);
             await Task.Delay(500);
             SaveShot(this, System.IO.Path.Combine(dir, "shot_plan.png"));
+
+            // Schema Diff — 합성 기준/대상 그래프로 렌더 확인 (접속 없이)
+            var diffBaseline = new ErdGraph(
+                [
+                    new ErdTable("prismone", "study", false,
+                    [
+                        new ErdColumn("study_key", "bigint", true, true, false),
+                        new ErdColumn("study_dttm", "timestamp", false, false, false),
+                        new ErdColumn("audit_yn", "char(1)", true, false, false),
+                    ]),
+                    new ErdTable("prismone", "study_note", false,
+                        [new ErdColumn("note_key", "bigint", true, true, false)]),
+                ],
+                [new ErdRelation("fk_note_study", "prismone.study_note", ["study_key"],
+                    "prismone.study", ["study_key"], false, false)]);
+            var diffTarget = new ErdGraph(
+                [
+                    new ErdTable("prismone", "study", false,
+                    [
+                        new ErdColumn("study_key", "bigint", true, true, false),
+                        new ErdColumn("study_dttm", "timestamptz", true, false, false),
+                    ]),
+                    new ErdTable("prismone", "scratch_tmp", false,
+                        [new ErdColumn("id", "integer", false, false, false)]),
+                ],
+                []);
+            var diffWin = new SchemaDiffWindow();
+            diffWin.Show(this);
+            diffWin.BindResult(SchemaDiff.Compare(diffBaseline, diffTarget));
+            await Task.Delay(500);
+            SaveShot(diffWin, System.IO.Path.Combine(dir, "shot_diff.png"));
+            diffWin.Close();
 
             var dialog = new ConnectDialog();
             dialog.Show(this);
