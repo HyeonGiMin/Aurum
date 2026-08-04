@@ -10,9 +10,14 @@
 > - 1단계 **SQLite — 카탈로그까지 완료.** `SqliteErdCatalog` 가 sqlite_master +
 >   PRAGMA 로 테이블·컬럼·FK·UNIQUE 를 읽는다. **임시 파일 DB 로 실제 검증**
 >   (`SqliteProviderTests` 15개)
-> - 2단계 **Oracle — 코드 완료, 실접속 미검증.** `OracleProvider`(ROWID·대문자 인용·
->   RC/Serializable 만) + `OracleErdCatalog`(all_tables/all_tab_columns/all_constraints).
->   **인스턴스가 없어 카탈로그 쿼리를 돌려보지 못했다** — 서버 확보가 선행 과제
+> - 2단계 **Oracle — 카탈로그 실접속 검증 완료 (2026-08-04).** `OracleProvider`
+>   (ROWID·대문자 인용·RC/Serializable 만) + `OracleErdCatalog`.
+>   **Oracle 19.3 에서 PRISMONE 스키마 테이블 517개·관계 293개**를 읽고
+>   ErdLayout 까지 통과. 자동 테스트는 서버가 필요해 아직 없다
+>   (`OracleProviderTests` 는 서버 없이 도는 항목만 검증)
+> - **발견된 문제**: 517개 테이블이면 다이어그램이 2834×11520 이 된다. FK 로 안 이어진
+>   단독 테이블이 많아 주제영역이 340개까지 늘어난다. Focus 로 좁히면 되지만
+>   전체 보기는 사실상 못 읽는다 — 대형 스키마 배치 개선이 필요하다
 > - **남은 것**: 로그온 창의 DB 종류 선택, `QuerySession`/`QueryExecutor` 의
 >   `DbConnection` 마이그레이션(아직 Npgsql 고정), Capabilities 를 UI 비활성화에 연결,
 >   Oracle AS SYSDBA·Read Only 처리

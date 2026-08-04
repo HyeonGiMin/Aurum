@@ -6,9 +6,10 @@ namespace PrismOne.Db.Core.Providers;
 /// <summary>
 /// Oracle ERD 카탈로그. 읽기 전용 (all_* 데이터 딕셔너리).
 ///
-/// **실접속 검증 안 됨** — Oracle 인스턴스가 없어 아래 쿼리는 컴파일과 코드 리뷰까지만
-/// 확인했다. 서버가 확보되면 SqliteProviderTests 처럼 실제 스키마로 검증할 것
-/// (MULTI_DB_PLAN.md 2단계).
+/// **실접속 검증됨 (2026-08-04)** — Oracle 19.3 인스턴스의 PRISMONE 스키마에서
+/// 테이블 517개·관계 293개를 읽고 ErdLayout 까지 통과하는 것을 확인했다.
+/// 자동 테스트는 아직 없다(서버가 필요) — OracleProviderTests 는 서버 없이 도는
+/// 항목만 본다.
 ///
 /// 스키마 이름은 문자열 연결이 아니라 번호 붙은 바인드 변수로 넘긴다.
 /// </summary>
