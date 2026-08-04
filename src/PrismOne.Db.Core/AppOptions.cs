@@ -39,10 +39,19 @@ public sealed class AppOptions
     /// 옵션으로 추가된 것이고, 체크하지 않으면 전부 가져오는 게 원래 방식이다).
     ///
     /// 켜면 로드된 행 수가 곧 전체 건수라 **스크롤바가 정확**해지고 COUNT(*) 도 필요 없다.
-    /// **기본은 끔** — 운영 DB 에서 수백만 행을 통째로 끌어오면 곤란하다.
-    /// <see cref="RecordsetLimit"/> 을 함께 걸어 상한을 두는 것을 권한다.
+    ///
+    /// **기본은 켬.** 대신 <see cref="RecordsetLimit"/> 이 무제한이어도
+    /// <see cref="FetchAllSafetyCap"/> 까지만 가져온다 — 운영 DB 에서 수백만 행을
+    /// 통째로 끌어오는 사고를 막기 위해서다. 상한에 걸리면 상태바가 알리고,
+    /// 그 뒤는 스크롤·Ctrl+End 로 이어 가져온다.
     /// </summary>
-    public bool FetchAllOnExecute { get; set; }
+    public bool FetchAllOnExecute { get; set; } = true;
+
+    /// <summary>
+    /// 풀 fetch 인데 RecordsetLimit 이 무제한일 때 적용하는 안전 상한.
+    /// 옵션이 아니라 코드 상수다 — 예전 options.json 에 -1 이 저장돼 있어도 보호된다.
+    /// </summary>
+    public const int FetchAllSafetyCap = 50_000;
 
     /// <summary>DataGrip 의 Tx Isolation — 새 세션에 걸 격리 수준. 기본은 DB 설정을 따른다.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter<TransactionIsolation>))]

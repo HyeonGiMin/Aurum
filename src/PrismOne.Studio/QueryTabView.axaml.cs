@@ -1720,9 +1720,10 @@ public partial class QueryTabView : UserControl
         try
         {
             var want = FetchBatch;
-            if (Options.RecordsetLimit > 0)
+            var limit = EffectiveRowLimit;
+            if (limit > 0)
             {
-                var remain = Options.RecordsetLimit - _rows.Count;
+                var remain = limit - _rows.Count;
                 if (remain <= 0)
                 {
                     SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records (limit reached)", InfoTime);
@@ -1771,6 +1772,16 @@ public partial class QueryTabView : UserControl
     /// 상한에 걸리면 FetchMoreAsync 는 아무 행도 넣지 않고 돌아오지만 Completed 는
     /// 여전히 false 다 — 진행이 없으면 빠져나와야 무한 루프가 되지 않는다.
     /// </summary>
+    /// <summary>
+    /// 실제로 적용할 행 상한. 사용자가 무제한으로 뒀더라도 **풀 fetch 일 때는**
+    /// 안전 상한을 건다 — 운영 DB 에서 수백만 행을 통째로 끌어오면 곤란하다.
+    /// 0 이하면 무제한.
+    /// </summary>
+    private int EffectiveRowLimit =>
+        Options.RecordsetLimit > 0 ? Options.RecordsetLimit
+        : Options.FetchAllOnExecute ? AppOptions.FetchAllSafetyCap
+        : 0;
+
     private async Task FetchUntilDoneAsync()
     {
         while (_current is { Completed: false } && _cts is { IsCancellationRequested: false })
