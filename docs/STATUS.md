@@ -73,6 +73,35 @@
 
 **남은 Golden 기능**: 없음 — Golden 파리티 완료.
 
+## 1.6 ERD 뷰어 (2026-08-04, MVP)
+
+Golden 에는 없던 기능. SQL Developer 의 relational model 대응으로 **Tools > Diagram (ERD)**
+창을 추가했다. 읽기 전용이며 DDL 을 만들지 않는다.
+
+구조 — PG 종속을 더 굳히지 않으려고 카탈로그만 먼저 provider 로 분리했다(§1.5 방향):
+
+| 파일 | 역할 |
+|---|---|
+| `Core/ErdModel.cs` | DB 중립 모델(`ErdTable`/`ErdRelation`/`ErdGraph`) + `Focus(N홉)`·`Filter` |
+| `Core/ErdCatalog.cs` | `IErdCatalog` 경계 + `PgErdCatalog`(pg_class/pg_constraint 읽기 전용) |
+| `Core/ErdLayout.cs` | 순수 레이아웃 — 연결요소 → 참조깊이 레이어 → 바리센터 정렬 → 패킹 → 직교 라우팅 |
+| `Studio/ErdCanvas.cs` | `DrawingContext` 직접 렌더 (줌은 좌표 배율 — 글자가 뭉개지지 않게) |
+| `Studio/ErdWindow.axaml(.cs)` | 창 — Schema/Filter/Focus·Depth/Columns, 줌·팬·Fit, Save PNG |
+
+- 카디널리티는 조회가 아니라 **추론**이다: 자식 FK 컬럼 집합이 자식 쪽 PK/UNIQUE 로 덮이면
+  1:1, 아니면 1:N. 자식 컬럼에 nullable 이 있으면 0..N(빈 원)
+- 전체 스키마는 한 화면에 못 읽으므로 **Focus(선택 + N홉)가 기본 시야**. 테이블 수가 많으면
+  상태바가 좁히라고 알린다
+- 레이아웃이 UI 와 분리돼 있어 단위 테스트가 붙는다 (`ErdLayoutTests` 18개 — 겹침 없음·
+  부모가 위·결정성·순환/자기참조 종료·Focus/Filter 경계)
+- 접속 없이 렌더를 확인할 수 있게 오프라인 스크린샷 하니스에 `shot_erd.png` 를 추가했다
+  (`MainWindow.SampleErdGraph()` 의 합성 스키마)
+
+**남은 것 (미착수)**: 배치 수동 드래그·저장, 테이블 더블클릭 → describe/SELECT 연동,
+SVG 내보내기·인쇄, 선택 영역 DDL 생성, `OracleErdCatalog`(Oracle 접속 지원이 선행 과제).
+**실접속 검증은 아직 안 했다** — 개발 DB 에 FK 제약이 실제로 걸려 있는지부터 확인할 것
+(`pg_constraint contype='f'` 건수). FK 가 없으면 관계선 없이 박스만 나온다.
+
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
 
 Golden 파리티가 끝나면 다음 단계는 **DataGrip 처럼 쓰이는 DB 툴**로 넓히는 것.

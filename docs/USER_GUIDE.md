@@ -81,7 +81,26 @@ select * from prismone.study where study_key = :key and modality = :mod;
 |---|---|
 | **Transpose** (Ctrl+Shift+X) | 행/열 전치 — 컬럼이 많은 한 행을 세로로 읽을 때. 다시 누르면 원래대로 |
 | **Size All Columns to Fit** | 모든 컬럼 폭을 내용에 맞춤 |
-| **Filter Like Selected Cell** | 선택 셀 값으로 `WHERE` 절을 만들어 에디터 끝에 주석으로 덧붙임 |
+| **Filter Records Like Selected Cell** | 선택 셀과 **같은 값의 행만 그리드에 남김** (Golden 동작). 편집 모드·Transpose 중에는 막힙니다 |
+| **Clear Filter** | 필터를 풀고 원래 행 전체로 되돌림 |
+| **Append Filter Clause to Editor** | 선택 셀 값으로 `WHERE` 절을 만들어 에디터 끝에 주석으로 덧붙임 |
+| **Clear Results** | 결과 영역만 비움 (에디터·로그는 유지) |
+| **Goto Record Number…** (Ctrl+G) | 행 번호로 이동·선택 |
+| **Cell Details…** (Ctrl+F11) | 선택 셀을 별도 창으로 (더블클릭과 동일, jsonb pretty-print) |
+
+### 결과 보기 전환 — `Show: DataGrid ▾` (툴바)
+
+Golden 과 같은 드롭다운입니다. **탭마다 따로** 기억하며, 탭을 옮기면 버튼 라벨이 그 탭 상태로 바뀝니다.
+**F12** 로 `DataGrid → Text → Log` 순환합니다 (Golden 6 View 메뉴의 *Toggle DataGrid/Text View/Log View*).
+
+| 보기 | 내용 |
+|---|---|
+| **Show DataGrid** | 기본 — 편집·정렬·내보내기가 되는 그리드 |
+| **Show Text** | 로드된 행을 **고정폭으로 정렬한 텍스트**(SQL\*Plus 식). 그대로 복사해 메일·이슈에 붙이기 좋습니다. NULL 은 `(null)`, 너무 긴 값은 `…` 로 잘립니다 |
+| **Show Log** | 이 탭에서 실행한 문장 기록 — `[14:23:05] select * from prismone.study — 8 row(s), 0.062s`. 오류·취소도 남습니다 |
+
+Text/Log 는 그리드 위에 덮어 표시되며, **오류 메시지는 어느 보기에서든 그대로 우선 표시**됩니다.
+로그는 메모리에만 쌓이고 파일로 저장하지 않습니다(탭을 닫으면 사라집니다).
 
 ## 4.5 Run and Edit — 그리드에서 직접 고치기 (Golden EditMode)
 
@@ -198,7 +217,37 @@ PG 함수가 `RAISE NOTICE/WARNING` 을 내면 결과 아래 **Messages pane** �
 - **Insert into Editor** 를 누르면 에디터 커서 위치에 삽입됩니다. **실행은 하지 않습니다** —
   확인한 뒤 F9 로 직접 실행하세요.
 
-## 9.5 Session Monitor (Tools 메뉴)
+## 9.5 Diagram / ERD (Tools 메뉴)
+
+**Tools > Diagram (ERD)…** — 스키마의 FK 관계를 그림으로 봅니다 (SQL Developer 의
+relational model 대응). **읽기 전용**이라 DDL 을 만들거나 바꾸지 않습니다.
+
+- Object Browser 에서 테이블을 고른 상태로 열면 그 테이블이 **Focus** 로 잡힙니다.
+- **Focus + Depth** — 선택 테이블에서 몇 홉 안의 이웃까지 볼지 정합니다(기본 1).
+  스키마 전체는 한 화면에 읽기 어려우므로 이게 기본 시야입니다.
+  체크를 풀면 스키마 전체가 나옵니다.
+- **Filter** — 이름 부분 일치로 테이블을 걸러냅니다. 걸린 테이블끼리의 관계만 남습니다.
+- **Columns** — `Keys only`(PK/FK 만) / `All`(전체 컬럼). 키가 하나도 없는 테이블은
+  앞쪽 컬럼 몇 개를 대신 보여줍니다.
+- 관계선 표기: 자식(FK) 쪽 **까마귀발**이 1:N, 눈금 하나면 1:1(FK 컬럼이 PK/UNIQUE 로
+  덮이는 경우), 앞의 **빈 원**은 FK 컬럼이 nullable 이라는 뜻(0..N). 부모(PK) 쪽은 항상 눈금.
+  뷰는 헤더 색이 다르고, 자기참조는 박스 오른쪽 고리로 그립니다.
+- **Group** — 주제영역(Subject Area)을 나누는 기준. `관계`(FK 로 이어진 덩어리 · 기본) /
+  `이름 접두어`(`ihp_request_…` 같은 명명 규칙) / `묶지 않음`. 영역마다 색이 붙고 테두리에
+  이름과 테이블 수가 표시되며, 테이블 박스도 그 색으로 칠해집니다 —
+  SQL Developer Data Modeler 의 subject area 와 같은 방식입니다.
+  왼쪽 **범례**에 영역 목록이 나옵니다(툴바의 `범례` 체크로 접기).
+- 조작: 테이블 **클릭**하면 강조 + 상태바에 컬럼 수·FK 수, **더블클릭**하면 그 테이블로
+  Focus 이동. 빈 곳을 **드래그**하면 이동(팬), **Ctrl+휠** 로 확대/축소(커서 아래 지점 고정),
+  Shift+휠 가로 이동, 그냥 휠은 세로 스크롤. **Fit** 으로 창에 맞춤.
+  단축키: `+` `−` 줌 · `0` Fit · `1` 원래 크기 · `F5` 새로고침 · `Esc` 선택 해제.
+- **Save PNG…** — 화면 줌과 무관하게 100% 크기로 이미지를 저장합니다.
+- FK 제약이 걸려 있지 않은 스키마는 관계선이 나오지 않습니다 — 상태바가 알려줍니다.
+  (논리적으로만 연결하고 FK 를 안 거는 스키마가 있습니다)
+- 현재는 **PostgreSQL 만** 지원합니다. Oracle 은 접속 지원이 들어오면 같은 창에서 동작하도록
+  카탈로그 계층(`IErdCatalog`)을 분리해 두었습니다.
+
+## 9.6 Session Monitor (Tools 메뉴)
 
 **Tools > Session Monitor** — 현재 DB 의 접속 세션(pg_stat_activity)을 보여줍니다.
 PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리. Auto(5s) 자동 새로고침,
@@ -253,6 +302,8 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 | Ctrl+T · Ctrl+N / +⇧ | 새 탭 / 전용 탭 | | Ctrl+W · Ctrl+F4 | 탭 닫기 |
 | Ctrl+Tab / +⇧ | 다음 / 이전 탭 | | Ctrl+Shift+W | 워크스페이스 저장 |
 | Ctrl+D | Describe | | Ctrl+Shift+X | Transpose |
+| **F12** | **DataGrid/Text/Log 전환** | | **Ctrl+G** | **Goto Record Number** |
+| **Ctrl+F11** | **Cell Details** | | | |
 | Ctrl+O / S | 열기 / 저장 | | Ctrl+Shift+F | 즐겨찾기에 추가 |
 | Ctrl+- / +⇧ | 주석 처리 / 해제 | | Ctrl+R | 에디터 ↔ 결과 포커스 |
 | Ctrl+P | Print SQL | | Ctrl+Z / Y | Undo / Redo |

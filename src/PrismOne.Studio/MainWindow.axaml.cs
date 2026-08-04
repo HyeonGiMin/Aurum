@@ -268,7 +268,13 @@ public partial class MainWindow : Window
             new NativeMenuItemSeparator(),
             Item("Transpose Columns/Records (⇧⌘X)", () => OnMenuTranspose(this, args)),
             Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
-            Item("Filter Like Selected Cell", () => OnMenuFilterCell(this, args)),
+            Item("Goto Record Number… (⌘G)", () => OnMenuGotoRecord(this, args)),
+            Item("Cell Details… (⌃F11)", () => OnMenuCellDetail(this, args)),
+            new NativeMenuItemSeparator(),
+            Item("Filter Records Like Selected Cell", () => OnMenuFilterCellGrid(this, args)),
+            Item("Clear Filter", () => OnMenuClearFilter(this, args)),
+            Item("Append Filter Clause to Editor", () => OnMenuFilterCell(this, args)),
+            Item("Clear Results", () => OnMenuClearResults(this, args)),
             new NativeMenuItemSeparator(),
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
@@ -283,10 +289,12 @@ public partial class MainWindow : Window
         _nativeFavoritesMenu = favorites.Menu;
         root.Items.Add(favorites);
         root.Items.Add(Sub("View",
-            Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args))));
+            Item("Object Browser (F8)", () => OnMenuToggleBrowser(this, args)),
+            Item("Toggle DataGrid/Text/Log View (F12)", () => OnMenuCycleResultView(this, args))));
         root.Items.Add(Sub("Tools",
             Item("Logon… (⌘L)", () => _ = ShowLogonAsync()),
             Item("SQL Builder…", () => OnMenuSqlBuilder(this, args)),
+            Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
@@ -329,6 +337,7 @@ public partial class MainWindow : Window
             RowsLabel.Text = view.InfoRows;
             TimeLabel.Text = view.InfoTime;
             UpdateTxState();
+            UpdateShowButton();
         }
     }
 
@@ -553,10 +562,27 @@ public partial class MainWindow : Window
             e.Handled = true;
             OnMenuToggleBrowser(sender, e);
         }
+        else if (e.Key == Key.F11 && cmdOrCtrl)
+        {
+            // Golden 6: Cell Details Window = Ctrl+F11 (F11 단독은 우리 Run and Edit 별칭)
+            e.Handled = true;
+            OnMenuCellDetail(sender, e);
+        }
         else if (e.Key == Key.F11)
         {
             e.Handled = true;
             OnMenuRunAndEdit(sender, e);
+        }
+        else if (e.Key == Key.F12)
+        {
+            // Golden 6 View 메뉴: Toggle DataGrid/Text View/Log View
+            e.Handled = true;
+            OnMenuCycleResultView(sender, e);
+        }
+        else if (e.Key == Key.G && cmdOrCtrl)
+        {
+            e.Handled = true;
+            OnMenuGotoRecord(sender, e);
         }
         else if (e.Key == Key.P && cmdOrCtrl)
         {
@@ -766,6 +792,8 @@ public partial class MainWindow : Window
             SizeToContent = SizeToContent.Height,
             CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            // Golden 처럼 작업표시줄에는 메인 창 하나만 — 부속 창은 창 선택 목록에 안 뜬다
+            ShowInTaskbar = false,
             Content = new StackPanel
             {
                 Margin = new Avalonia.Thickness(20),
@@ -973,6 +1001,24 @@ public partial class MainWindow : Window
         StatusLabel.Text = "SQL Builder: 에디터에 삽입했습니다 (F9 로 실행)";
     }
 
+    /// <summary>
+    /// Tools > Diagram (ERD) — SQL Developer 의 relational model 대응. 읽기 전용.
+    /// Object Browser 에서 테이블을 골라둔 상태면 그 테이블을 Focus 로 열어준다.
+    /// </summary>
+    private void OnMenuErd(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is not { } profile)
+        {
+            StatusLabel.Text = "Diagram 은 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+            return;
+        }
+
+        var focus = ObjectsGrid.SelectedItem is ObjectRow row
+            ? $"{row.Info.Schema}.{row.Info.Name}"
+            : null;
+        new ErdWindow(profile, focus).Show(this);
+    }
+
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
         if (_profile is { } profile)
@@ -1056,6 +1102,46 @@ public partial class MainWindow : Window
         }
         flyout.ShowAt(TxButton);
     }
+
+    /// <summary>Golden 의 결과 보기 드롭다운 — 그리드 / 고정폭 텍스트 / 실행 로그.</summary>
+    private void OnShowButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+
+        var flyout = new MenuFlyout();
+        foreach (var (mode, label) in ResultViewChoices)
+        {
+            var item = new MenuItem { Header = $"{(view.ResultView == mode ? "✓ " : "     ")}Show {label}" };
+            var target = mode;
+            item.Click += (_, _) => SetResultView(view, target);
+            flyout.Items.Add(item);
+        }
+        flyout.ShowAt(ShowButton);
+    }
+
+    private static readonly (ResultViewMode Mode, string Label)[] ResultViewChoices =
+    [
+        (ResultViewMode.Grid, "DataGrid"),
+        (ResultViewMode.Text, "Text"),
+        (ResultViewMode.Log, "Log"),
+    ];
+
+    private void SetResultView(QueryTabView view, ResultViewMode mode)
+    {
+        view.ResultView = mode;
+        UpdateShowButton();
+        StatusLabel.Text = $"Show → {Label(mode)}";
+    }
+
+    /// <summary>탭을 옮기면 그 탭의 보기 상태로 라벨을 맞춘다.</summary>
+    private void UpdateShowButton()
+    {
+        if (ShowButton is null) return;
+        ShowButton.Content = $"Show: {Label(ActiveView?.ResultView ?? ResultViewMode.Grid)} ▾";
+    }
+
+    private static string Label(ResultViewMode mode) =>
+        ResultViewChoices.First(c => c.Mode == mode).Label;
 
     private void SetTxMode(QueryTabView view, bool auto)
     {
@@ -1173,6 +1259,67 @@ public partial class MainWindow : Window
     private void OnMenuTranspose(object? sender, RoutedEventArgs e) => ActiveView?.ToggleTranspose();
     private void OnMenuSizeColumns(object? sender, RoutedEventArgs e) => ActiveView?.SizeColumnsToFit();
     private void OnMenuFilterCell(object? sender, RoutedEventArgs e) => ActiveView?.FilterBySelectedCell();
+
+    // Golden 파리티 (Golden 6 Results/View 메뉴 실물 확인 기준)
+    private void OnMenuFilterCellGrid(object? sender, RoutedEventArgs e) => ActiveView?.FilterBySelectedCellInGrid();
+    private void OnMenuClearFilter(object? sender, RoutedEventArgs e) => ActiveView?.ClearFilter();
+    private void OnMenuClearResults(object? sender, RoutedEventArgs e) => ActiveView?.ClearResults();
+    private void OnMenuCellDetail(object? sender, RoutedEventArgs e) => ActiveView?.ShowCellDetail();
+
+    /// <summary>Golden F12 — DataGrid → Text → Log 순환. 툴바 라벨도 같이 맞춘다.</summary>
+    private void OnMenuCycleResultView(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+        view.CycleResultView();
+        UpdateShowButton();
+        StatusLabel.Text = $"Show → {Label(view.ResultView)}";
+    }
+
+    /// <summary>Golden "Goto Record Number" (Ctrl+G) — 행 번호를 물어보고 그 행으로 간다.</summary>
+    private async void OnMenuGotoRecord(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+
+        var input = new TextBox { Width = 160, PlaceholderText = "record number" };
+        var ok = new Button { Content = "Go", IsDefault = true, MinWidth = 70 };
+        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 70 };
+        var dialog = new Window
+        {
+            Title = "Goto Record Number",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ShowInTaskbar = false,
+            Content = new StackPanel
+            {
+                Margin = new Avalonia.Thickness(16),
+                Spacing = 12,
+                Children =
+                {
+                    input,
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { ok, cancel },
+                    },
+                },
+            },
+        };
+
+        int? result = null;
+        ok.Click += (_, _) =>
+        {
+            if (int.TryParse(input.Text?.Trim(), out var no)) result = no;
+            dialog.Close();
+        };
+        cancel.Click += (_, _) => dialog.Close();
+        dialog.Opened += (_, _) => input.Focus();
+        await dialog.ShowDialog(this);
+
+        if (result is { } record) view.GotoRecord(record);
+    }
 
     private async void OnMenuExportTsv(object? sender, RoutedEventArgs e)
         => await SaveGridAsAsync(GridExportFormat.Tsv, "result.tsv", "tsv", "Tab-separated");
@@ -1615,6 +1762,19 @@ public partial class MainWindow : Window
             await Task.Delay(800);
             SaveShot(this, System.IO.Path.Combine(dir, "shot_main.png"));
 
+            // Golden 의 결과 보기 전환 (Show Text) — 접속 없이도 렌더를 확인한다
+            if (ActiveView is { } textView)
+            {
+                SetResultView(textView, ResultViewMode.Text);
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "shot_text.png"));
+                // F12 경로로 한 번 더 돌려 Log 보기까지 확인 (Text → Log)
+                OnMenuCycleResultView(this, new RoutedEventArgs());
+                await Task.Delay(400);
+                SaveShot(this, System.IO.Path.Combine(dir, "shot_log.png"));
+                SetResultView(textView, ResultViewMode.Grid);
+            }
+
             var dialog = new ConnectDialog();
             dialog.Show(this);
             await Task.Delay(500);
@@ -1636,11 +1796,74 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(favorites, System.IO.Path.Combine(dir, "shot_favorites.png"));
             favorites.Close();
+
+            var erd = new ErdWindow(SampleErdGraph());
+            erd.Show(this);
+            await Task.Delay(700);
+            SaveShot(erd, System.IO.Path.Combine(dir, "shot_erd.png"));
+            erd.Close();
         }
         finally
         {
             Environment.Exit(0);
         }
+    }
+
+    /// <summary>스크린샷용 합성 스키마 — 접속 없이 ERD 렌더를 눈으로 확인하기 위한 가짜 데이터.</summary>
+    private static ErdGraph SampleErdGraph()
+    {
+        static ErdColumn Pk(string name) => new(name, "bigint", true, IsPk: true, IsFk: false);
+        static ErdColumn Fk(string name) => new(name, "bigint", true, IsPk: false, IsFk: true);
+        static ErdColumn Col(string name, string type, bool notNull = true) =>
+            new(name, type, notNull, IsPk: false, IsFk: false);
+        static ErdRelation Rel(string child, string parent, string column, bool optional = false) =>
+            new($"fk_{child}_{parent}", $"public.{child}", [column], $"public.{parent}", [column],
+                ChildUnique: false, ChildOptional: optional);
+
+        var tables = new List<ErdTable>
+        {
+            // Dicom Image 도메인
+            new("public", "patient", false, [Pk("patient_key"), Col("patient_id", "varchar(64)")]),
+            new("public", "study", false,
+                [Pk("study_key"), Fk("patient_key"), Col("study_dttm", "timestamp", notNull: false)]),
+            new("public", "series", false, [Pk("series_key"), Fk("study_key"), Col("modality", "varchar(16)")]),
+            new("public", "image", false, [Pk("image_key"), Fk("series_key"), Col("sop_uid", "varchar(128)")]),
+            new("public", "study_note", false, [Pk("note_key"), Fk("study_key"), Col("body", "text", false)]),
+            // Interface 도메인
+            new("public", "interface_msg", false,
+                [Pk("msg_key"), Col("msg_type", "varchar(16)"), Col("payload", "text", false)]),
+            new("public", "interface_log", false, [Pk("log_key"), Fk("msg_key"), Col("result", "varchar(16)")]),
+            new("public", "interface_queue", false, [Pk("queue_key"), Fk("msg_key"), Col("retry_cnt", "int")]),
+            // Routing 도메인
+            new("public", "router", false, [Pk("router_key"), Col("router_name", "varchar(64)")]),
+            new("public", "routing_rule", false,
+                [Pk("rule_key"), Fk("router_key"), Col("priority", "int"), Col("expr", "text", false)]),
+            // Archive 도메인
+            new("public", "archive_job", false, [Pk("job_key"), Col("state", "varchar(16)")]),
+            new("public", "archive_target", false, [Pk("target_key"), Fk("job_key"), Col("path", "text")]),
+            // User Management 도메인
+            new("public", "app_user", false, [Pk("user_key"), Col("login_id", "varchar(64)")]),
+            new("public", "user_role", false, [Pk("user_key"), Fk("role_key")]),
+            new("public", "role_perm", false, [Pk("role_key"), Pk("perm_code"), Col("granted", "boolean")]),
+            // 그 밖
+            new("public", "folder", false, [Pk("folder_key"), Fk("parent_key"), Col("name", "text")]),
+            new("public", "v_study_summary", true, [Col("study_key", "bigint"), Col("series_cnt", "bigint")]),
+        };
+        var relations = new List<ErdRelation>
+        {
+            Rel("study", "patient", "patient_key"),
+            Rel("series", "study", "study_key"),
+            Rel("image", "series", "series_key"),
+            Rel("study_note", "study", "study_key", optional: true),
+            Rel("interface_log", "interface_msg", "msg_key"),
+            Rel("interface_queue", "interface_msg", "msg_key"),
+            Rel("routing_rule", "router", "router_key"),
+            Rel("archive_target", "archive_job", "job_key"),
+            Rel("user_role", "app_user", "user_key"),
+            Rel("user_role", "role_perm", "role_key"),
+            Rel("folder", "folder", "parent_key", optional: true),
+        };
+        return new ErdGraph(tables, relations);
     }
 
     /// <summary>앱 아이콘: Aurum(Au, 금) — 주기율표 타일. 다크 배경 + 금 그라데이션 "Au" + 원자번호 79.</summary>
@@ -1744,6 +1967,7 @@ public partial class MainWindow : Window
             Height = 180,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
+            ShowInTaskbar = false,
             Content = new StackPanel
             {
                 Margin = new Avalonia.Thickness(20),

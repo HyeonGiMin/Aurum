@@ -1,0 +1,141 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:PrismOne.Studio"
+        x:Class="PrismOne.Studio.ErdWindow"
+        Title="Diagram - Aurum"
+        Width="1280" Height="800"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <!-- SQL Developer 의 relational model 대응 — 스키마 FK 그래프를 읽기 전용으로 본다.
+       전체 스키마는 한 화면에 담기지 않으므로 Focus(선택 + N홉)가 기본 시야다. -->
+  <DockPanel>
+
+    <Border DockPanel.Dock="Top" Padding="8,6" BorderThickness="0,0,0,1"
+            BorderBrush="{DynamicResource ChromeBorderBrush}"
+            Background="{DynamicResource ChromeBgBrush}">
+      <!-- 창 폭이 모자라면 다음 줄로 흐르게 한다. 한 줄 고정 + 가로 스크롤은 잘려 보인다.
+           WrapPanel 은 Spacing 이 없으므로 간격은 자식 Margin 으로 준다 -->
+      <WrapPanel Orientation="Horizontal">
+        <WrapPanel.Styles>
+          <Style Selector="WrapPanel > :is(Control)">
+            <Setter Property="Margin" Value="0,2,6,2"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+          </Style>
+          <Style Selector="WrapPanel > TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,2,4,2"/>
+          </Style>
+          <Style Selector="WrapPanel > Button">
+            <Setter Property="MinHeight" Value="26"/>
+          </Style>
+          <Style Selector="WrapPanel > CheckBox">
+            <Setter Property="FontSize" Value="12"/>
+          </Style>
+          <Style Selector="WrapPanel > Border.sep">
+            <Setter Property="Width" Value="1"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Background" Value="#C8C8C8"/>
+            <Setter Property="Margin" Value="4,2,10,2"/>
+          </Style>
+        </WrapPanel.Styles>
+
+        <TextBlock Text="Schema:"/>
+        <ComboBox Name="SchemaCombo" MinWidth="150" SelectionChanged="OnSchemaChanged"/>
+
+        <TextBlock Text="Filter:" Margin="8,2,4,2"/>
+        <TextBox Name="FilterBox" Width="118" PlaceholderText="table name"
+                 TextChanged="OnViewOptionChanged"/>
+
+        <Border Classes="sep"/>
+
+        <CheckBox Name="FocusBox" Content="Focus" IsCheckedChanged="OnViewOptionChanged"
+                  ToolTip.Tip="선택한 테이블과 그 이웃만 본다 (더블클릭으로 대상 변경)"/>
+        <TextBlock Name="FocusLabel" Text="—" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Text="Depth:"/>
+        <ComboBox Name="DepthCombo" Width="62" SelectedIndex="1" SelectionChanged="OnViewOptionChanged">
+          <ComboBoxItem Content="0"/>
+          <ComboBoxItem Content="1"/>
+          <ComboBoxItem Content="2"/>
+          <ComboBoxItem Content="3"/>
+        </ComboBox>
+
+        <TextBlock Text="Columns:" Margin="8,2,4,2"/>
+        <ComboBox Name="ColumnsCombo" Width="104" SelectedIndex="0" SelectionChanged="OnViewOptionChanged">
+          <ComboBoxItem Content="Keys only"/>
+          <ComboBoxItem Content="All"/>
+        </ComboBox>
+
+        <TextBlock Text="Group:" Margin="8,2,4,2"/>
+        <ComboBox Name="GroupCombo" Width="108" SelectedIndex="0" SelectionChanged="OnViewOptionChanged"
+                  ToolTip.Tip="주제영역(Subject Area) 을 나누는 기준">
+          <ComboBoxItem Content="관계"/>
+          <ComboBoxItem Content="이름 접두어"/>
+          <ComboBoxItem Content="묶지 않음"/>
+        </ComboBox>
+        <CheckBox Name="LegendBox" Content="범례" IsChecked="True" IsCheckedChanged="OnLegendToggled"/>
+
+        <Border Classes="sep"/>
+
+        <Button Content="Reload" Click="OnReload" ToolTip.Tip="카탈로그 다시 읽기 (F5)"/>
+        <Button Content="Fit" Click="OnFit" ToolTip.Tip="창에 맞추기 (0)"/>
+        <Button Content="−" Click="OnZoomOut" Width="30" ToolTip.Tip="축소 (−)"/>
+        <TextBlock Name="ZoomLabel" Text="100%" Width="42" TextAlignment="Center"/>
+        <Button Content="+" Click="OnZoomIn" Width="30" ToolTip.Tip="확대 (+)"/>
+        <Button Content="1:1" Click="OnZoomReset" ToolTip.Tip="원래 크기 (1)"/>
+        <Button Content="PNG…" Click="OnSavePng"
+                ToolTip.Tip="화면 줌과 무관하게 100% 크기로 PNG 저장"/>
+      </WrapPanel>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource ChromeBorderBrush}"
+            Background="{DynamicResource ChromeBgBrush}">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Right" FontSize="11" Opacity="0.6" VerticalAlignment="Center"
+                   Text="까마귀발=1:N · 눈금=1:1 · 원=nullable(0..N)   |   Ctrl+휠 줌 · 드래그 이동 · 더블클릭 Focus"/>
+        <TextBlock Name="ErdStatus" FontSize="12" Opacity="0.8" Text=""
+                   TextTrimming="CharacterEllipsis" Margin="0,0,12,0"/>
+      </DockPanel>
+    </Border>
+
+    <DockPanel>
+      <!-- 범례 — Data Modeler 처럼 색이 무슨 영역인지 항상 보이게. 다이어그램을 가리지
+           않도록 오버레이가 아니라 옆에 붙인다 -->
+      <Border Name="LegendPanel" DockPanel.Dock="Left" Width="212" Padding="10,8"
+              Background="{DynamicResource ChromeBgBrush}"
+              BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,1,0">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Subject Areas" FontSize="11"
+                     FontWeight="SemiBold" Opacity="0.75" Margin="0,0,0,6"/>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl Name="LegendItems">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:ErdLegendRow">
+                  <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                    <Border Width="12" Height="12" CornerRadius="2" VerticalAlignment="Center"
+                            Background="{Binding Swatch}" BorderBrush="#808080" BorderThickness="1"/>
+                    <TextBlock Text="{Binding Label}" FontSize="11.5" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Grid>
+        <ScrollViewer Name="Scroll" Background="#FCFCFA"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto">
+          <local:ErdCanvas Name="Surface"
+                           HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        </ScrollViewer>
+        <TextBlock Name="EmptyHint" IsVisible="False" IsHitTestVisible="False"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="13" Opacity="0.45" TextAlignment="Center"
+                   Text="그릴 것이 없습니다.&#x0a;Schema 를 고르거나 Filter · Focus 조건을 확인하세요."/>
+      </Grid>
+    </DockPanel>
+
+  </DockPanel>
+</Window>

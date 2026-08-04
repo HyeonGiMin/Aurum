@@ -19,6 +19,14 @@ using PrismOne.Db.Core;
 namespace PrismOne.Studio;
 
 /// <summary>그리드 한 행: Golden 처럼 왼쪽에 행번호(No)를 붙인다. Raw 는 잘린 셀의 원문.</summary>
+/// <summary>Golden 툴바의 결과 보기 선택 — Show DataGrid / Show Text / Show Log.</summary>
+public enum ResultViewMode
+{
+    Grid,
+    Text,
+    Log,
+}
+
 public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
 {
     /// <summary>편집 모드(Run and Edit)의 행 식별자 — PG ctid. 새로 추가한 행이면 null.</summary>
@@ -1077,11 +1085,13 @@ public partial class QueryTabView : UserControl
                     gridShown = true;
                     LastGridSql = stmt.Text;
                     await FetchMoreAsync();
+                    AppendLog(stmt.Text, $"{_rows.Count:N0} row(s), {ScriptTime()}");
                 }
                 else
                 {
                     affectedTotal += Math.Max(0, query.RowsAffected);
                     _current = null;
+                    AppendLog(stmt.Text, $"{Math.Max(0, query.RowsAffected)} row(s) affected, {ScriptTime()}");
                 }
             }
             _scriptWatch.Stop();
@@ -1101,6 +1111,7 @@ public partial class QueryTabView : UserControl
         {
             _scriptWatch.Stop();
             SetInfo("Cancelled", InfoRows, ScriptTime());
+            AppendLog(statements[^1].Text, "Cancelled");
             await RecoverAsync();
         }
         catch (PostgresException ex)
@@ -1108,12 +1119,14 @@ public partial class QueryTabView : UserControl
             _scriptWatch.Stop();
             ShowError($"{ex.Severity} {ex.SqlState}: {ex.MessageText}" +
                       (ex.Position > 0 ? $"  (position {ex.Position})" : ""));
+            AppendLog(statements[^1].Text, $"{ex.Severity} {ex.SqlState}: {ex.MessageText}");
             await RecoverAsync();
         }
         catch (Exception ex)
         {
             _scriptWatch.Stop();
             ShowError(ex.Message);
+            AppendLog(statements[^1].Text, $"Error: {ex.Message}");
             await RecoverAsync();
         }
         finally
@@ -1122,6 +1135,54 @@ public partial class QueryTabView : UserControl
             _runTimer.Stop();
             _session?.EndRun(this);
         }
+    }
+
+    // ---------- 결과 보기 전환 (Golden: Show DataGrid / Show Text / Show Log) ----------
+
+    private ResultViewMode _resultView = ResultViewMode.Grid;
+    private readonly List<string> _log = [];
+
+    /// <summary>
+    /// Golden 툴바의 보기 드롭다운. Text/Log 패널은 결과 영역 위에 불투명하게 덮으므로
+    /// 그리드·플랜·에러의 기존 표시 규칙은 그대로 둔다(에러는 여전히 맨 위에 뜬다).
+    /// </summary>
+    public ResultViewMode ResultView
+    {
+        get => _resultView;
+        set
+        {
+            _resultView = value;
+            ApplyResultView();
+        }
+    }
+
+    private void ApplyResultView()
+    {
+        if (_resultView == ResultViewMode.Text)
+        {
+            var (columns, rows) = Snapshot();
+            ResultText.Text = columns.Count == 0
+                ? "결과 없음 — 쿼리를 실행하면 여기에 텍스트로 표시됩니다."
+                : TextResultRenderer.Render(columns, rows);
+        }
+        else if (_resultView == ResultViewMode.Log)
+        {
+            LogText.Text = _log.Count == 0
+                ? "로그 없음 — 이 탭에서 문장을 실행하면 기록됩니다."
+                : string.Join('\n', _log);
+        }
+
+        TextPane.IsVisible = _resultView == ResultViewMode.Text;
+        LogPane.IsVisible = _resultView == ResultViewMode.Log;
+    }
+
+    /// <summary>실행 기록 한 줄. 시각은 HH:mm:ss, SQL 은 첫 줄만 남긴다.</summary>
+    private void AppendLog(string sql, string outcome)
+    {
+        var oneLine = sql.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (oneLine.Length > 120) oneLine = oneLine[..117] + "…";
+        _log.Add($"[{DateTime.Now:HH:mm:ss}] {oneLine} — {outcome}");
+        if (_resultView == ResultViewMode.Log) ApplyResultView();
     }
 
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
@@ -1243,6 +1304,102 @@ public partial class QueryTabView : UserControl
         Editor.Document.Insert(Editor.Document.TextLength, $"\n-- filter: WHERE {clause}\n");
         Editor.Focus();
         SetInfo($"Filter clause appended: {clause}");
+    }
+
+    // ---------- Golden 파리티: 그리드 필터 / Goto / Clear ----------
+
+    /// <summary>필터가 걸려 있으면 원본 행을 여기 보관한다. null 이면 필터 없음.</summary>
+    private ObservableCollection<RowItem>? _unfiltered;
+
+    public bool HasFilter => _unfiltered is not null;
+
+    /// <summary>
+    /// Golden "Filter records like selected cell" 의 그리드 판 — 선택 셀과 같은 값의 행만 남긴다.
+    /// 편집 모드·Transpose 중에는 행 대응이 깨지므로 막는다.
+    /// </summary>
+    public void FilterBySelectedCellInGrid()
+    {
+        if (_transposed || IsEditing)
+        {
+            SetInfo("Filter는 편집 모드·Transpose 중에는 쓸 수 없습니다");
+            return;
+        }
+        if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;   // 0번은 행번호 컬럼
+        if (index < 0 || index >= _columns.Count) return;
+
+        var wanted = row.Cells[index];
+        var source = _unfiltered ?? _rows;
+        var kept = new ObservableCollection<RowItem>(
+            source.Where(r => index < r.Cells.Length && r.Cells[index] == wanted));
+
+        _unfiltered ??= _rows;
+        _rows = kept;
+        ResultGrid.ItemsSource = _rows;
+        SetInfo($"Filtered: {_columns[index]} = {wanted ?? "NULL"}", $"{kept.Count:N0} of {source.Count:N0} record(s)");
+    }
+
+    /// <summary>Golden "Clear Filter" — 필터를 풀고 원본 행으로 되돌린다.</summary>
+    public void ClearFilter()
+    {
+        if (_unfiltered is null)
+        {
+            SetInfo("걸린 필터가 없습니다");
+            return;
+        }
+        _rows = _unfiltered;
+        _unfiltered = null;
+        ResultGrid.ItemsSource = _rows;
+        SetInfo("Filter cleared", $"{_rows.Count:N0} record(s)");
+    }
+
+    /// <summary>Golden "Goto Record Number" (Ctrl+G) — 행 번호로 스크롤·선택.</summary>
+    public void GotoRecord(int recordNo)
+    {
+        var target = _rows.FirstOrDefault(r => r.No == recordNo);
+        if (target is null)
+        {
+            SetInfo($"Record {recordNo} 없음 (로드된 행 {_rows.Count:N0}개)");
+            return;
+        }
+        ResultGrid.SelectedItem = target;
+        ResultGrid.ScrollIntoView(target, null);
+        ResultGrid.Focus();
+        SetInfo($"Record {recordNo}");
+    }
+
+    /// <summary>Golden "Clear Spreadsheet" — 결과 영역만 비운다(에디터·로그는 그대로).</summary>
+    public void ClearResults()
+    {
+        _unfiltered = null;
+        ClearResultArea();
+        ApplyResultView();
+        SetInfo("Results cleared", "", "");
+    }
+
+    /// <summary>Golden F12 — DataGrid → Text → Log 순환.</summary>
+    public void CycleResultView() => ResultView = ResultView switch
+    {
+        ResultViewMode.Grid => ResultViewMode.Text,
+        ResultViewMode.Text => ResultViewMode.Log,
+        _ => ResultViewMode.Grid,
+    };
+
+    /// <summary>Golden "Cell Details Window" (Ctrl+F11) — 선택 셀을 별도 창으로.</summary>
+    public void ShowCellDetail()
+    {
+        if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
+        {
+            SetInfo("Select a cell in the result grid first");
+            return;
+        }
+        var index = ResultGrid.Columns.IndexOf(col) - 1;
+        if (index < 0 || index >= _columns.Count) return;
+        OpenCellDetail(_columns[index], row.No, row.Raw?[index] ?? row.Cells[index]);
     }
 
     /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>

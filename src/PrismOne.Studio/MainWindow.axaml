@@ -60,7 +60,13 @@
         <Separator/>
         <MenuItem Header="Transpose Columns/Records" InputGesture="Ctrl+Shift+X" Click="OnMenuTranspose"/>
         <MenuItem Header="Size All Columns to Fit" Click="OnMenuSizeColumns"/>
-        <MenuItem Header="Filter Like Selected Cell" Click="OnMenuFilterCell"/>
+        <MenuItem Header="Goto Record Number…" InputGesture="Ctrl+G" Click="OnMenuGotoRecord"/>
+        <MenuItem Header="Cell Details…" InputGesture="Ctrl+F11" Click="OnMenuCellDetail"/>
+        <Separator/>
+        <MenuItem Header="Filter Records Like Selected Cell" Click="OnMenuFilterCellGrid"/>
+        <MenuItem Header="Clear Filter" Click="OnMenuClearFilter"/>
+        <MenuItem Header="Append Filter Clause to Editor" Click="OnMenuFilterCell"/>
+        <MenuItem Header="Clear Results" Click="OnMenuClearResults"/>
         <Separator/>
         <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
         <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
@@ -78,10 +84,12 @@
       </MenuItem>
       <MenuItem Header="View">
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
+        <MenuItem Header="Toggle DataGrid/Text/Log View" InputGesture="F12" Click="OnMenuCycleResultView"/>
       </MenuItem>
       <MenuItem Header="Tools">
         <MenuItem Header="Logon…" InputGesture="Ctrl+L" Click="OnMenuConnect"/>
         <MenuItem Header="SQL Builder…" Click="OnMenuSqlBuilder"/>
+        <MenuItem Header="Diagram (ERD)…" Click="OnMenuErd"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
@@ -246,6 +254,12 @@
         <Button Name="TxButton" Classes="tool" FontSize="11.5" Padding="9,3" Margin="4,0,0,0"
                 VerticalAlignment="Center" IsEnabled="False"
                 Content="Tx: Manual ▾" Click="OnTxButtonClick"/>
+
+        <!-- Golden 의 결과 보기 선택 (Show DataGrid / Show Text / Show Log) -->
+        <Button Name="ShowButton" Classes="tool" FontSize="11.5" Padding="9,3" Margin="4,0,0,0"
+                VerticalAlignment="Center"
+                Content="Show: DataGrid ▾" Click="OnShowButtonClick"
+                ToolTip.Tip="결과를 그리드 / 고정폭 텍스트 / 실행 로그 중 무엇으로 볼지"/>
 
         <Button Name="BindVarButton" Classes="tool" Click="OnMenuBindVars"
                 ToolTip.Tip="Bind Variables — 문장의 :var 값 입력 (실행 시 자동으로도 뜸)">
