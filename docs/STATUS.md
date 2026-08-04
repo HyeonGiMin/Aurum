@@ -136,9 +136,9 @@ Golden 에는 없던 기능. SQL Developer 의 relational model 대응으로 **T
   (`MainWindow.SampleErdGraph()` 의 합성 스키마)
 
 **남은 것 (미착수)**: 배치 수동 드래그·저장, 테이블 더블클릭 → describe/SELECT 연동,
-SVG 내보내기·인쇄, 선택 영역 DDL 생성, `OracleErdCatalog`(Oracle 접속 지원이 선행 과제).
-**실접속 검증은 아직 안 했다** — 개발 DB 에 FK 제약이 실제로 걸려 있는지부터 확인할 것
-(`pg_constraint contype='f'` 건수). FK 가 없으면 관계선 없이 박스만 나온다.
+SVG 내보내기·인쇄, 선택 영역 DDL 생성.
+**PG 실접속 전제 확인 완료 (2026-08-04)** — 개발 DB(`pg_constraint contype='f'`)에
+FK 제약 **prismone 185건**(+pgmq 2건) 존재. ERD 관계선이 그려지는 조건 충족.
 
 ## 1.7 멀티 DB 현황 (2026-08-04)
 
@@ -162,7 +162,9 @@ SVG 내보내기·인쇄, 선택 영역 DDL 생성, `OracleErdCatalog`(Oracle �
 - Oracle ERD: 517테이블·293관계. 단독 테이블을 한 영역으로 묶어 주제영역
   340개 → 8개, 높이 11520 → 8838. 그래도 전체 보기는 못 읽으니 Focus 가 기본
 
-**남은 것**: Oracle 쿼리 실행 실검증, AS SYSDBA·Read Only(Oracle 은 접속 수준
+**남은 것**: Oracle 쿼리 실행 실검증 — **이 개발 머신에는 Oracle 접속이 저장돼 있지
+않다** (2026-08-04 확인, 저장된 접속은 PG 1건뿐). Oracle 서버가 보이는 환경에서
+로그온 한 번 저장한 뒤 검증할 것. 그 외: AS SYSDBA·Read Only(Oracle 은 접속 수준
 읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
 
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
