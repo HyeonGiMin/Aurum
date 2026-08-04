@@ -3,7 +3,8 @@
         x:Class="PrismOne.Studio.OptionsDialog"
         Title="Options - Aurum"
         Width="480" SizeToContent="Height" CanResize="False"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <StackPanel Margin="18" Spacing="12">
     <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto,Auto">
       <Grid.Styles>

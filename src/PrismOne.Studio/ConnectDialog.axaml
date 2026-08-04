@@ -4,7 +4,8 @@
         x:Class="PrismOne.Studio.ConnectDialog"
         Title="Database Login - Aurum"
         Width="640" Height="700" CanResize="False"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <!-- Golden 6 "Database Login" 재현:
        위 Login 그룹(동적 헤더 Login: user@host/db, Database 는 host[:port]/db 콤보) + 오른쪽 버튼,
        아래 Login List 그룹(그리드) + New/Edit/Delete/Filter/Import,Export -->

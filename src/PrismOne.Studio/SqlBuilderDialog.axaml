@@ -4,7 +4,8 @@
         x:Class="PrismOne.Studio.SqlBuilderDialog"
         Title="SQL Builder - Aurum"
         Width="900" Height="640"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <Grid Margin="14" ColumnDefinitions="260,12,*" RowDefinitions="Auto,*,Auto">
 
     <!-- 왼쪽: 테이블 목록 -->

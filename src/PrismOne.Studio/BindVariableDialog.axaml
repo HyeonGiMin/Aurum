@@ -4,7 +4,8 @@
         x:Class="PrismOne.Studio.BindVariableDialog"
         Title="Bind Variables"
         Width="460" SizeToContent="Height" CanResize="False"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
   <!-- Golden: :var 를 만나면 값을 묻고, 이전 값을 기억한다 -->
   <StackPanel Margin="16" Spacing="10">
     <TextBlock Text="문장의 바인드 변수 값을 입력하세요. 비워 두면 NULL 로 전달됩니다."
