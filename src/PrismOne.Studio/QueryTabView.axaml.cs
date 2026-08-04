@@ -157,6 +157,8 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // 셀 더블클릭 → 전문 상세 창 (jsonb 는 pretty-print)
         ResultGrid.DoubleTapped += OnCellDoubleTapped;
+        // 맨 왼쪽 순번을 그리기 직전에 화면 위치로 매긴다 (정렬해도 1,2,3… 유지)
+        ResultGrid.LoadingRow += OnResultRowLoading;
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
@@ -1273,39 +1275,21 @@ public partial class QueryTabView : UserControl
 
     private void SetGridSource(System.Collections.IEnumerable rows)
     {
-        var view = new Avalonia.Collections.DataGridCollectionView(rows);
-        // 정렬이 바뀔 때만 다시 매긴다. 행이 하나 추가될 때마다 매기면
-        // 점진 fetch(수만 행)에서 O(n²) 가 된다
-        view.SortDescriptions.CollectionChanged += (_, _) =>
-            Dispatcher.UIThread.Post(() => Renumber(view), DispatcherPriority.Background);
-        _gridView = view;
-        ResultGrid.ItemsSource = view;
-        Renumber(view);
+        _gridView = new Avalonia.Collections.DataGridCollectionView(rows);
+        ResultGrid.ItemsSource = _gridView;
     }
 
-    /// <summary>정렬이 걸린 상태로 더 가져왔으면 순번이 어긋나므로 fetch 후에도 한 번 맞춘다.</summary>
-    private void RenumberAfterFetch()
+    /// <summary>
+    /// 맨 왼쪽 순번은 **행이 그려지기 직전**에 화면 위치로 매긴다.
+    ///
+    /// 정렬이 끝난 뒤 따로 매기면 정렬된 행이 먼저 그려지고 번호가 나중에 고쳐져
+    /// "숫자가 섞였다가 1로 돌아오는" 깜빡임이 생긴다. LoadingRow 는 그리기 직전이라
+    /// 깜빡임이 없고, 가상화 덕에 보이는 행만 계산한다(대량 결과에도 싸다).
+    /// </summary>
+    private void OnResultRowLoading(object? sender, DataGridRowEventArgs e)
     {
-        if (_gridView is { SortDescriptions.Count: > 0 } view)
-            Renumber(view);
-    }
-
-    private static void Renumber(Avalonia.Collections.DataGridCollectionView view)
-    {
-        // **먼저 스냅샷을 뜬다.** RowItem 이 INotifyPropertyChanged 라 순회 도중 Seq 를 바꾸면
-        // 뷰가 그 알림을 받아 컬렉션을 건드리고 "순회 중 변경" 예외로 앱이 죽는다.
-        List<RowItem> rows;
-        try
-        {
-            rows = view.OfType<RowItem>().ToList();
-        }
-        catch
-        {
-            return;   // 정렬이 아직 진행 중이면 다음 기회에
-        }
-
-        for (var i = 0; i < rows.Count; i++)
-            rows[i].Seq = i + 1;
+        if (e.Row.DataContext is RowItem row)
+            row.Seq = e.Row.Index + 1;
     }
 
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
@@ -1767,7 +1751,6 @@ public partial class QueryTabView : UserControl
             }
             UpdateFetchInfo();
             SetInfo("Done.", InfoRows, InfoTime);
-            RenumberAfterFetch();
         }
         catch (OperationCanceledException)
         {
