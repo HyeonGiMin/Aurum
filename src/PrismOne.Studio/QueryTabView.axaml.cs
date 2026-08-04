@@ -520,6 +520,10 @@ public partial class QueryTabView : UserControl
         _session = null;
     }
 
+    /// <summary>Results > Pin — 현재 그리드의 스냅샷 (없으면 null). 편집 모드는 제외.</summary>
+    public (IReadOnlyList<string> Columns, IReadOnlyList<RowItem> Rows, string? Sql)? SnapshotResult() =>
+        _columns.Count == 0 || IsEditing ? null : (_columns, _rows.ToList(), LastGridSql);
+
     public void FocusEditor() => Editor.Focus();
 
     public void SetSql(string sql) => Editor.Text = sql;
