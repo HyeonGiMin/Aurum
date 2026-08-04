@@ -26,6 +26,9 @@ public sealed class AppOptions
     /// </summary>
     public string Theme { get; set; } = "Light";
 
+    /// <summary>창 위치·크기 기억 (키 = 창 이름: main/erd/diff). 화면 밖이면 무시.</summary>
+    public Dictionary<string, WindowRect>? WindowPlacements { get; set; }
+
     /// <summary>0 이면 미설정. 세션에 SET statement_timeout 적용 (ms).</summary>
     public int StatementTimeoutMs { get; set; }
 
@@ -97,6 +100,9 @@ public sealed class AppOptions
         catch { /* 옵션 저장 실패는 치명적이지 않다 */ }
     }
 }
+
+/// <summary>기억된 창 위치·크기. Maximized 면 X/Y/W/H 는 복원(normal) 시점 값.</summary>
+public sealed record WindowRect(int X, int Y, int Width, int Height, bool Maximized);
 
 /// <summary>워크스페이스: 열린 탭들의 SQL 과 이름 (Golden 의 Workspace 파일).</summary>
 public sealed class WorkspaceTab

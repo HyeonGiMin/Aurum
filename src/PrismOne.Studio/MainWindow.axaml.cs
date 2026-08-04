@@ -44,6 +44,9 @@ public partial class MainWindow : Window
             if (_sharedSession is not null)
                 await _sharedSession.DisposeAsync();
         };
+        // 창 위치·크기 기억 (UI_POLISH P1-3)
+        WindowPlacementTracker.Attach(this, "main");
+
         // 테마 전환을 즉시 반영 (에디터 하이라이팅·메뉴 체크)
         ActualThemeVariantChanged += (_, _) => OnThemeVariantChanged();
         if (ThemeBrushes.IsDark)

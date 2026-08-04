@@ -23,11 +23,14 @@
      상태 pill 은 자체 배경이 있는 칩이라 그대로. 코드가 만든 트리는 전환 시
      재실행 때 새 색을 입는다.
    - 스크린샷 하니스 다크 변형: `IAPDM_SHOT_THEME=dark`.
-2. **긴 작업 로딩 피드백** — 지금은 상태바 텍스트뿐이라 멈춘 것처럼 보인다.
-   접속, 카탈로그 적재(Oracle 2.2초), ERD 로드(3.9초), Schema Diff Compare,
-   Import 에 **버튼 스피너 또는 프로그레스 바**. Cancel 가능한 것은 Cancel 노출.
-3. **창 크기·위치 기억** — 메인 창 + ERD·Diff 창. `options.json` 에 저장,
-   모니터 벗어나면 기본값 복귀.
+2. ~~**긴 작업 로딩 피드백**~~ ✅ 구현됨 (2026-08-04) — 로그온(버튼 "Connecting…" +
+   진행 바), ERD 스키마 목록/카탈로그 로드(상태바 진행 바), Schema Diff
+   Compare/Save Snapshot(진행 바), Import(행수 기반 **확정 진행 바**).
+   남긴 것: 탭의 쿼리 실행은 Golden 방식(상태바 경과 시간 + Cancel)이 이미 있다.
+3. ~~**창 크기·위치 기억**~~ ✅ 구현됨 (2026-08-04) — `WindowPlacementTracker`,
+   메인·ERD·Diff 창. options.json 의 WindowPlacements, 저장 시 파일을 새로 읽어
+   placement 만 갱신(다른 옵션 필드 보존), 화면 밖이면 무시, Maximized 는
+   normal 크기와 함께 기억. 스크린샷 하니스에서는 비활성.
 
 ## P2 — 첫인상·완성도
 

@@ -111,6 +111,10 @@
   (브러시 28종 DynamicResource), 에디터 구문 배색·플랜 막대·diff 색까지 테마
   대응. 기본은 Light(Golden 정체성). ERD·인쇄물은 라이트 고정.
   스크린샷 하니스 `IAPDM_SHOT_THEME=dark` — 라이트/다크 12종씩 회귀 확인.
+- **로딩 피드백 + 창 위치 기억 (2026-08-04, UI_POLISH P1-2·3)** — 로그온
+  "Connecting…"+진행 바, ERD/Diff 로드 진행 바, Import 확정 진행 바.
+  `WindowPlacementTracker` 로 메인·ERD·Diff 창 위치·크기 기억(화면 밖 무시,
+  스크린샷 하니스 비활성). P1 전체 완료 — 남은 UI 는 P2(토스트·빈 상태·타이포).
 - **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
   SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
   Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·
