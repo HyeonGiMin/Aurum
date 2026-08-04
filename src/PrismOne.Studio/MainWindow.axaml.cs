@@ -360,6 +360,7 @@ public partial class MainWindow : Window
             StatusLabel.Text = view.InTransaction ? $"[TX] {view.InfoMessage}" : view.InfoMessage;
             RowsLabel.Text = view.InfoRows;
             TimeLabel.Text = view.InfoTime;
+            UpdateEditorStatus(view);
             UpdateTxState();
             UpdateShowButton();
         }
@@ -373,6 +374,13 @@ public partial class MainWindow : Window
         RowsLabel.Text = view.InfoRows;
         TimeLabel.Text = view.InfoTime;
         UpdateTxState();
+    }
+
+    /// <summary>Golden 상태바의 Modified / Selected N records.</summary>
+    private void UpdateEditorStatus(QueryTabView view)
+    {
+        ModifiedLabel.Text = view.IsModified ? "Modified" : "";
+        SelectionLabel.Text = view.InfoSelection;
     }
 
     private void OnTabCaretChanged(QueryTabView view, int line, int col)

@@ -320,7 +320,8 @@
     <Border DockPanel.Dock="Bottom" Padding="0" BorderThickness="0,1,0,0"
             BorderBrush="{DynamicResource ChromeBorderBrush}"
             Background="{DynamicResource ChromeBgBrush}">
-      <Grid ColumnDefinitions="*,88,196,124" Height="24">
+      <!-- Golden 상태바 구성: 메시지 | Modified | Selected N records | 커서 | Fetched | Script -->
+      <Grid ColumnDefinitions="*,76,150,88,196,124" Height="24">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="8,0" Spacing="8">
           <!-- 접속 상태 pill: 미접속이면 빨강, 접속되면 초록 -->
           <Border Name="ConnPill" Background="#F3D6D6" BorderBrush="#D89A9A" BorderThickness="1"
@@ -338,12 +339,19 @@
           <TextBlock Name="StatusLabel" Classes="status" Text="Ready"/>
         </StackPanel>
         <Border Grid.Column="1" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
-          <TextBlock Name="CaretLabel" Classes="status" Text="" HorizontalAlignment="Center"/>
+          <TextBlock Name="ModifiedLabel" Classes="status" Text="" HorizontalAlignment="Center"
+                     ToolTip.Tip="에디터 내용이 마지막 저장 이후 바뀌었습니다"/>
         </Border>
         <Border Grid.Column="2" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+          <TextBlock Name="SelectionLabel" Classes="status" Text=""/>
+        </Border>
+        <Border Grid.Column="3" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
+          <TextBlock Name="CaretLabel" Classes="status" Text="" HorizontalAlignment="Center"/>
+        </Border>
+        <Border Grid.Column="4" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
           <TextBlock Name="RowsLabel" Classes="status" Text=""/>
         </Border>
-        <Border Grid.Column="3" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
+        <Border Grid.Column="5" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0" Padding="10,0">
           <TextBlock Name="TimeLabel" Classes="status" Text=""/>
         </Border>
       </Grid>

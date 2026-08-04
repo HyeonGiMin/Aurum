@@ -112,6 +112,18 @@ public partial class QueryTabView : UserControl
     public string InfoMessage { get; private set; } = "Ready";
     public string InfoRows { get; private set; } = "";
     public string InfoTime { get; private set; } = "";
+
+    /// <summary>Golden 상태바의 "Selected N records" — 여러 행을 골랐을 때만 채운다.</summary>
+    public string InfoSelection =>
+        ResultGrid.SelectedItems.Count > 1
+            ? $"Selected {ResultGrid.SelectedItems.Count:N0} records"
+            : "";
+
+    /// <summary>
+    /// Golden 상태바의 "Modified" — 에디터 내용이 마지막 저장/열기 이후 바뀌었는지.
+    /// AvaloniaEdit 의 UndoStack 이 이미 추적하므로 따로 dirty 플래그를 두지 않는다.
+    /// </summary>
+    public bool IsModified => !Editor.Document.UndoStack.IsOriginalFile;
     public event Action<QueryTabView>? InfoChanged;
     public event Action<QueryTabView, int, int>? CaretChanged;
 
@@ -159,6 +171,9 @@ public partial class QueryTabView : UserControl
         ResultGrid.DoubleTapped += OnCellDoubleTapped;
         // 맨 왼쪽 순번을 그리기 직전에 화면 위치로 매긴다 (정렬해도 1,2,3… 유지)
         ResultGrid.LoadingRow += OnResultRowLoading;
+        // 상태바의 Selected / Modified 갱신 (Golden 파리티)
+        ResultGrid.SelectionChanged += (_, _) => InfoChanged?.Invoke(this);
+        Editor.Document.TextChanged += (_, _) => InfoChanged?.Invoke(this);
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
