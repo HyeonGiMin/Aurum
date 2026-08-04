@@ -1849,6 +1849,34 @@ public partial class MainWindow : Window
             await Task.Delay(1200);   // 검증 타이머(0.6s) 경과 대기
             SaveShot(this, System.IO.Path.Combine(dir, "shot_validation.png"));
 
+            // Explain Plan 시각화 — self 비중 막대 + 행수 예측 오차 배지
+            var samplePlan = PlanParser.Parse("""
+                [{
+                  "Plan": {
+                    "Node Type": "Nested Loop", "Join Type": "Inner",
+                    "Startup Cost": 0.4, "Total Cost": 1650.2, "Plan Rows": 120,
+                    "Actual Total Time": 48.2, "Actual Rows": 118, "Actual Loops": 1,
+                    "Plans": [
+                      { "Node Type": "Seq Scan", "Relation Name": "study", "Alias": "s",
+                        "Startup Cost": 0, "Total Cost": 1520.0, "Plan Rows": 40,
+                        "Actual Total Time": 41.3, "Actual Rows": 4183, "Actual Loops": 1,
+                        "Filter": "(study_dttm >= '2026-07-01'::timestamp)",
+                        "Rows Removed by Filter": 95817 },
+                      { "Node Type": "Index Scan", "Relation Name": "examlist", "Alias": "e",
+                        "Index Name": "pk_examlist",
+                        "Startup Cost": 0.4, "Total Cost": 3.2, "Plan Rows": 1,
+                        "Actual Total Time": 0.001, "Actual Rows": 1, "Actual Loops": 4183,
+                        "Index Cond": "(study_key = s.study_key)" }
+                    ]
+                  },
+                  "Planning Time": 0.42,
+                  "Execution Time": 48.9
+                }]
+                """);
+            view.BindPlanTree(samplePlan!, analyze: true);
+            await Task.Delay(500);
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_plan.png"));
+
             var dialog = new ConnectDialog();
             dialog.Show(this);
             await Task.Delay(500);

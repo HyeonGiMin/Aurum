@@ -1109,9 +1109,11 @@ public partial class QueryTabView : UserControl
         }
     }
 
-    private void BindPlanTree(PlanResult plan, bool analyze)
+    internal void BindPlanTree(PlanResult plan, bool analyze)
     {
-        var totalMs = plan.ExecutionMs ?? plan.Root.TotalMs ?? 0;
+        // 막대의 분모 — ANALYZE 면 실제 self 시간, 아니면 self 비용 (둘 다 누적이 아니라 자기 몫)
+        var useMs = analyze && plan.SelfMsTotal > 0;
+        var selfTotal = useMs ? plan.SelfMsTotal : plan.SelfCostTotal;
         var items = new List<TreeViewItem>();
         if (analyze)
         {
@@ -1124,20 +1126,54 @@ public partial class QueryTabView : UserControl
                 },
             });
         }
-        items.Add(BuildPlanItem(plan.Root, totalMs));
+        items.Add(BuildPlanItem(plan.Root, selfTotal, useMs));
         PlanTree.ItemsSource = items;
         PlanTree.IsVisible = true;
         ResultGrid.IsVisible = false;
         NoRecordsPanel.IsVisible = false;
     }
 
-    private static TreeViewItem BuildPlanItem(PlanNode node, double totalMs)
+    private static TreeViewItem BuildPlanItem(PlanNode node, double selfTotal, bool useMs)
     {
-        var fraction = totalMs > 0 && node.TotalMs is { } ms ? ms / totalMs : 0;
+        var self = useMs ? node.SelfMs ?? 0 : node.SelfCost;
+        var fraction = selfTotal > 0 ? Math.Clamp(self / selfTotal, 0, 1) : 0;
+
+        // DataGrip 식 비용 막대: 이 노드 자신이 전체에서 차지하는 몫
+        var barFill = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
+                    : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
+                    : Avalonia.Media.Brushes.MediumSeaGreen;
+        var bar = new Border
+        {
+            Width = 56,
+            Height = 9,
+            CornerRadius = new Avalonia.CornerRadius(2),
+            Background = Avalonia.Media.Brushes.Gainsboro,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+            Margin = new Avalonia.Thickness(0, 0, 4, 0),
+            Child = new Border
+            {
+                Width = Math.Max(fraction * 56, self > 0 ? 2 : 0),
+                CornerRadius = new Avalonia.CornerRadius(2),
+                Background = barFill,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            },
+        };
+        ToolTip.SetTip(bar, useMs
+            ? $"self {self:0.###} ms — 전체 실행 시간의 {fraction:P0}"
+            : $"self cost {self:0.##} — 전체 비용의 {fraction:P0}");
+        var pct = new TextBlock
+        {
+            Text = $"{fraction * 100,3:0}%",
+            FontSize = 10.5,
+            Width = 30,
+            Foreground = Avalonia.Media.Brushes.Gray,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+
         var title = new TextBlock
         {
             Text = node.Title,
-            FontWeight = fraction >= 0.5 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
+            FontWeight = fraction >= 0.2 ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.SemiBold,
             Foreground = fraction >= 0.5 ? Avalonia.Media.Brushes.Firebrick
                        : fraction >= 0.2 ? Avalonia.Media.Brushes.Chocolate
                        : Avalonia.Media.Brushes.Black,
@@ -1151,13 +1187,37 @@ public partial class QueryTabView : UserControl
         var header = new StackPanel
         {
             Orientation = Avalonia.Layout.Orientation.Horizontal,
-            Children = { title, detail },
+            Children = { bar, pct, title, detail },
         };
+
+        // 행수 예측이 10배 이상 어긋난 노드 — 플랜이 틀어진 원인일 때가 많다
+        if (node.RowsEstimateError is { } error && error >= 10)
+        {
+            var badge = new Border
+            {
+                Background = Avalonia.Media.Brushes.DarkOrange,
+                CornerRadius = new Avalonia.CornerRadius(3),
+                Padding = new Avalonia.Thickness(4, 0),
+                Margin = new Avalonia.Thickness(6, 0, 0, 0),
+                VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = $"rows ×{error:0}",
+                    FontSize = 10.5,
+                    Foreground = Avalonia.Media.Brushes.White,
+                },
+            };
+            ToolTip.SetTip(badge,
+                $"예측 {node.PlanRows:0} 행 vs 실제 {node.ActualRows:0} 행 — {error:0}배 어긋남.\n" +
+                "통계가 오래됐거나(ANALYZE 필요) 조건 상관관계를 planner 가 모르는 경우입니다.");
+            header.Children.Add(badge);
+        }
+
         var item = new TreeViewItem { Header = header, IsExpanded = true };
         if (node.Extra is not null)
             ToolTip.SetTip(item, node.Extra);
         foreach (var child in node.Children)
-            item.Items.Add(BuildPlanItem(child, totalMs));
+            item.Items.Add(BuildPlanItem(child, selfTotal, useMs));
         return item;
     }
 
