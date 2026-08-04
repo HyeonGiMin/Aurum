@@ -98,6 +98,9 @@ public static class ErdLayout
     /// <summary>접두어 한 토막이 이 비율을 넘게 먹으면 토막을 하나 더 써서 쪼갠다.</summary>
     private const double PrefixDominanceLimit = 0.6;
 
+    /// <summary>FK 로 아무것과도 안 이어진 테이블들을 담는 영역 이름.</summary>
+    public const string UnrelatedGroupName = "(관계 없음)";
+
     public static ErdDiagram Compute(ErdGraph graph, ErdLayoutOptions? options = null)
     {
         var opt = options ?? ErdLayoutOptions.Default;
@@ -234,7 +237,7 @@ public static class ErdLayout
             if (a != b) parent[a] = b;
         }
 
-        return parent.Keys
+        var groups = parent.Keys
             .GroupBy(Find)
             .Select(g =>
             {
@@ -249,6 +252,17 @@ public static class ErdLayout
             .OrderByDescending(g => g.Keys.Count)
             .ThenBy(g => g.Name, StringComparer.Ordinal)
             .ToList();
+
+        // FK 로 아무것과도 안 이어진 테이블은 하나로 합친다. 각자 테두리를 두르면
+        // 영역 수가 테이블 수만큼 늘어나 세로로만 한없이 길어진다
+        // (실측: Oracle PRISMONE 517테이블 → 영역 340개, 높이 11520).
+        var loners = groups.Where(g => g.Keys.Count == 1 && degree[g.Keys[0]] == 0).ToList();
+        if (loners.Count < 2) return groups;
+
+        var merged = loners.SelectMany(g => g.Keys).OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var result = groups.Except(loners).ToList();
+        result.Add((UnrelatedGroupName, merged));   // 맨 뒤로 — 관계 있는 것부터 읽는다
+        return result;
     }
 
     /// <summary>이름 접두어로 묶는다. 한 토막이 거의 전부를 먹으면 토막을 하나 더 쓴다.</summary>

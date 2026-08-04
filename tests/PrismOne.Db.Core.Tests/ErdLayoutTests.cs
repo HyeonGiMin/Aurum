@@ -208,6 +208,36 @@ public class ErdLayoutTests
     }
 
     [Fact]
+    public void LoneTablesCollapseIntoOneArea()
+    {
+        // 실측 문제: Oracle PRISMONE 517테이블 중 단독이 많아 영역이 340개까지 늘어났다.
+        // 각자 테두리를 두르면 세로로만 끝없이 길어진다.
+        var graph = new ErdGraph(
+        [
+            .. Chain().Tables,
+            Table("lone_a", "k"), Table("lone_b", "k"), Table("lone_c", "k"),
+        ], Chain().Relations);
+
+        var diagram = ErdLayout.Compute(graph);
+
+        Assert.Equal(2, diagram.Groups.Count);   // 사슬 1 + 단독 묶음 1
+        var unrelated = diagram.Groups.Single(g => g.Name == ErdLayout.UnrelatedGroupName);
+        Assert.Equal(3, unrelated.TableCount);
+    }
+
+    [Fact]
+    public void ASingleLoneTableKeepsItsOwnName()
+    {
+        var graph = new ErdGraph([.. Chain().Tables, Table("alone", "k")], Chain().Relations);
+
+        var diagram = ErdLayout.Compute(graph);
+
+        // 하나뿐이면 "(관계 없음)" 으로 뭉뚱그리지 않고 이름을 그대로 보여준다
+        Assert.Contains(diagram.Groups, g => g.Name == "alone");
+        Assert.DoesNotContain(diagram.Groups, g => g.Name == ErdLayout.UnrelatedGroupName);
+    }
+
+    [Fact]
     public void GroupingNoneDrawsNoFrames()
     {
         var diagram = ErdLayout.Compute(Chain(), ErdLayoutOptions.Default with { Grouping = ErdGrouping.None });
