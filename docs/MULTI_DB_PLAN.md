@@ -10,8 +10,12 @@
 > - 1단계 **SQLite — 카탈로그까지 완료.** `SqliteErdCatalog` 가 sqlite_master +
 >   PRAGMA 로 테이블·컬럼·FK·UNIQUE 를 읽는다. **임시 파일 DB 로 실제 검증**
 >   (`SqliteProviderTests` 15개)
+> - 2단계 **Oracle — 코드 완료, 실접속 미검증.** `OracleProvider`(ROWID·대문자 인용·
+>   RC/Serializable 만) + `OracleErdCatalog`(all_tables/all_tab_columns/all_constraints).
+>   **인스턴스가 없어 카탈로그 쿼리를 돌려보지 못했다** — 서버 확보가 선행 과제
 > - **남은 것**: 로그온 창의 DB 종류 선택, `QuerySession`/`QueryExecutor` 의
->   `DbConnection` 마이그레이션(아직 Npgsql 고정), Capabilities 를 UI 비활성화에 연결
+>   `DbConnection` 마이그레이션(아직 Npgsql 고정), Capabilities 를 UI 비활성화에 연결,
+>   Oracle AS SYSDBA·Read Only 처리
 
 ## 1. 현재 결합도 (2026-08-04 측정)
 

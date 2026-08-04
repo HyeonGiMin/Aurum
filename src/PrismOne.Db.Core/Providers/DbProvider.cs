@@ -44,6 +44,13 @@ public interface IDbProvider
 
     DbCapabilities Capabilities { get; }
 
+    /// <summary>
+    /// 세션에 실제로 걸 수 있는 격리 수준. Capabilities.IsolationLevels 가 false 면 빈 목록.
+    /// DB 마다 지원 범위가 달라서(Oracle 은 RC/Serializable 만) 불리언 하나로는 부족하다 —
+    /// 드롭다운에 안 되는 항목을 띄우지 않기 위한 것.
+    /// </summary>
+    IReadOnlyList<TransactionIsolation> SupportedIsolations { get; }
+
     /// <summary>행 특정용 의사 컬럼. 없으면 null (그리드 편집 불가).</summary>
     string? RowIdColumn { get; }
 
@@ -68,6 +75,7 @@ public static class DbProviders
     private static readonly IDbProvider[] Registered =
     [
         new PostgresProvider(),
+        new OracleProvider(),
         new SqliteProvider(),
     ];
 

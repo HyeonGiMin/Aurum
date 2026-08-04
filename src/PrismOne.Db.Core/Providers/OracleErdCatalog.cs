@@ -1,0 +1,275 @@
+using System.Text;
+using Oracle.ManagedDataAccess.Client;
+
+namespace PrismOne.Db.Core.Providers;
+
+/// <summary>
+/// Oracle ERD 카탈로그. 읽기 전용 (all_* 데이터 딕셔너리).
+///
+/// **실접속 검증 안 됨** — Oracle 인스턴스가 없어 아래 쿼리는 컴파일과 코드 리뷰까지만
+/// 확인했다. 서버가 확보되면 SqliteProviderTests 처럼 실제 스키마로 검증할 것
+/// (MULTI_DB_PLAN.md 2단계).
+///
+/// 스키마 이름은 문자열 연결이 아니라 번호 붙은 바인드 변수로 넘긴다.
+/// </summary>
+public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
+{
+    /// <summary>기본 제공 계정 — 스키마 목록에서 뺀다.</summary>
+    private static readonly string[] SystemSchemas =
+    [
+        "SYS", "SYSTEM", "XDB", "OUTLN", "DBSNMP", "APPQOSSYS", "AUDSYS", "CTXSYS",
+        "GSMADMIN_INTERNAL", "LBACSYS", "OJVMSYS", "OLAPSYS", "ORDDATA", "ORDSYS",
+        "WMSYS", "MDSYS", "DVSYS", "DVF", "REMOTE_SCHEDULER_AGENT", "SYSBACKUP",
+        "SYSDG", "SYSKM", "SYSRAC", "GGSYS", "ANONYMOUS", "PUBLIC",
+    ];
+
+    private async Task<OracleConnection> OpenAsync(CancellationToken ct)
+    {
+        var conn = new OracleConnection(new OracleProvider().BuildConnectionString(profile));
+        await conn.OpenAsync(ct);
+        return conn;
+    }
+
+    /// <summary>테이블이나 뷰를 실제로 가진 owner 만.</summary>
+    public async Task<List<string>> GetSchemasAsync(CancellationToken ct = default)
+    {
+        var sql = $"""
+            SELECT DISTINCT owner
+              FROM all_objects
+             WHERE object_type IN ('TABLE', 'VIEW')
+               AND owner NOT IN ({Placeholders(SystemSchemas.Length, "x")})
+             ORDER BY owner
+            """;
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = Command(conn, sql);
+        Bind(cmd, "x", SystemSchemas);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var result = new List<string>();
+        while (await reader.ReadAsync(ct))
+            result.Add(reader.GetString(0));
+        return result;
+    }
+
+    public async Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default)
+    {
+        if (schemas.Count == 0) return ErdGraph.Empty;
+        var owners = schemas.ToArray();
+
+        await using var conn = await OpenAsync(ct);
+        var pkColumns = await LoadKeyColumnsAsync(conn, owners, "P", ct);
+        var fkColumns = await LoadKeyColumnsAsync(conn, owners, "R", ct);
+        var tables = await LoadTablesAsync(conn, owners, pkColumns, fkColumns, ct);
+        var relations = await LoadRelationsAsync(conn, owners, ct);
+
+        // 고른 스키마 밖을 가리키는 FK 는 그릴 상대가 없으므로 버린다.
+        var known = tables.Select(t => t.Key).ToHashSet();
+        relations = relations.Where(r => known.Contains(r.ChildKey) && known.Contains(r.ParentKey)).ToList();
+        return new ErdGraph(tables, relations);
+    }
+
+    // ---------- 조회 ----------
+
+    /// <summary>(OWNER.TABLE → 컬럼 집합). 'P' 면 PK, 'R' 이면 FK 참여 컬럼.</summary>
+    private static async Task<Dictionary<string, HashSet<string>>> LoadKeyColumnsAsync(
+        OracleConnection conn, string[] owners, string constraintType, CancellationToken ct)
+    {
+        var sql = $"""
+            SELECT cc.owner || '.' || cc.table_name, cc.column_name
+              FROM all_constraints c
+              JOIN all_cons_columns cc
+                ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+             WHERE c.constraint_type = :ctype
+               AND c.owner IN ({Placeholders(owners.Length, "o")})
+            """;
+        var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        await using var cmd = Command(conn, sql);
+        cmd.Parameters.Add("ctype", constraintType);
+        Bind(cmd, "o", owners);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var key = reader.GetString(0);
+            if (!result.TryGetValue(key, out var set))
+                result[key] = set = [];
+            set.Add(reader.GetString(1));
+        }
+        return result;
+    }
+
+    private static async Task<List<ErdTable>> LoadTablesAsync(
+        OracleConnection conn,
+        string[] owners,
+        Dictionary<string, HashSet<string>> pk,
+        Dictionary<string, HashSet<string>> fk,
+        CancellationToken ct)
+    {
+        // all_tab_columns 는 테이블·뷰를 다 담으므로 all_views 로 뷰 여부를 가른다.
+        var sql = $"""
+            SELECT c.owner,
+                   c.table_name,
+                   CASE WHEN v.view_name IS NULL THEN 0 ELSE 1 END AS is_view,
+                   c.column_name,
+                   c.data_type,
+                   c.char_length,
+                   c.data_precision,
+                   c.data_scale,
+                   c.nullable
+              FROM all_tab_columns c
+              LEFT JOIN all_views v
+                     ON v.owner = c.owner AND v.view_name = c.table_name
+             WHERE c.owner IN ({Placeholders(owners.Length, "o")})
+             ORDER BY c.owner, c.table_name, c.column_id
+            """;
+        var tables = new List<ErdTable>();
+        var columns = new List<ErdColumn>();
+        string? currentOwner = null, currentName = null;
+        var currentIsView = false;
+
+        await using var cmd = Command(conn, sql);
+        Bind(cmd, "o", owners);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var owner = reader.GetString(0);
+            var name = reader.GetString(1);
+            if (owner != currentOwner || name != currentName)
+            {
+                Flush();
+                (currentOwner, currentName, currentIsView) = (owner, name, reader.GetInt32(2) == 1);
+            }
+
+            var key = $"{owner}.{name}";
+            var column = reader.GetString(3);
+            columns.Add(new ErdColumn(
+                column,
+                FormatType(
+                    reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                    reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                    reader.IsDBNull(7) ? null : reader.GetInt32(7)),
+                NotNull: reader.GetString(8) == "N",
+                IsPk: pk.TryGetValue(key, out var pkCols) && pkCols.Contains(column),
+                IsFk: fk.TryGetValue(key, out var fkCols) && fkCols.Contains(column)));
+        }
+        Flush();
+        return tables;
+
+        void Flush()
+        {
+            if (currentOwner is null || currentName is null) return;
+            tables.Add(new ErdTable(currentOwner, currentName, currentIsView, columns.ToList()));
+            columns.Clear();
+        }
+    }
+
+    /// <summary>
+    /// FK. Oracle 은 r_constraint_name 으로 부모의 PK/UNIQUE 제약을 가리키므로
+    /// 부모 컬럼은 그 제약의 컬럼을 position 순으로 맞춘다.
+    /// child_unique 는 자식 쪽에 "FK 컬럼 집합과 정확히 같은" PK/UNIQUE 가 있는지다.
+    /// </summary>
+    private static async Task<List<ErdRelation>> LoadRelationsAsync(
+        OracleConnection conn, string[] owners, CancellationToken ct)
+    {
+        var sql = $"""
+            SELECT c.constraint_name,
+                   c.owner || '.' || c.table_name,
+                   rc.owner || '.' || rc.table_name,
+                   cc.column_name,
+                   rcc.column_name,
+                   col.nullable,
+                   (SELECT COUNT(*)
+                      FROM all_constraints u
+                     WHERE u.owner = c.owner
+                       AND u.table_name = c.table_name
+                       AND u.constraint_type IN ('P', 'U')
+                       AND (SELECT COUNT(*) FROM all_cons_columns ucc
+                             WHERE ucc.owner = u.owner AND ucc.constraint_name = u.constraint_name)
+                           = (SELECT COUNT(*) FROM all_cons_columns fcc
+                               WHERE fcc.owner = c.owner AND fcc.constraint_name = c.constraint_name)
+                       AND NOT EXISTS (
+                             SELECT 1 FROM all_cons_columns ucc
+                              WHERE ucc.owner = u.owner AND ucc.constraint_name = u.constraint_name
+                                AND ucc.column_name NOT IN (
+                                    SELECT fcc.column_name FROM all_cons_columns fcc
+                                     WHERE fcc.owner = c.owner
+                                       AND fcc.constraint_name = c.constraint_name))) AS child_unique
+              FROM all_constraints c
+              JOIN all_constraints rc
+                ON rc.owner = c.r_owner AND rc.constraint_name = c.r_constraint_name
+              JOIN all_cons_columns cc
+                ON cc.owner = c.owner AND cc.constraint_name = c.constraint_name
+              JOIN all_cons_columns rcc
+                ON rcc.owner = rc.owner AND rcc.constraint_name = rc.constraint_name
+               AND rcc.position = cc.position
+              JOIN all_tab_columns col
+                ON col.owner = c.owner AND col.table_name = c.table_name
+               AND col.column_name = cc.column_name
+             WHERE c.constraint_type = 'R'
+               AND c.owner IN ({Placeholders(owners.Length, "o")})
+             ORDER BY c.owner, c.table_name, c.constraint_name, cc.position
+            """;
+
+        var parts = new List<(string Name, string Child, string Parent,
+            string ChildColumn, string ParentColumn, bool Nullable, bool Unique)>();
+        await using var cmd = Command(conn, sql);
+        Bind(cmd, "o", owners);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            parts.Add((
+                reader.GetString(0), reader.GetString(1), reader.GetString(2),
+                reader.GetString(3), reader.GetString(4),
+                reader.GetString(5) == "Y",
+                reader.GetInt32(6) > 0));
+
+        return parts
+            .GroupBy(p => (p.Name, p.Child))
+            .Select(g => new ErdRelation(
+                g.Key.Name,
+                g.Key.Child,
+                g.Select(p => p.ChildColumn).ToList(),
+                g.First().Parent,
+                g.Select(p => p.ParentColumn).ToList(),
+                ChildUnique: g.First().Unique,
+                ChildOptional: g.Any(p => p.Nullable)))
+            .ToList();
+    }
+
+    // ---------- 도우미 ----------
+
+    /// <summary>PG 의 format_type 에 해당하는 표기 — VARCHAR2(64), NUMBER(10,2) 등.</summary>
+    public static string FormatType(string type, int? charLength, int? precision, int? scale) => type switch
+    {
+        "VARCHAR2" or "NVARCHAR2" or "CHAR" or "NCHAR" or "RAW" when charLength is > 0
+            => $"{type}({charLength})",
+        "NUMBER" when precision is > 0 && scale is > 0 => $"NUMBER({precision},{scale})",
+        "NUMBER" when precision is > 0 => $"NUMBER({precision})",
+        _ => type,
+    };
+
+    /// <summary>IN 절용 바인드 자리표 — :p0, :p1, ... (값을 문자열로 잇지 않는다).</summary>
+    public static string Placeholders(int count, string prefix)
+    {
+        var text = new StringBuilder();
+        for (var i = 0; i < count; i++)
+        {
+            if (i > 0) text.Append(", ");
+            text.Append(':').Append(prefix).Append(i);
+        }
+        return text.ToString();
+    }
+
+    private static OracleCommand Command(OracleConnection conn, string sql)
+    {
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        // 이름으로 바인딩해야 :o0 같은 자리표가 순서와 무관하게 맞는다
+        cmd.BindByName = true;
+        return cmd;
+    }
+
+    private static void Bind(OracleCommand cmd, string prefix, IReadOnlyList<string> values)
+    {
+        for (var i = 0; i < values.Count; i++)
+            cmd.Parameters.Add($"{prefix}{i}", values[i]);
+    }
+}

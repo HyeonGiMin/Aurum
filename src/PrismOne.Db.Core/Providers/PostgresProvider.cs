@@ -24,6 +24,16 @@ public sealed class PostgresProvider : IDbProvider
         ForeignKeys: true,
         Schemas: true);
 
+    /// <summary>PG 는 네 수준을 모두 받는다 (READ UNCOMMITTED 는 READ COMMITTED 로 동작).</summary>
+    public IReadOnlyList<TransactionIsolation> SupportedIsolations { get; } =
+    [
+        TransactionIsolation.DatabaseDefault,
+        TransactionIsolation.ReadUncommitted,
+        TransactionIsolation.ReadCommitted,
+        TransactionIsolation.RepeatableRead,
+        TransactionIsolation.Serializable,
+    ];
+
     /// <summary>PG 는 ctid 로 행을 특정한다 (Golden 이 Oracle ROWID 를 쓰던 자리).</summary>
     public string? RowIdColumn => "ctid";
 

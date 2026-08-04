@@ -85,8 +85,9 @@ public sealed class SqliteProviderTests : IDisposable
     [Fact]
     public void UnsupportedKindIsReportedNotSilentlyAccepted()
     {
-        Assert.False(DbProviders.IsSupported(DbKind.Oracle));
-        Assert.Throws<NotSupportedException>(() => DbProviders.For(DbKind.Oracle));
+        // MongoDB 는 아직 provider 가 없다 (Oracle 은 2026-08-04 에 추가됨)
+        Assert.False(DbProviders.IsSupported(DbKind.MongoDb));
+        Assert.Throws<NotSupportedException>(() => DbProviders.For(DbKind.MongoDb));
     }
 
     [Fact]

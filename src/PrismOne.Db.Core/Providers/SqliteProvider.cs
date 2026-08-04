@@ -30,6 +30,9 @@ public sealed class SqliteProvider : IDbProvider
         ForeignKeys: true,        // PRAGMA foreign_key_list
         Schemas: false);          // 스키마 개념 없음 (main 하나)
 
+    /// <summary>세션 격리 수준을 걸 수 없다.</summary>
+    public IReadOnlyList<TransactionIsolation> SupportedIsolations { get; } = [];
+
     public string? RowIdColumn => "rowid";
 
     /// <summary>
