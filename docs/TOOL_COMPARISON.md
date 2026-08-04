@@ -82,7 +82,7 @@
 | DataGrip | ERD | ✅ 구현됨 (2026-08-04) |
 | DataGrip | Tx 모드·격리 툴바 | ✅ 구현됨 |
 | DataGrip | 멀티 DB | 계획 수립됨 (MULTI_DB_PLAN.md) |
-| DataGrip | SQL 검증(없는 테이블/컬럼) | **다음** — 매일 쓰이는 경로 |
+| DataGrip | SQL 검증(없는 테이블/컬럼) | ✅ 구현됨 (2026-08-04, 물결 밑줄+툴팁) |
 | DataGrip | Explain Plan 시각화 | 트리는 있음, 비용 막대 미구현 |
 | DataGrip | 스키마 **읽기 전용 diff** | 빈도는 낮지만 싸다 (ERD 카탈로그 재사용) |
 
