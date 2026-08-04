@@ -35,6 +35,7 @@ public partial class OptionsDialog : Window
             StatementTimeoutMs = ParseInt(TimeoutBox.Text, 0, min: 0, max: 86_400_000),
             AutoCommit = AutoCommitOption.IsChecked == true,
             AllowNonSelectFavorites = AllowNonSelectFavoritesOption.IsChecked == true,
+            CountTotalRecords = CountTotalRecordsOption.IsChecked == true,
         };
         options.Save();
         Result = options;

@@ -102,6 +102,7 @@ select * from prismone.study where study_key = :key and modality = :mod;
 | **Clear Results** | 결과 영역만 비움 (에디터·로그는 유지) |
 | **컬럼 정렬** | 컬럼 헤더 클릭. 숫자로 읽히는 값은 숫자 크기순(문자열순이 아님), NULL 은 맨 앞. **이미 fetch 된 행만** 정렬됩니다(점진 fetch). Transpose·편집 모드에서는 꺼집니다 |
 | **맨 왼쪽 `#`** | 화면 순서 순번 — 정렬해도 항상 1, 2, 3… 입니다(정렬 대상 아님) |
+| **전체 레코드 수** | Options 의 *전체 레코드 수 조회* 를 켜면 SELECT 실행 후 `COUNT(*)` 를 따로 돌려 상태바에 `Fetched 2,000 of 12,345 records` 로 보여줍니다. **기본은 꺼짐** — 대용량 테이블에서 `COUNT(*)` 가 느릴 수 있어서입니다. 세는 동안 결과 표시는 막히지 않고(별도 접속), 실패하면 조용히 건너뜁니다 |
 | **Goto Record Number…** (Ctrl+G) | 행 번호로 이동·선택 |
 | **Cell Details…** (Ctrl+F11) | 선택 셀을 별도 창으로 (더블클릭과 동일, jsonb pretty-print) |
 

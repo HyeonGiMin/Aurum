@@ -1182,6 +1182,9 @@ public partial class QueryTabView : UserControl
                     gridShown = true;
                     LastGridSql = stmt.Text;
                     await FetchMoreAsync();
+                    // 첫 배치를 보여준 뒤 전체 건수를 백그라운드로 센다 (옵션, 기본 꺼짐)
+                    if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
+                        _ = CountTotalAsync(stmt.Text);
                     AppendLog(stmt.Text, $"{_rows.Count:N0} row(s), {ScriptTime()}");
                 }
                 else
@@ -1310,6 +1313,9 @@ public partial class QueryTabView : UserControl
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
     private void ClearResultArea()
     {
+        // 새 문장을 실행하면 이전 전체 건수는 무효 — 세던 것도 취소한다
+        _countCts?.Cancel();
+        _totalRecords = null;
         _columns = [];
         _rows = [];
         ResultGrid.Columns.Clear();
@@ -1779,11 +1785,53 @@ public partial class QueryTabView : UserControl
         }
     }
 
+    // ---------- 전체 건수 (Golden 이 레코드 수를 따로 조회하는 방식) ----------
+
+    private long? _totalRecords;
+    private CancellationTokenSource? _countCts;
+
     private void UpdateFetchInfo()
     {
         if (_current is null) return;
         var more = _current.Completed ? "" : " (more)";
-        SetInfo(InfoMessage, $"Fetched {_rows.Count:N0} records{more}", ScriptTime());
+        var text = _totalRecords is { } total
+            ? $"Fetched {_rows.Count:N0} of {total:N0} records"
+            : $"Fetched {_rows.Count:N0} records{more}";
+        SetInfo(InfoMessage, text, ScriptTime());
+    }
+
+    /// <summary>
+    /// COUNT(*) 를 **별도 접속**으로 센다. 공유 세션은 reader 를 하나만 열 수 있어
+    /// 여기서 문장을 던지면 진행 중인 결과 fetch 가 끊긴다.
+    /// 실패·취소는 조용히 넘긴다 — 어디까지나 표시용이다.
+    /// </summary>
+    private async Task CountTotalAsync(string sql)
+    {
+        _countCts?.Cancel();
+        _countCts = new CancellationTokenSource();
+        var ct = _countCts.Token;
+        _totalRecords = null;
+
+        if (_session is null) return;
+        var inner = sql.TrimEnd().TrimEnd(';');
+        if (inner.Length == 0) return;
+
+        try
+        {
+            await using var conn = await _session.Profile.OpenDbAsync(ct);
+            await using var cmd = conn.CreateCommand();
+            // 원본 문장을 그대로 감싼다 (별칭은 PG·Oracle·SQLite 모두 이 형태를 받는다)
+            cmd.CommandText = $"select count(*) from ({inner}) aurum_count";
+            var value = await cmd.ExecuteScalarAsync(ct);
+            if (ct.IsCancellationRequested || value is null || value is DBNull) return;
+
+            _totalRecords = Convert.ToInt64(value);
+            UpdateFetchInfo();
+        }
+        catch
+        {
+            // 세지 못해도 결과 표시에는 지장이 없다 (권한·구문·시간 초과 등)
+        }
     }
 
     private string ScriptTime() => $"Script: {_scriptWatch.Elapsed.TotalSeconds:0.000}s";

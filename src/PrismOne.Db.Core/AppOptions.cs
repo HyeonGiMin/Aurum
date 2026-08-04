@@ -24,6 +24,16 @@ public sealed class AppOptions
     /// <summary>Golden: "Allow non-Select statements to run from the Favorites Menu." 기본은 차단.</summary>
     public bool AllowNonSelectFavorites { get; set; }
 
+    /// <summary>
+    /// SELECT 실행 후 <c>COUNT(*)</c> 를 따로 돌려 전체 건수를 상태바에 보인다
+    /// (Golden 이 레코드 수를 별도 조회하는 방식).
+    ///
+    /// **기본은 끔** — 운영 DB 전제(STATUS.md §2·3)라 대용량 테이블에서 COUNT(*) 가
+    /// 매우 비쌀 수 있다. 켜면 첫 배치를 보여준 뒤 백그라운드로 세고,
+    /// 실패하면 조용히 건너뛴다.
+    /// </summary>
+    public bool CountTotalRecords { get; set; }
+
     /// <summary>DataGrip 의 Tx Isolation — 새 세션에 걸 격리 수준. 기본은 DB 설정을 따른다.</summary>
     [JsonConverter(typeof(JsonStringEnumConverter<TransactionIsolation>))]
     public TransactionIsolation Isolation { get; set; } = TransactionIsolation.DatabaseDefault;

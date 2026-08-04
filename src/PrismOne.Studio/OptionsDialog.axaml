@@ -24,6 +24,9 @@
     <CheckBox Name="AutoCommitOption" Content="AutoCommit (끄면 Golden 식 수동 커밋)" FontSize="13"/>
     <CheckBox Name="AllowNonSelectFavoritesOption" FontSize="13"
               Content="Favorites 메뉴에서 SELECT 이외의 문장도 실행 허용"/>
+    <CheckBox Name="CountTotalRecordsOption" FontSize="13"
+              Content="전체 레코드 수 조회 (COUNT(*) 를 따로 실행)"
+              ToolTip.Tip="상태바에 'Fetched N of M records' 로 표시합니다.&#x0a;대용량 테이블에서는 COUNT(*) 가 느릴 수 있어 기본은 꺼둡니다."/>
 
     <TextBlock Text="변경은 새로 실행하는 문장부터 적용됩니다." FontSize="12" Opacity="0.65" TextWrapping="Wrap"/>
 
