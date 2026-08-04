@@ -1,6 +1,6 @@
 # 진행 상황 · 다음 작업 (인수인계용)
 
-마지막 갱신: 2026-08-03 · 브랜치 `main`
+마지막 갱신: 2026-08-04 · 브랜치 `feat/erd-and-result-views`
 
 > **repo 분리 (2026-08-03)**: 이 repo(aurum)는 GUI(Aurum)+Core 전용이다.
 > DB 초기 설치·패치 CLI(`iapdb`)와 mini-psql 실행기는 **iap-database repo 의
@@ -72,6 +72,16 @@
   TSV 내보내기)를 새 행으로 넣는다. 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뛴다
 
 **남은 Golden 기능**: 없음 — Golden 파리티 완료.
+
+- **SQL 검증 (2026-08-04, DATAGRIP_GAP §2)** — 타자 후 0.6초 쉬면 introspection
+  캐시와 대조해 없는 테이블/컬럼에 빨간 물결 밑줄 + 호버 툴팁.
+  `Core/SqlValidator`(순수 로직, 테스트 22개) + `Studio/SqlErrorRenderer`.
+  원칙은 "확신할 때만 표시" — 해석 안 되는 것(CTE·서브쿼리 별칭·모르는 스키마·
+  따옴표 식별자·함수)은 침묵한다. 오프라인 스크린샷에 `shot_validation.png` 추가.
+- **fetch 회귀 테스트 (2026-08-04)** — "전체 fetch 기본 + 5만 행 상한" 경로를
+  SQLite 로 못박음 (`ActiveQueryFetchTests` 6개): lookahead 무손실·배치 경계
+  Completed 판정·완료 후 빈 배치(무한 루프 방지 전제)·상한 도달 후 Abort→재실행·
+  취소 후 세션 복구.
 
 ## 1.6 ERD 뷰어 (2026-08-04, MVP)
 
@@ -179,7 +189,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 ## 개발 메모 (다른 환경에서 이어받을 때)
 
 - **빌드**: `cd tools && dotnet build PrismOne.Tools.sln` (.NET 10 SDK 필요)
-- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 130개)
+- **테스트**: `dotnet test tests/PrismOne.Db.Core.Tests` (현재 244개)
 - **실접속 검증 현황** (2026-08-03, 사내 개발 DB 접속 가능한 환경에서 확인):
   1. ✅ **Tx Isolation** — `ApplyIsolationAsync` 후 `show transaction_isolation` 으로 확인.
      Serializable / Repeatable Read / Read Committed 모두 세션에 반영되고,

@@ -30,6 +30,9 @@ public sealed class SchemaCache(SchemaCache.Loader load)
 
     public bool IsLoaded => _snapshot is not null;
 
+    /// <summary>읽어둔 스냅샷 — 없으면 null. SQL 검증처럼 동기로 봐야 하는 쪽이 쓴다.</summary>
+    public SchemaSnapshot? Loaded => _snapshot;
+
     /// <summary>아직 안 읽었으면 빈 목록. UI 가 동기적으로 훑을 때 쓴다.</summary>
     public IReadOnlyList<TableInfo> LoadedTables => _snapshot?.Tables ?? [];
 

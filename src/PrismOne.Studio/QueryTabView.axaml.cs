@@ -97,6 +97,11 @@ public partial class QueryTabView : UserControl
     private AvaloniaEdit.CodeCompletion.CompletionWindow? _completion;
     private readonly Dictionary<string, List<ColumnInfo>> _columnCache = new(StringComparer.OrdinalIgnoreCase);
 
+    // SQL 검증 (DATAGRIP_GAP §2): 타자 후 잠깐 쉬면 introspection 캐시와 대조해 밑줄
+    private readonly SqlErrorRenderer _errorRenderer = new();
+    private readonly DispatcherTimer _validateTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private bool _schemaLoadKicked;
+
     /// <summary>자동완성용 테이블 카탈로그 — 접속 후 MainWindow 가 채워준다.</summary>
     public List<TableInfo> CompletionTables { get; set; } = [];
 
@@ -174,6 +179,17 @@ public partial class QueryTabView : UserControl
         // 상태바의 Selected / Modified 갱신 (Golden 파리티)
         ResultGrid.SelectionChanged += (_, _) => InfoChanged?.Invoke(this);
         Editor.Document.TextChanged += (_, _) => InfoChanged?.Invoke(this);
+
+        // SQL 검증: 타자 후 0.6초 쉬면 없는 테이블/컬럼에 빨간 물결 밑줄 + 호버 툴팁
+        Editor.TextArea.TextView.BackgroundRenderers.Add(_errorRenderer);
+        _validateTimer.Tick += (_, _) =>
+        {
+            _validateTimer.Stop();
+            ValidateSql();
+        };
+        Editor.Document.TextChanged += (_, _) => RestartValidation();
+        Editor.TextArea.TextView.PointerHover += OnEditorHover;
+        Editor.TextArea.TextView.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(Editor, false);
 
         // 자동완성: Ctrl+Space 수동 호출, '.' 입력 시 자동 (Golden 의 popup table/field lists)
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
@@ -283,7 +299,66 @@ public partial class QueryTabView : UserControl
     }
 
     /// <summary>접속당 공용 introspection 캐시 (MainWindow 가 주입). 없으면 직접 조회한다.</summary>
-    public SchemaCache? SchemaCache { get; set; }
+    public SchemaCache? SchemaCache
+    {
+        get => _schemaCache;
+        set
+        {
+            _schemaCache = value;
+            // 접속이 바뀌면 이전 스키마 기준 밑줄은 무효 — 새 캐시로 다시 검증한다
+            _schemaLoadKicked = false;
+            _errorRenderer.Issues = [];
+            Editor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+            RestartValidation();
+        }
+    }
+
+    private SchemaCache? _schemaCache;
+
+    private void RestartValidation()
+    {
+        _validateTimer.Stop();
+        _validateTimer.Start();
+    }
+
+    /// <summary>
+    /// 에디터 전체를 캐시와 대조한다. 캐시가 아직 안 읽혔으면 한 번만 적재를 걸어두고,
+    /// 끝나면 다시 들어온다 — 타자마다 접속을 여는 일은 없다.
+    /// </summary>
+    private void ValidateSql()
+    {
+        if (SchemaCache?.Loaded is not { } snapshot)
+        {
+            if (_schemaCache is { } cache && !_schemaLoadKicked)
+            {
+                _schemaLoadKicked = true;
+                _ = cache.GetAsync().ContinueWith(
+                    _ => Dispatcher.UIThread.Post(ValidateSql), TaskScheduler.Default);
+            }
+            return;
+        }
+        _errorRenderer.Issues = SqlValidator.Validate(Editor.Text ?? "", snapshot);
+        Editor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+    }
+
+    private void OnEditorHover(object? sender, Avalonia.Input.PointerEventArgs e)
+    {
+        if (_errorRenderer.Issues.Count == 0) return;
+        var textView = Editor.TextArea.TextView;
+        var pos = textView.GetPositionFloor(e.GetPosition(textView) + textView.ScrollOffset);
+        if (pos is null) return;
+        var offset = Editor.Document.GetOffset(pos.Value.Location);
+        foreach (var issue in _errorRenderer.Issues)
+        {
+            if (offset >= issue.Start && offset <= issue.Start + issue.Length)
+            {
+                ToolTip.SetTip(Editor, issue.Message);
+                ToolTip.SetIsOpen(Editor, true);
+                return;
+            }
+        }
+        ToolTip.SetIsOpen(Editor, false);
+    }
 
     /// <summary>
     /// FROM/JOIN 에 적힌 테이블들의 컬럼 — WHERE 뒤 완성용.

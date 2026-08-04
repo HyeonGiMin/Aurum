@@ -15,7 +15,7 @@ Golden 파리티는 끝났다(GOLDEN_BEHAVIOR.md). 이 문서는 **Golden 에는
 | # | 기능 | 지금 | 빈도 | 비용 | 판단 |
 |---|---|---|---|---|---|
 | 1 | **스키마 introspection 캐시** | 매번 조회 | 상시 | 낮음 | ✅ 완료 |
-| 2 | **SQL 검증** (없는 테이블/컬럼 표시) | 없음 | **매일** | 중간 | **다음** |
+| 2 | **SQL 검증** (없는 테이블/컬럼 표시) | 없음 | **매일** | 중간 | ✅ 완료 (2026-08-04) |
 | 3 | Explain Plan 시각화(비용·행수 막대) | 트리만 | 자주 | 낮음 | 싸고 체감 큼 |
 | 4 | 스키마 **읽기 전용 diff** | 없음 | 가끔 | 낮음 | ERD 카탈로그 재사용 |
 | 5 | CSV/TSV **import** (파일 → 테이블) | export 만 | 가끔 | 중간 | |
@@ -46,11 +46,18 @@ Golden 파리티는 끝났다(GOLDEN_BEHAVIOR.md). 이 문서는 **Golden 에는
 - `Refresh()` 명시 갱신 + DDL 실행 시 무효화
 - 순수 자료구조로 두고 조회 함수를 주입해 단위 테스트를 붙인다
 
-## 2. SQL 검증
+## 2. SQL 검증 — ✅ 구현됨 (2026-08-04)
 
 캐시가 생기면 에디터에서 `from prismone.stduy` 같은 오타를 실행 전에 잡을 수 있다.
 전체 SQL 파싱은 과하니, 우선 `FROM`/`JOIN` 뒤 식별자와 `alias.column` 만 대조한다
 (자동완성이 이미 하는 해석을 재사용).
+
+**구현 (2026-08-04):** `Core/SqlValidator` + `Studio/SqlErrorRenderer`(물결 밑줄) +
+QueryTabView 의 0.6초 디바운스 타이머·호버 툴팁. FROM/JOIN/INTO/UPDATE 뒤 테이블
+(콤마 조인 포함)과 `별칭.컬럼`을 introspection 캐시와 대조한다. 원칙은 **확신할 때만
+표시** — CTE·서브쿼리 별칭·모르는 스키마·내장 이름(dual/pg_*/sqlite_*)·따옴표
+식별자·함수(`extract(year from …)` 의 from 포함)는 침묵. 주석·문자열·달러 인용은
+마스킹. 단위 테스트 22개 (`SqlValidatorTests`).
 
 ## 3. 스키마 비교 — 쪼개서 판단 (2026-08-04 수정)
 

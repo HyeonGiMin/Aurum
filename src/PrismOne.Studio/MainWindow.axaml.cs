@@ -1784,6 +1784,24 @@ public partial class MainWindow : Window
                 new TableInfo("prismone", "examlist", false),
                 new TableInfo("prismone", "v_study_summary", true),
             ];
+            // SQL 검증 밑줄도 오프라인으로 확인한다 — 샘플 카탈로그로 캐시를 채워둔다
+            var sampleColumns = new Dictionary<string, List<ColumnInfo>>(StringComparer.Ordinal)
+            {
+                ["prismone.study"] =
+                [
+                    new(1, "study_key", "bigint", "no", "P1", ""),
+                    new(2, "study_id", "varchar(64)", "no", "", ""),
+                    new(3, "patient_key", "bigint", "no", "", "F1"),
+                    new(4, "patient_id", "varchar(64)", "no", "", ""),
+                    new(5, "study_dttm", "timestamp", "yes", "", ""),
+                    new(6, "modality", "varchar(16)", "yes", "", ""),
+                ],
+            };
+            var sampleCache = new SchemaCache(
+                _ => Task.FromResult(new SchemaSnapshot(_allTables, sampleColumns)));
+            await sampleCache.GetAsync();
+            view.SchemaCache = sampleCache;
+
             SchemaCombo.ItemsSource = new[] { "prismone" };
             SchemaCombo.SelectedIndex = 0;
             RefreshObjectList();
@@ -1820,6 +1838,16 @@ public partial class MainWindow : Window
                 SaveShot(this, System.IO.Path.Combine(dir, "shot_log.png"));
                 SetResultView(textView, ResultViewMode.Grid);
             }
+
+            // SQL 검증 — 없는 컬럼(study_dtm)·없는 테이블(stduy)에 물결 밑줄
+            view.SetSql("""
+                select s.study_key, s.study_dtm
+                  from prismone.study s;
+
+                select * from prismone.stduy;
+                """);
+            await Task.Delay(1200);   // 검증 타이머(0.6s) 경과 대기
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_validation.png"));
 
             var dialog = new ConnectDialog();
             dialog.Show(this);
