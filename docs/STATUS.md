@@ -176,6 +176,12 @@ FK 제약 **prismone 185건**(+pgmq 2건) 존재. ERD 관계선이 그려지는 
 로그온 한 번 저장한 뒤 검증할 것. 그 외: AS SYSDBA·Read Only(Oracle 은 접속 수준
 읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
 
+**PL/Edit 파리티 (2026-08-04 사용자 방향 제시)**: Benthic 의 PL/SQL 에디터
+PL/Edit 몫까지 Oracle 지원에 포함한다 — PL/SQL 블록 실행(`/` 종결),
+DBMS_OUTPUT 수신, 프로시저/패키지 소스 편집·컴파일(USER_ERRORS 오류 목록),
+파라미터 입력 실행. 디버거는 비채택. 요구 분해는 `MULTI_DB_PLAN.md` §2.5 —
+전부 Oracle 실서버 확보가 선행 조건.
+
 ## 1.4 아이디어 — MCP 서버 (2026-08-04 검토, 미착수)
 
 LLM(Claude 등)이 개발 DB 의 스키마·데이터를 조회하게 하는 MCP 서버.

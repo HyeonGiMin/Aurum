@@ -111,11 +111,35 @@ SQLite 를 넣으면 이 경로들이 CI 에서 자동 검증된다. Oracle/Mong
 고유 항목(AS SYSDBA, AltSchema, DBMS_OUTPUT, ROWID 편집)이 여기서 살아난다.
 검증에 Oracle 인스턴스가 필요하다 — 사내 서버 사용 협의 필요.
 
+#### 2.5단계 — PL/Edit 파리티 (2026-08-04 사용자 방향 제시)
+
+Benthic 은 Golden(쿼리) 외에 **PL/Edit(PL/SQL 에디터)** 를 따로 판다. Oracle 을
+제대로 지원하려면 PL/Edit 몫까지 흡수해야 한다. 요구 분해:
+
+| 기능 | 내용 | 우리 기반 |
+|---|---|---|
+| PL/SQL 블록 실행 | `BEGIN…END;` + `/` 종결 — 문장 분리기가 블록을 통째로 보내야 한다 | StatementSplitter 확장 (핵심 선행) |
+| DBMS_OUTPUT 수신 | `DBMS_OUTPUT.ENABLE` 후 `GET_LINES` 폴링 → Messages pane | Capabilities.ServerMessages 이미 true, Messages pane 재사용 |
+| 저장 프로시저 편집 | Object Browser 에 Procedure/Function/Package 표시 → 소스 로드(`USER_SOURCE`) → 에디터 | 카탈로그 확장 |
+| 컴파일 + 오류 목록 | `CREATE OR REPLACE …` 실행 후 `USER_ERRORS` 조회 → 줄 번호 클릭 이동 | SqlErrorRenderer(밑줄) 재사용 가능 |
+| 실행/테스트 | 프로시저 선택 → 파라미터 입력 창 → 호출 + 결과/OUT 값 | BindVariableDialog 확장 |
+| 디버거(브레이크포인트) | PL/Edit 의 DBMS_DEBUG 디버거 | **비채택** — 비용 대비 사용 빈도 낮음, 후순위 |
+
+전부 **Oracle 실서버 검증이 선행 조건** — 현재 개발 머신에는 Oracle 접속이
+없다 (STATUS.md §1.7). 서버 확보 후: 쿼리 실행 실검증 → 블록 분리 →
+DBMS_OUTPUT → 소스 편집·컴파일 순.
+
 ### 3단계 — MongoDB
 
 SQL 이 아니라 **에디터(쿼리 언어)·그리드(중첩 문서)·자동완성(컬렉션/필드)·편집(_id)
 UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단계와 성격이 완전히
 달라 별도 계획으로 분리한다.
+
+**범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
+Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),
+_id 기준 편집, JSON import/export)을 목표로 한다. 착수 시 검증 인프라부터:
+로컬 mongod (현재 개발 머신 미설치 — `brew install mongodb-community`) 또는
+Testcontainers 로 **테스트 가능한 상태를 먼저** 만든다 (SQLite 때와 같은 원칙).
 
 ## 5. 권장 순서와 이유
 
