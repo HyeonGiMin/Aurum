@@ -3,6 +3,7 @@
         xmlns:core="using:PrismOne.Db.Core"
         xmlns:local="using:PrismOne.Studio"
         x:Class="PrismOne.Studio.ConnectDialog"
+        Icon="/Assets/icon.png"
         Title="Database Login - Aurum"
         Width="640" Height="700" CanResize="False"
         WindowStartupLocation="CenterOwner"

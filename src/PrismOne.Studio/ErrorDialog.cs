@@ -32,6 +32,7 @@ public static class ErrorDialog
         var dialog = new Window
         {
             Title = title,
+            Icon = AppIcon.Shared,
             Width = 520,
             SizeToContent = SizeToContent.Height,
             CanResize = false,

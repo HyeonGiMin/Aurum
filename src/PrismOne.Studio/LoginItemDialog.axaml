@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PrismOne.Studio.LoginItemDialog"
+        Icon="/Assets/icon.png"
         Title="Editing existing Login Item"
         Width="420" SizeToContent="Height" CanResize="False"
         WindowStartupLocation="CenterOwner"

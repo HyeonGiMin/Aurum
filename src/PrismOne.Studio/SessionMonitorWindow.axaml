@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="using:PrismOne.Db.Core"
         x:Class="PrismOne.Studio.SessionMonitorWindow"
+        Icon="/Assets/icon.png"
         Title="Session Monitor - Aurum"
         Width="920" Height="480"
         WindowStartupLocation="CenterOwner"

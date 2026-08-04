@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PrismOne.Studio.CsvImportDialog"
+        Icon="/Assets/icon.png"
         Title="Import CSV/TSV - Aurum"
         Width="820" Height="600"
         WindowStartupLocation="CenterOwner"

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="PrismOne.Studio.SchemaDiffWindow"
+        Icon="/Assets/icon.png"
         Title="Schema Diff - Aurum"
         Width="860" Height="640"
         WindowStartupLocation="CenterOwner"
