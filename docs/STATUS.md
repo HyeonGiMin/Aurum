@@ -200,5 +200,7 @@ DB 로 직접 지원**해야 한다. 착수 시점에 검토할 것:
 | `GOLDEN_BEHAVIOR.md` | Golden 동작 명세 + 갭 목록 (바이너리·매뉴얼 근거) |
 | `PG_FEATURES.md` | pgAdmin·PostgreSQL 고유 기능 채택 계획 |
 | `STUDIO_PLAN.md` | 초기 파리티 계획 (P1~P5) |
+| `TOOL_COMPARISON.md` | **Golden vs DataGrip 장단점** — Aurum 이 무엇을 취하고 무엇을 버릴지 |
+| `DATAGRIP_GAP.md` | DataGrip 대비 기능 갭과 우선순위 |
 | `MULTI_DB_PLAN.md` | **멀티 DB 계획** — PG/Oracle/SQLite/MongoDB provider 단계 |
 | `STATUS.md` | 이 문서 — 진행 상황과 다음 작업 |
