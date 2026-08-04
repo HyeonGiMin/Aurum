@@ -16,9 +16,24 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
 
 ## 2. 로그온 (Ctrl+L)
 
+- 맨 위 **Type** — 접속할 DB 종류를 고릅니다. **PostgreSQL / Oracle / SQLite**.
+  종류에 따라 아래 입력이 달라집니다.
+
+  | 종류 | Database 칸 | 비고 |
+  |---|---|---|
+  | PostgreSQL | `host[:5432]/database` | 포트 생략 시 5432 |
+  | Oracle | `host[:1521]/service` | **서비스 이름**입니다 |
+  | SQLite | `C:\path\to\file.db` | 파일 경로. Username/Password 사용 안 함 |
+
 - **Database 는 `host[:port]/database` 한 칸**입니다. 예: `<dev-host>/prismone`,
-  `stg-ihp5022:5433/prismone`, 포트 생략 시 5432, `prismone` 만 쓰면 localhost.
+  포트를 생략하면 종류별 기본 포트, `prismone` 만 쓰면 localhost.
 - 아래 **Login List** 에서 클릭=필드 채움, **더블클릭=바로 로그인**. New/Delete 로 관리.
+  - 항목을 고르면 **Type 도 그 종류로 복원**됩니다.
+  - **Type 은 색 배지**로 표시됩니다 (PostgreSQL 파랑 · Oracle 빨강 · SQLite 남색).
+  - **컬럼 헤더를 누르면 정렬**됩니다. 한 번 더 누르면 역순, 세 번째면 해제(저장 순서).
+  - 선택은 **행 단위**입니다 (셀 선택 없음).
+- 접속에 실패하면 **팝업으로 이유**를 보여줍니다 (드라이버 예외의 내부 원인까지).
+  비밀번호와 접속 문자열은 표시하지 않습니다.
 - **Edit** — 선택한 항목의 표시 이름(Name)·**Category**·Comment 를 고칩니다
   (접속 정보 자체는 필드에서 고쳐 다시 로그인하면 갱신).
 - **Filter ▾** — 목록 위에 필터 행이 열리고 **Username / Database / Category** 로
@@ -85,6 +100,8 @@ select * from prismone.study where study_key = :key and modality = :mod;
 | **Clear Filter** | 필터를 풀고 원래 행 전체로 되돌림 |
 | **Append Filter Clause to Editor** | 선택 셀 값으로 `WHERE` 절을 만들어 에디터 끝에 주석으로 덧붙임 |
 | **Clear Results** | 결과 영역만 비움 (에디터·로그는 유지) |
+| **컬럼 정렬** | 컬럼 헤더 클릭. 숫자로 읽히는 값은 숫자 크기순(문자열순이 아님), NULL 은 맨 앞. **이미 fetch 된 행만** 정렬됩니다(점진 fetch). Transpose·편집 모드에서는 꺼집니다 |
+| **맨 왼쪽 `#`** | 화면 순서 순번 — 정렬해도 항상 1, 2, 3… 입니다(정렬 대상 아님) |
 | **Goto Record Number…** (Ctrl+G) | 행 번호로 이동·선택 |
 | **Cell Details…** (Ctrl+F11) | 선택 셀을 별도 창으로 (더블클릭과 동일, jsonb pretty-print) |
 
@@ -159,7 +176,12 @@ Text/Log 는 그리드 위에 덮어 표시되며, **오류 메시지는 어느 
 - **`.` 입력 시 자동**: `prismone.` → 테이블 목록, `study.` / `s.`(별칭) → **컬럼 목록**
   (FROM/JOIN 의 별칭을 해석합니다. `from prismone.study s` 후 `s.` → study 컬럼).
 - **FROM/JOIN 뒤에서는 스페이스/글자 입력만으로 테이블 목록이 자동으로** 뜹니다.
+- **WHERE / AND / OR / ON / HAVING / SELECT 뒤, 콤마 뒤**에서는 `.` 없이도
+  **FROM 에 적힌 테이블들의 컬럼**이 맨 위에 뜹니다. 테이블이 여럿이면 어느 테이블
+  컬럼인지 함께 보여주고, PK/FK 도 표시합니다.
 - 팝업이 뜬 뒤 계속 타이핑하면 필터링, Enter/Tab 으로 삽입.
+- **PostgreSQL · Oracle · SQLite 모두 동작**합니다 — 카탈로그를 DB 종류별로 읽어
+  한 번만 캐시하기 때문입니다(접속 직후 한 번 적재, 대형 스키마는 몇 초 걸릴 수 있음).
 
 ## 7. 히스토리 · 검색
 

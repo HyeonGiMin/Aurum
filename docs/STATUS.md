@@ -102,6 +102,31 @@ SVG 내보내기·인쇄, 선택 영역 DDL 생성, `OracleErdCatalog`(Oracle �
 **실접속 검증은 아직 안 했다** — 개발 DB 에 FK 제약이 실제로 걸려 있는지부터 확인할 것
 (`pg_constraint contype='f'` 건수). FK 가 없으면 관계선 없이 박스만 나온다.
 
+## 1.7 멀티 DB 현황 (2026-08-04)
+
+계획은 `MULTI_DB_PLAN.md`, 판단 근거는 `TOOL_COMPARISON.md` / `DATAGRIP_GAP.md`.
+
+| 기능 | PostgreSQL | Oracle | SQLite |
+|---|---|---|---|
+| 접속 (로그온 창 Type 선택) | ✅ | ✅ | ✅ |
+| 쿼리 실행·트랜잭션 | ✅ | ⚠️ 미검증 | ✅ (테스트) |
+| Object Browser·자동완성 | ✅ | ✅ | ✅ |
+| ERD (Tools > Diagram) | ✅ | ✅ 실접속 확인 | ✅ (테스트) |
+| 세션 격리 수준 | 4단계 | RC/Serializable | ❌ 없음 |
+| 그리드 편집 행 특정 | ctid | ROWID | rowid |
+| COPY 대량 내보내기 | ✅ | ❌ | ❌ |
+| 스키마 버전 pill | ✅ | ❌ (PG 전용) | ❌ |
+
+**실측 메모**
+
+- Oracle 카탈로그: 552테이블 적재 **2.2초**. 처음엔 FK 관계까지 읽어 74초가 걸려
+  `IErdCatalog.LoadTablesAsync`(관계 제외)를 따로 뒀다 — 자동완성엔 FK 가 필요 없다
+- Oracle ERD: 517테이블·293관계. 단독 테이블을 한 영역으로 묶어 주제영역
+  340개 → 8개, 높이 11520 → 8838. 그래도 전체 보기는 못 읽으니 Focus 가 기본
+
+**남은 것**: Oracle 쿼리 실행 실검증, AS SYSDBA·Read Only(Oracle 은 접속 수준
+읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
+
 ## 1.5 후순위 방향 — Studio3T 기능 흡수 + DataGrip 급 동작
 
 Golden 파리티가 끝나면 다음 단계는 **DataGrip 처럼 쓰이는 DB 툴**로 넓히는 것.
