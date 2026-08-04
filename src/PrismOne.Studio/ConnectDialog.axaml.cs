@@ -309,6 +309,8 @@ public partial class ConnectDialog : Window
         }
 
         ConnectButton.IsEnabled = false;
+        ConnectButton.Content = "Connecting…";
+        ConnectProgress.IsVisible = true;
         try
         {
             // 접속 검증만 하고 닫는다. 실제 세션은 MainWindow/탭이 연다.
@@ -327,6 +329,8 @@ public partial class ConnectDialog : Window
         finally
         {
             ConnectButton.IsEnabled = true;
+            ConnectButton.Content = "Login";
+            ConnectProgress.IsVisible = false;
         }
     }
 

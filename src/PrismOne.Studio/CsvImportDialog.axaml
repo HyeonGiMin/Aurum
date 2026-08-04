@@ -38,8 +38,12 @@
     <ListBox Grid.Row="3" Name="PreviewList" FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
              FontSize="12" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
 
-    <TextBlock Grid.Row="4" Name="StatusText" FontSize="12" Opacity="0.85" Margin="0,8,0,8"
-               Text="전량 성공 아니면 전량 롤백입니다 — 절반만 들어간 테이블을 만들지 않습니다."/>
+    <DockPanel Grid.Row="4" Margin="0,8,0,8">
+      <ProgressBar Name="ImportProgress" DockPanel.Dock="Left" IsVisible="False"
+                   Width="120" Height="6" Margin="0,0,10,0" VerticalAlignment="Center"/>
+      <TextBlock Name="StatusText" FontSize="12" Opacity="0.85"
+                 Text="전량 성공 아니면 전량 롤백입니다 — 절반만 들어간 테이블을 만들지 않습니다."/>
+    </DockPanel>
 
     <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
       <Button Name="ImportButton" Content="Import" MinHeight="32" MinWidth="96"

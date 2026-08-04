@@ -36,6 +36,7 @@ public partial class SchemaDiffWindow : Window
         MinWidth = 560;
         MinHeight = 420;
         KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Escape) Close(); };
+        WindowPlacementTracker.Attach(this, "diff");
 
         var choices = new List<BaselineChoice> { new("스냅샷 파일에서 선택…", null, null) };
         // 비밀번호가 저장된 접속만 — 여기서 비밀번호를 물어보는 창까지 두지 않는다
@@ -67,6 +68,7 @@ public partial class SchemaDiffWindow : Window
     {
         if (Selected is null) return;
         CompareButton.IsEnabled = false;
+        BusyBar.IsVisible = true;
         try
         {
             StatusText.Text = "기준 스키마 읽는 중…";
@@ -102,6 +104,7 @@ public partial class SchemaDiffWindow : Window
         finally
         {
             CompareButton.IsEnabled = true;
+            BusyBar.IsVisible = false;
         }
     }
 
@@ -114,6 +117,7 @@ public partial class SchemaDiffWindow : Window
             FileTypeChoices = [new FilePickerFileType("Schema snapshot") { Patterns = ["*.json"] }],
         });
         if (file is null) return;
+        BusyBar.IsVisible = true;
         try
         {
             StatusText.Text = "스키마 읽는 중…";
@@ -125,6 +129,10 @@ public partial class SchemaDiffWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = $"저장 실패: {ex.Message}";
+        }
+        finally
+        {
+            BusyBar.IsVisible = false;
         }
     }
 

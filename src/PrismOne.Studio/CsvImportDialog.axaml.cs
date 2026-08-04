@@ -170,12 +170,19 @@ public partial class CsvImportDialog : Window
             return;
         var rows = HeaderCheck.IsChecked == true ? _parsed.Skip(1).ToList() : _parsed;
         ImportButton.IsEnabled = false;
+        ImportProgress.Maximum = rows.Count;
+        ImportProgress.Value = 0;
+        ImportProgress.IsVisible = true;
         try
         {
             StatusText.Text = "Import 중…";
             // 공유 세션을 건드리지 않게 전용 접속으로 실행한다
             await using var session = await QuerySession.CreateAsync(_profile);
-            var progress = new Progress<int>(n => StatusText.Text = $"Import 중… {n:N0}/{rows.Count:N0}행");
+            var progress = new Progress<int>(n =>
+            {
+                ImportProgress.Value = n;
+                StatusText.Text = $"Import 중… {n:N0}/{rows.Count:N0}행";
+            });
             var result = await CsvImporter.RunAsync(
                 session, table.Schema, table.Name, _mapping, rows,
                 EmptyNullCheck.IsChecked == true, progress);
@@ -191,6 +198,7 @@ public partial class CsvImportDialog : Window
         finally
         {
             ImportButton.IsEnabled = true;
+            ImportProgress.IsVisible = false;
         }
     }
 

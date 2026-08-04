@@ -54,6 +54,7 @@ public partial class ErdWindow : Window
         _focusKey = focusKey;
 
         Title = $"Diagram - {profile.DisplayName}";
+        WindowPlacementTracker.Attach(this, "erd");
         _suppressReload = true;
         FocusBox.IsChecked = focusKey is not null;
         FocusLabel.Text = focusKey ?? "—";
@@ -103,6 +104,7 @@ public partial class ErdWindow : Window
         }
 
         ErdStatus.Text = "스키마 목록 조회 중…";
+        ErdProgress.IsVisible = true;
         try
         {
             var schemas = await _catalog.GetSchemasAsync();
@@ -122,6 +124,7 @@ public partial class ErdWindow : Window
         {
             _suppressReload = false;
             ErdStatus.Text = $"스키마 조회 실패: {ex.Message}";
+            ErdProgress.IsVisible = false;
             return;
         }
         await ReloadAsync();
@@ -135,7 +138,8 @@ public partial class ErdWindow : Window
             return;
         }
         if (SchemaCombo.SelectedItem is not string schema) return;
-        ErdStatus.Text = $"{schema} 카탈로그 읽는 중…";
+        ErdStatus.Text = $"{schema} 카탈로그 읽는 중… (대형 스키마는 몇 초 걸립니다)";
+        ErdProgress.IsVisible = true;
         try
         {
             _full = await _catalog.LoadAsync([schema]);
@@ -146,6 +150,10 @@ public partial class ErdWindow : Window
             Surface.Diagram = null;
             ErdStatus.Text = $"카탈로그 조회 실패: {ex.Message}";
             return;
+        }
+        finally
+        {
+            ErdProgress.IsVisible = false;
         }
         Rebuild(fit: true);
     }

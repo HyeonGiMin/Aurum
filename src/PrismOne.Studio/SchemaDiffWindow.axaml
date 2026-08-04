@@ -24,7 +24,11 @@
 
     <TreeView Grid.Row="2" Name="ResultTree" FontSize="12.5"/>
 
-    <TextBlock Grid.Row="3" Name="StatusText" FontSize="12" Opacity="0.85" Margin="0,8,0,0"
-               Text="읽기 전용 비교입니다 — DDL 을 만들거나 실행하지 않습니다."/>
+    <DockPanel Grid.Row="3" Margin="0,8,0,0">
+      <ProgressBar Name="BusyBar" DockPanel.Dock="Left" IsIndeterminate="True" IsVisible="False"
+                   Width="90" Height="4" Margin="0,0,10,0" VerticalAlignment="Center"/>
+      <TextBlock Name="StatusText" FontSize="12" Opacity="0.85"
+                 Text="읽기 전용 비교입니다 — DDL 을 만들거나 실행하지 않습니다."/>
+    </DockPanel>
   </Grid>
 </Window>
