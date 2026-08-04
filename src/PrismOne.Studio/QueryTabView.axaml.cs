@@ -230,9 +230,18 @@ public partial class QueryTabView : UserControl
         if (qualifier is null)
         {
             // 테이블 자리(from/join/into/update 뒤)면 테이블만 — 키워드 잡음 제거
-            items = SqlCompletion.IsTablePosition(text, wordStart)
-                ? SqlCompletion.TablesOnly(CompletionTables, PreferredSchema)
-                : SqlCompletion.General(CompletionTables, PreferredSchema);
+            if (SqlCompletion.IsTablePosition(text, wordStart))
+            {
+                items = SqlCompletion.TablesOnly(CompletionTables, PreferredSchema);
+            }
+            else
+            {
+                items = SqlCompletion.General(CompletionTables, PreferredSchema);
+                // WHERE/AND/ON/SELECT 뒤라면 FROM 에 적힌 테이블들의 컬럼을 맨 위에 붙인다
+                // (Golden 동작). 카탈로그가 provider 별로 채워지므로 PG·Oracle 모두 동작한다
+                if (SqlCompletion.IsColumnPosition(text, wordStart))
+                    items = [.. await ColumnsInScopeAsync(text), .. items];
+            }
         }
         else
         {
@@ -258,6 +267,45 @@ public partial class QueryTabView : UserControl
 
     /// <summary>접속당 공용 introspection 캐시 (MainWindow 가 주입). 없으면 직접 조회한다.</summary>
     public SchemaCache? SchemaCache { get; set; }
+
+    /// <summary>
+    /// FROM/JOIN 에 적힌 테이블들의 컬럼 — WHERE 뒤 완성용.
+    /// 테이블이 여럿이면 어느 테이블 것인지 설명에 붙인다.
+    /// </summary>
+    private async Task<List<SqlCompletionItem>> ColumnsInScopeAsync(string sql)
+    {
+        var tables = SqlCompletion.ReferencedTables(CompletionTables, sql);
+        if (tables.Count == 0) return [];
+
+        var items = new List<SqlCompletionItem>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var table in tables)
+        {
+            List<ColumnInfo> columns;
+            try
+            {
+                columns = SchemaCache is { } cache
+                    ? [.. await cache.GetColumnsAsync(table)]
+                    : await LoadColumnsDirectlyAsync(table);
+            }
+            catch
+            {
+                continue;   // 한 테이블을 못 읽어도 나머지는 보여준다
+            }
+
+            foreach (var c in columns)
+            {
+                // 같은 이름이 여러 테이블에 있으면 첫 번째만 (별칭으로 구분하면 되니까)
+                if (!seen.Add(c.Name)) continue;
+                var detail = tables.Count > 1 ? $"{table.Name} · {c.Type}" : c.Type;
+                if (c.Pk.Length > 0) detail += " · PK";
+                if (c.Fk.Length > 0) detail += " · FK";
+                // 컬럼을 키워드·테이블보다 위로 (가중치 5)
+                items.Add(new SqlCompletionItem(c.Name, detail, 5, SqlCompletionKind.Column));
+            }
+        }
+        return items;
+    }
 
     /// <summary>캐시가 없을 때의 예전 경로 — 그 테이블만 조회.</summary>
     private async Task<List<ColumnInfo>> LoadColumnsDirectlyAsync(TableInfo table)
@@ -1228,7 +1276,8 @@ public partial class QueryTabView : UserControl
         var view = new Avalonia.Collections.DataGridCollectionView(rows);
         // 정렬이 바뀔 때만 다시 매긴다. 행이 하나 추가될 때마다 매기면
         // 점진 fetch(수만 행)에서 O(n²) 가 된다
-        view.SortDescriptions.CollectionChanged += (_, _) => Renumber(view);
+        view.SortDescriptions.CollectionChanged += (_, _) =>
+            Dispatcher.UIThread.Post(() => Renumber(view), DispatcherPriority.Background);
         _gridView = view;
         ResultGrid.ItemsSource = view;
         Renumber(view);
@@ -1243,12 +1292,20 @@ public partial class QueryTabView : UserControl
 
     private static void Renumber(Avalonia.Collections.DataGridCollectionView view)
     {
-        var seq = 1;
-        foreach (var item in view)
+        // **먼저 스냅샷을 뜬다.** RowItem 이 INotifyPropertyChanged 라 순회 도중 Seq 를 바꾸면
+        // 뷰가 그 알림을 받아 컬렉션을 건드리고 "순회 중 변경" 예외로 앱이 죽는다.
+        List<RowItem> rows;
+        try
         {
-            if (item is RowItem row) row.Seq = seq;
-            seq++;
+            rows = view.OfType<RowItem>().ToList();
         }
+        catch
+        {
+            return;   // 정렬이 아직 진행 중이면 다음 기회에
+        }
+
+        for (var i = 0; i < rows.Count; i++)
+            rows[i].Seq = i + 1;
     }
 
     /// <summary>실행 시작 시 이전 결과를 완전히 비운다 (컬럼 헤더 포함, No Records 도 숨김).</summary>
