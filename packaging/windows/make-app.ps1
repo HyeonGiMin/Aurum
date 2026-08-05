@@ -3,7 +3,7 @@
 #
 #   사용:  powershell -ExecutionPolicy Bypass -File tools/packaging/windows/make-app.ps1
 #   결과:  tools/dist/Aurum/Aurum.exe
-#          tools/dist/IAPDatabaseManager-win-x64-<버전>.zip
+#          tools/dist/Aurum-win-x64-<버전>.zip
 #
 # macOS 쪽은 packaging/macos/make-app.sh 가 담당한다 (.app 번들).
 # ============================================================
@@ -60,7 +60,7 @@ if (-not (Test-Path $publishedExe)) { throw "publish 산출물에 Aurum.exe 가 
 Move-Item $publishedExe $targetExe -Force
 
 if (-not $SkipZip) {
-    $zipPath = Join-Path $distDir "IAPDatabaseManager-$Rid-$Version.zip"
+    $zipPath = Join-Path $distDir "Aurum-$Rid-$Version.zip"
     if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
     Compress-Archive -Path $stageDir -DestinationPath $zipPath
     Write-Output "== zip: $zipPath =="
