@@ -7,6 +7,8 @@ using PrismOne.Db.Core;
 using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 using Xunit;
+// MongoDB.Driver 도 같은 이름의 예외를 갖고 있어 앨리어스로 우리 타입을 명확히 한다.
+using MongoQueryException = PrismOne.Db.Core.Mongo.MongoQueryException;
 
 namespace PrismOne.Db.Core.Tests;
 
@@ -68,6 +70,45 @@ public class MongoSessionLiveTests
         finally
         {
             session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>
+    /// DB 를 안 정하고(host:port 만 접속) 바로 조회하면 예전처럼 아무 DB(test)로 조용히
+    /// 넘어가지 않고 바로 알려야 한다 — 안 그러면 실제로는 다른 DB 에 있는 컬렉션을
+    /// 엉뚱한 빈 DB 에서 찾아 "0건"으로 착각하게 만든다.
+    /// </summary>
+    [Fact]
+    public async Task Execute_WithoutDatabaseSelected_ThrowsInsteadOfSilentlyQueryingSomeDefault()
+    {
+        if (Host is null) return;
+        using var session = MongoSession.Open(Profile(""));
+
+        var ex = await Assert.ThrowsAsync<MongoQueryException>(
+            () => session.ExecuteAsync("db.people.find({})"));
+        Assert.Contains("데이터베이스", ex.Message);
+    }
+
+    /// <summary>실 mongosh 의 `use db` 로 DB 를 정한 뒤에는 그 DB 를 정확히 본다.</summary>
+    [Fact]
+    public async Task Execute_UseDatabase_ThenFind_TargetsThatDatabase()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            using var bare = MongoSession.Open(Profile(""));
+            Assert.Null(bare.CurrentDatabase);
+
+            await bare.ExecuteAsync($"use {database}");
+            Assert.Equal(database, bare.CurrentDatabase);
+
+            var result = await bare.ExecuteAsync("db.people.countDocuments({})");
+            Assert.Equal(3L, result.Table.Rows[0][0]);
+        }
+        finally
+        {
             await DropAsync(database);
         }
     }

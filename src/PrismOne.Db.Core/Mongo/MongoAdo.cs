@@ -85,10 +85,9 @@ public sealed class MongoDbConnection : DbConnection
             throw new ArgumentException("데이터베이스 이름이 비어 있습니다.", nameof(databaseName));
 
         _profile = _profile with { Database = databaseName };
-        if (_state != ConnectionState.Open) return;
-
-        _session?.Dispose();
-        _session = MongoSession.Open(_profile);
+        // 이미 열려 있으면 재접속 없이 대상만 바꾼다 — MongoClient 는 여러 DB 를
+        // 같은 접속으로 보는 게 정상이라 다시 열 이유가 없다.
+        _session?.UseDatabase(databaseName);
     }
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>

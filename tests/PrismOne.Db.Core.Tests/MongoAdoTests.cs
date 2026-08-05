@@ -8,6 +8,8 @@ using PrismOne.Db.Core;
 using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 using Xunit;
+// MongoDB.Driver 도 같은 이름의 예외를 갖고 있어 앨리어스로 우리 타입을 명확히 한다.
+using MongoQueryException = PrismOne.Db.Core.Mongo.MongoQueryException;
 
 namespace PrismOne.Db.Core.Tests;
 
@@ -176,6 +178,36 @@ public class MongoAdoTests
             command.CommandText = "db.people.countDocuments({})";
 
             Assert.Equal(2L, await command.ExecuteScalarAsync());
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>
+    /// DB 를 안 정하고 접속한 뒤 `use db` 를 실행하면(Explorer 더블클릭과 같은 경로,
+    /// QueryTabView.TryUseDatabase → ChangeDatabase) 재접속 없이 그 DB 를 정확히 본다.
+    /// </summary>
+    [Fact]
+    public async Task ChangeDatabase_SwitchesTarget_WithoutReconnecting()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            await using DbConnection connection =
+                await DbProviders.For(DbKind.MongoDb).OpenAsync(Profile(""));
+
+            var findBefore = connection.CreateCommand();
+            findBefore.CommandText = "db.people.find({})";
+            await Assert.ThrowsAsync<MongoQueryException>(() => findBefore.ExecuteReaderAsync());
+
+            connection.ChangeDatabase(database);
+
+            var findAfter = connection.CreateCommand();
+            findAfter.CommandText = "db.people.countDocuments({})";
+            Assert.Equal(2L, await findAfter.ExecuteScalarAsync());
         }
         finally
         {

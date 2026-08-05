@@ -80,6 +80,24 @@ public class MongoCommandTests
         Assert.Equal("people", command.Collection);
     }
 
+    [Theory]
+    [InlineData("use mydb")]
+    [InlineData("use   mydb  ")]
+    [InlineData("USE mydb")]
+    [InlineData("use 'mydb'")]
+    [InlineData("use \"mydb\"")]
+    public void Parse_RecognizesUseDatabase(string text)
+    {
+        var command = MongoQueryParser.Parse(text);
+
+        Assert.Equal(MongoOperation.UseDatabase, command.Operation);
+        Assert.Equal("mydb", command.Argument);
+    }
+
+    [Fact]
+    public void Parse_Throws_WhenUseHasNoDatabaseName() =>
+        Assert.Throws<MongoQueryException>(() => MongoQueryParser.Parse("use"));
+
     [Fact]
     public void Parse_RecognizesShowCollections()
     {

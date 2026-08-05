@@ -14,6 +14,8 @@ public enum MongoOperation
     Distinct,
     /// <summary><c>show collections</c> — 컬렉션 목록.</summary>
     ListCollections,
+    /// <summary><c>use &lt;db&gt;</c> — 이후 문장이 조회할 데이터베이스를 정한다 (실 mongosh 문법).</summary>
+    UseDatabase,
 }
 
 /// <summary>
@@ -29,7 +31,9 @@ public sealed record MongoCommand(
     BsonDocument? Sort = null,
     int? Limit = null,
     int? Skip = null,
-    string? DistinctField = null);
+    string? DistinctField = null,
+    /// <summary><c>UseDatabase</c> 전용 — 대상 데이터베이스 이름.</summary>
+    string? Argument = null);
 
 /// <summary>Mongo 셸 구문을 이해하지 못했을 때. 메시지는 사용자에게 그대로 보인다.</summary>
 public sealed class MongoQueryException(string message) : Exception(message);
@@ -46,6 +50,17 @@ public static class MongoQueryParser
     {
         var source = StripComments(text).Trim().TrimEnd(';').Trim();
         if (source.Length == 0) throw new MongoQueryException("실행할 명령이 없습니다.");
+
+        // 접속 시 DB 를 안 정했거나(전체 DB 대상) 다른 DB 를 보고 싶을 때 쓰는 실제 mongosh
+        // 문법이다 — 접속마다 임의로 어떤 DB(예: test)에 조용히 묶이는 것을 피하려고 넣었다.
+        if (source.StartsWith("use ", StringComparison.OrdinalIgnoreCase) ||
+            source.Equals("use", StringComparison.OrdinalIgnoreCase))
+        {
+            var name = (source.Length > 3 ? source[3..] : "").Trim().Trim('"', '\'');
+            if (name.Length == 0)
+                throw new MongoQueryException("use 뒤에 데이터베이스 이름이 필요합니다 (예: use mydb).");
+            return new MongoCommand(MongoOperation.UseDatabase, "", Argument: name);
+        }
 
         if (source.Equals("show collections", StringComparison.OrdinalIgnoreCase) ||
             source.Equals("show tables", StringComparison.OrdinalIgnoreCase))

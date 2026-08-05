@@ -24,16 +24,14 @@ public sealed class MongoSession : IDisposable
     /// <summary>한 번에 가져올 문서 수 상한 — 운영 컬렉션을 통째로 끌어오는 사고 방지.</summary>
     public const int DefaultLimit = 500;
 
-    /// <summary>DB 를 적지 않았을 때 쓰는 이름. mongosh 도 같은 기본값을 쓴다.</summary>
-    public const string DefaultDatabase = "test";
-
-    private readonly IMongoDatabase _database;
     private readonly MongoClient _client;
+    /// <summary>지금 조회 대상 DB. 안 정했으면 null — 예전처럼 "test" 로 조용히 넘어가지 않는다.</summary>
+    private string? _databaseName;
 
-    private MongoSession(MongoClient client, IMongoDatabase database)
+    private MongoSession(MongoClient client, string? databaseName)
     {
         _client = client;
-        _database = database;
+        _databaseName = databaseName;
     }
 
     public static MongoSession Open(ConnectionProfile profile)
@@ -44,9 +42,29 @@ public sealed class MongoSession : IDisposable
         settings.ConnectTimeout = TimeSpan.FromSeconds(5);
 
         var client = new MongoClient(settings);
-        var databaseName = string.IsNullOrWhiteSpace(profile.Database) ? DefaultDatabase : profile.Database;
-        return new MongoSession(client, client.GetDatabase(databaseName));
+        var databaseName = string.IsNullOrWhiteSpace(profile.Database) ? null : profile.Database;
+        return new MongoSession(client, databaseName);
     }
+
+    /// <summary>지금 조회 대상 DB. 안 정했으면 null.</summary>
+    public string? CurrentDatabase => _databaseName;
+
+    /// <summary>
+    /// 대상 데이터베이스를 정한다 — Explorer 에서 컬렉션을 고르거나 셸의 <c>use db</c> 명령으로.
+    /// Mongo 는 없는 이름을 줘도 에러가 아니다(첫 쓰기 때 생기는 지연 생성) — 그대로 둔다.
+    /// </summary>
+    public void UseDatabase(string database) => _databaseName = database;
+
+    /// <summary>
+    /// 지금 조회할 DB. 안 정했으면 예전처럼 아무 DB(test)로 조용히 넘어가지 않고 여기서 바로
+    /// 알린다 — 그렇게 두면 실제로는 다른 DB 에 있는 컬렉션을 빈 DB 에서 찾아 "0건"으로
+    /// 착각하게 만든다(사일런트 오조회가 조용한 것보다 나쁘다).
+    /// </summary>
+    private IMongoDatabase RequireDatabase() => _databaseName is null
+        ? throw new MongoQueryException(
+            "먼저 데이터베이스를 선택하세요 — Explorer 에서 컬렉션을 더블클릭하거나 " +
+            "\"use <데이터베이스 이름>\" 을 실행하세요.")
+        : _client.GetDatabase(_databaseName);
 
     /// <summary>
     /// 접속 문자열. 비밀번호가 들어가므로 <b>로그·오류 메시지에 실으면 안 된다</b>.
@@ -62,9 +80,15 @@ public sealed class MongoSession : IDisposable
         return $"mongodb://{credentials}{host}:{port}";
     }
 
-    /// <summary>접속 확인 — 실패하면 드라이버 예외가 그대로 올라온다.</summary>
+    /// <summary>
+    /// 접속 확인 — 실패하면 드라이버 예외가 그대로 올라온다.
+    /// ping 은 대상 DB 가 실존하는지와 무관해서(컬렉션을 안 건드린다) DB 를 안 정했어도
+    /// 아무 이름으로나 보낼 수 있다 — admin 을 쓴다. 실제 조회(Find 등)와 달리
+    /// "엉뚱한 DB 를 조용히 본다" 문제가 없다.
+    /// </summary>
     public async Task PingAsync(CancellationToken ct = default) =>
-        await _database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: ct);
+        await _client.GetDatabase(_databaseName ?? "admin")
+            .RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: ct);
 
     /// <summary>
     /// 서버의 데이터베이스 목록. Studio3T·DataGrip 처럼 <b>DB → 컬렉션</b> 트리를 그리려면
@@ -84,7 +108,7 @@ public sealed class MongoSession : IDisposable
         new(["admin", "local", "config"], StringComparer.OrdinalIgnoreCase);
 
     public Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken ct = default) =>
-        ListCollectionsAsync(_database, ct);
+        ListCollectionsAsync(RequireDatabase(), ct);
 
     /// <summary>접속한 DB 가 아닌 다른 DB 의 컬렉션 목록 (Explorer 트리용).</summary>
     public Task<IReadOnlyList<string>> ListCollectionsAsync(string database, CancellationToken ct = default) =>
@@ -106,7 +130,7 @@ public sealed class MongoSession : IDisposable
     /// </summary>
     public Task<IReadOnlyList<string>> InferFieldsAsync(
         string collection, int sampleSize = 50, CancellationToken ct = default) =>
-        InferFieldsAsync(_database, collection, sampleSize, ct);
+        InferFieldsAsync(RequireDatabase(), collection, sampleSize, ct);
 
     /// <summary>다른 DB 의 컬렉션에서 필드를 추론한다 (Explorer 트리용).</summary>
     public Task<IReadOnlyList<string>> InferFieldsAsync(
@@ -130,6 +154,7 @@ public sealed class MongoSession : IDisposable
         var command = MongoQueryParser.Parse(text);
         return command.Operation switch
         {
+            MongoOperation.UseDatabase => RunUseDatabase(command),
             MongoOperation.ListCollections => await RunListCollectionsAsync(ct),
             MongoOperation.Find => await RunFindAsync(command, limit, ct),
             MongoOperation.Aggregate => await RunAggregateAsync(command, limit, ct),
@@ -137,6 +162,13 @@ public sealed class MongoSession : IDisposable
             MongoOperation.Distinct => await RunDistinctAsync(command, ct),
             _ => throw new MongoQueryException($"{command.Operation} 는 아직 실행할 수 없습니다."),
         };
+    }
+
+    /// <summary>실 mongosh 처럼 이후 문장이 볼 DB 를 바꾼다 — 존재하지 않아도 오류가 아니다.</summary>
+    private MongoResult RunUseDatabase(MongoCommand command)
+    {
+        UseDatabase(command.Argument!);
+        return new MongoResult(new MongoTable(["database"], [[command.Argument]]), $"Using {command.Argument}");
     }
 
     private async Task<MongoResult> RunListCollectionsAsync(CancellationToken ct)
@@ -149,7 +181,7 @@ public sealed class MongoSession : IDisposable
 
     private async Task<MongoResult> RunFindAsync(MongoCommand command, int limit, CancellationToken ct)
     {
-        var find = _database.GetCollection<BsonDocument>(command.Collection)
+        var find = RequireDatabase().GetCollection<BsonDocument>(command.Collection)
             .Find(command.Filter ?? new BsonDocument());
 
         if (command.Projection is not null) find = find.Project<BsonDocument>(command.Projection);
@@ -168,7 +200,7 @@ public sealed class MongoSession : IDisposable
         var stages = command.Pipeline!.Select(s => s.AsBsonDocument).ToList();
         var pipeline = PipelineDefinition<BsonDocument, BsonDocument>.Create(stages);
 
-        var cursor = await _database.GetCollection<BsonDocument>(command.Collection)
+        var cursor = await RequireDatabase().GetCollection<BsonDocument>(command.Collection)
             .AggregateAsync(pipeline, cancellationToken: ct);
 
         // $limit 이 파이프라인에 없을 수 있으므로 받는 쪽에서도 끊는다
@@ -185,7 +217,7 @@ public sealed class MongoSession : IDisposable
 
     private async Task<MongoResult> RunCountAsync(MongoCommand command, CancellationToken ct)
     {
-        var count = await _database.GetCollection<BsonDocument>(command.Collection)
+        var count = await RequireDatabase().GetCollection<BsonDocument>(command.Collection)
             .CountDocumentsAsync(command.Filter ?? new BsonDocument(), cancellationToken: ct);
 
         return new MongoResult(
@@ -194,7 +226,7 @@ public sealed class MongoSession : IDisposable
 
     private async Task<MongoResult> RunDistinctAsync(MongoCommand command, CancellationToken ct)
     {
-        var cursor = await _database.GetCollection<BsonDocument>(command.Collection)
+        var cursor = await RequireDatabase().GetCollection<BsonDocument>(command.Collection)
             .DistinctAsync<BsonValue>(command.DistinctField,
                 command.Filter ?? new BsonDocument(), cancellationToken: ct);
         var values = await cursor.ToListAsync(ct);
