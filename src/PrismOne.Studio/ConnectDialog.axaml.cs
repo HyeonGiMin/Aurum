@@ -359,11 +359,10 @@ public partial class ConnectDialog : Window
             if (onlyColon > 0 &&
                 int.TryParse(s[(onlyColon + 1)..], out var onlyPort) && onlyPort is > 0 and <= 65535)
             {
-                // Mongo 는 DB 를 안 적어도 되는 게 정상이다 (mongosh 도 기본 test 를 쓴다).
+                // Mongo 는 DB 를 안 적어도 되는 게 정상이다. 빈 값으로 두면 Explorer 가
+                // 서버의 DB 를 전부 보여준다 (적었으면 그 DB 만).
                 // PG/Oracle 은 DB·서비스 이름이 반드시 필요하므로 오류로 알린다.
-                return kind == DbKind.MongoDb
-                    ? (s[..onlyColon], onlyPort, MongoSession.DefaultDatabase)
-                    : null;
+                return kind == DbKind.MongoDb ? (s[..onlyColon], onlyPort, "") : null;
             }
             return ("localhost", defaultPort, s);
         }

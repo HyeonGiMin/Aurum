@@ -226,19 +226,17 @@ public class MongoAdoTests
     }
 
     /// <summary>
-    /// 다른 DB 에 접속해 있어도 서버의 컬렉션을 찾을 수 있어야 한다 —
-    /// "host:port 만 쳐서 test 로 붙었더니 Explorer 가 비어 있다" 를 막는 회귀 테스트.
+    /// DB 를 <b>안 적고</b> 접속하면(host:port 만) 서버의 DB 가 전부 보여야 한다 —
+    /// "/test 없이 접속했더니 Explorer 가 비어 있다" 를 막는 회귀 테스트.
     /// </summary>
     [Fact]
-    public async Task ErdCatalog_FindsCollections_EvenWhenConnectedToAnotherDatabase()
+    public async Task ErdCatalog_ListsAllDatabases_WhenNoDatabaseGiven()
     {
         if (Host is null) return;
         var database = await SeedAsync();
         try
         {
-            // 일부러 비어 있는 기본 DB 로 접속한다
-            var catalog = DbProviders.For(DbKind.MongoDb)
-                .CreateErdCatalog(Profile(MongoSession.DefaultDatabase));
+            var catalog = DbProviders.For(DbKind.MongoDb).CreateErdCatalog(Profile(""));
             var graph = await catalog.LoadTablesAsync(await catalog.GetSchemasAsync());
 
             Assert.Contains(graph.Tables, t => t.Schema == database && t.Name == "people");
@@ -246,6 +244,28 @@ public class MongoAdoTests
         finally
         {
             await DropAsync(database);
+        }
+    }
+
+    /// <summary>DB 를 적었으면 그 DB 만 보여야 한다 (서버 전체를 쏟아내지 않는다).</summary>
+    [Fact]
+    public async Task ErdCatalog_LimitsToGivenDatabase_WhenSpecified()
+    {
+        if (Host is null) return;
+        var first = await SeedAsync();
+        var second = await SeedAsync();
+        try
+        {
+            var catalog = DbProviders.For(DbKind.MongoDb).CreateErdCatalog(Profile(first));
+            var schemas = await catalog.GetSchemasAsync();
+
+            Assert.Equal([first], schemas);
+            Assert.DoesNotContain(second, schemas);
+        }
+        finally
+        {
+            await DropAsync(first);
+            await DropAsync(second);
         }
     }
 }

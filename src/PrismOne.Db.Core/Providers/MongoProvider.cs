@@ -77,17 +77,17 @@ public sealed class MongoProvider : IDbProvider
 /// </summary>
 public sealed class MongoErdCatalog(ConnectionProfile profile) : IErdCatalog
 {
+    /// <summary>
+    /// 접속 시 DB 를 <b>적었으면 그 DB 만</b>, <b>안 적었으면 서버의 DB 전부</b>.
+    /// Mongo 는 DB 를 정하지 않고 붙는 게 자연스러워서 후자를 기본으로 쓸 수 있게 했다.
+    /// </summary>
     public async Task<List<string>> GetSchemasAsync(CancellationToken ct = default)
     {
         using var session = MongoSession.Open(profile);
         var databases = (await session.ListDatabaseNamesAsync(ct)).ToList();
 
-        // 접속 대상 DB 가 아직 문서를 하나도 안 받아 목록에 없을 수 있다 — 그래도 보여준다.
-        if (!string.IsNullOrWhiteSpace(profile.Database) &&
-            !databases.Contains(profile.Database, StringComparer.OrdinalIgnoreCase))
-            databases.Insert(0, profile.Database);
-
-        return databases;
+        // 지정했으면 그 DB 만. 아직 문서가 없어 서버 목록에 안 잡혀도 보여준다.
+        return string.IsNullOrWhiteSpace(profile.Database) ? databases : [profile.Database];
     }
 
     public Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default) =>

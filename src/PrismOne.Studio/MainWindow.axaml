@@ -394,10 +394,21 @@
 
           <TreeView Name="ExplorerTree" BorderThickness="0" Background="Transparent"
                     DoubleTapped="OnExplorerDoubleTapped">
+            <TreeView.Styles>
+              <!-- 스키마가 하나뿐이면 펼친 채로 연다 (DataGrip 도 현재 스키마를 펼쳐 둔다) -->
+              <Style Selector="TreeViewItem" x:DataType="local:ExplorerNode">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded}"/>
+              </Style>
+            </TreeView.Styles>
             <TreeView.ItemTemplate>
               <TreeDataTemplate x:DataType="local:ExplorerNode" ItemsSource="{Binding Children}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,1">
+                  <Viewbox Width="14" Height="14" VerticalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                      <Path Data="{Binding Icon}" Stroke="{Binding IconBrush}" StrokeThickness="1.6"
+                            Fill="{Binding IconFill}"/>
+                    </Canvas>
+                  </Viewbox>
                   <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center"/>
                   <TextBlock Text="{Binding Detail}" FontSize="10.5" Opacity="0.5"
                              VerticalAlignment="Center"/>

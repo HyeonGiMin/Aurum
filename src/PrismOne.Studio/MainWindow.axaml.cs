@@ -4,9 +4,11 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Npgsql;
 using PrismOne.Db.Core;
@@ -25,7 +27,6 @@ public enum ExplorerNodeKind { Schema, Table }
 /// </summary>
 public sealed record ExplorerNode(
     string Name,
-    string Glyph,
     string Detail,
     ExplorerNodeKind Kind,
     string Qualified,
@@ -33,6 +34,16 @@ public sealed record ExplorerNode(
 {
     /// <summary>이 노드가 속한 스키마 (Mongo 는 데이터베이스 이름). 테이블 노드에만 채운다.</summary>
     public string Schema { get; init; } = "";
+
+    /// <summary>트리 아이콘. 스키마=원통, 테이블=표, 뷰=칸 적은 표.</summary>
+    public Geometry? Icon { get; init; }
+    public IBrush? IconBrush { get; init; }
+
+    /// <summary>표 아이콘의 머리줄만 옅게 채운다 (윤곽선만이면 밋밋하다).</summary>
+    public IBrush? IconFill { get; init; }
+
+    /// <summary>열린 채로 그릴지 — 스키마가 하나뿐이거나 검색 중이면 펼쳐 둔다.</summary>
+    public bool IsExpanded { get; init; }
 }
 
 public partial class MainWindow : Window
@@ -437,19 +448,32 @@ public partial class MainWindow : Window
         if (needle.Length > 0)
             tables = tables.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
-        var nodes = tables
-            .GroupBy(t => t.Schema)
+        // 스키마가 하나뿐이거나 검색 중이면 펼쳐서 보여준다 — 한 번 더 클릭하게 만들 이유가 없다
+        var groups = tables.GroupBy(t => t.Schema).ToList();
+        var expand = groups.Count == 1 || needle.Length > 0;
+
+        var nodes = groups
+            .AsEnumerable()
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
             .Select(g => new ExplorerNode(
-                g.Key, "▸", $"({g.Count()})", ExplorerNodeKind.Schema, "",
+                g.Key, $"({g.Count()})", ExplorerNodeKind.Schema, "",
                 [.. g.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
                      .Select(t => new ExplorerNode(
                          t.Name,
-                         t.IsView ? "◈" : "▦",
                          t.IsView ? "view" : "",
                          ExplorerNodeKind.Table,
                          t.QualifiedName,
-                         []) { Schema = t.Schema })]))
+                         [])
+                     {
+                         Schema = t.Schema,
+                         Icon = Icon(t.IsView ? "IconViewGrid" : "IconTableGrid"),
+                         IconBrush = Brush(t.IsView ? "ViewPurpleBrush" : "TableBlueBrush"),
+                     })])
+            {
+                Icon = Icon("IconDatabase"),
+                IconBrush = Brush("DbGreenBrush"),
+                IsExpanded = expand,
+            })
             .ToList();
 
         ExplorerTree.ItemsSource = nodes;
@@ -457,6 +481,13 @@ public partial class MainWindow : Window
             ? (_allTables.Count == 0 ? "접속하면 스키마가 표시됩니다." : "검색과 일치하는 것이 없습니다.")
             : "더블클릭하면 조회 문장이 에디터에 들어갑니다.";
     }
+
+    /// <summary>앱 리소스에서 아이콘 도형을 꺼낸다. 없으면 null (아이콘만 비고 트리는 뜬다).</summary>
+    private Geometry? Icon(string key) =>
+        Application.Current?.TryFindResource(key, out var value) == true ? value as Geometry : null;
+
+    private IBrush? Brush(string key) =>
+        Application.Current?.TryFindResource(key, out var value) == true ? value as IBrush : null;
 
     /// <summary>
     /// 테이블/컬렉션을 더블클릭하면 조회 문장을 에디터에 넣는다.
