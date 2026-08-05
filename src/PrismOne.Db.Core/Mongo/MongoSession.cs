@@ -24,6 +24,9 @@ public sealed class MongoSession : IDisposable
     /// <summary>한 번에 가져올 문서 수 상한 — 운영 컬렉션을 통째로 끌어오는 사고 방지.</summary>
     public const int DefaultLimit = 500;
 
+    /// <summary>DB 를 적지 않았을 때 쓰는 이름. mongosh 도 같은 기본값을 쓴다.</summary>
+    public const string DefaultDatabase = "test";
+
     private readonly IMongoDatabase _database;
     private readonly MongoClient _client;
 
@@ -41,7 +44,7 @@ public sealed class MongoSession : IDisposable
         settings.ConnectTimeout = TimeSpan.FromSeconds(5);
 
         var client = new MongoClient(settings);
-        var databaseName = string.IsNullOrWhiteSpace(profile.Database) ? "test" : profile.Database;
+        var databaseName = string.IsNullOrWhiteSpace(profile.Database) ? DefaultDatabase : profile.Database;
         return new MongoSession(client, client.GetDatabase(databaseName));
     }
 

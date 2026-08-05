@@ -85,6 +85,9 @@
         <Separator/>
       </MenuItem>
       <MenuItem Header="View">
+        <!-- DataGrip 은 Database Explorer 가 Alt+1 이다. Golden 키맵과 겹치지 않는다 -->
+        <MenuItem Name="ExplorerMenuItem" Header="Database Explorer (왼쪽 스키마 트리)"
+                  InputGesture="Alt+1" Click="OnMenuToggleExplorer"/>
         <MenuItem Name="BrowserMenuItem" Header="Object Browser" InputGesture="F8" Click="OnMenuToggleBrowser"/>
         <MenuItem Header="Toggle DataGrid/Text/Log View" InputGesture="F12" Click="OnMenuCycleResultView"/>
         <Separator/>
@@ -366,9 +369,49 @@
 
     <!-- 본문: 쿼리 탭(탭줄 오른쪽 ✕) | 오른쪽 스키마 패널 -->
     <!-- Golden 6 기본: 브라우저 패널 없음. View > Object Browser 로 토글 -->
-    <Grid Name="MainGrid" ColumnDefinitions="*,0,0">
+    <Grid Name="MainGrid" ColumnDefinitions="0,0,*,0,0">
 
-      <Grid Grid.Column="0">
+      <!-- DataGrip 의 Database Explorer 대응. Golden 에는 없던 것 —
+           스키마 → 테이블/컬렉션 트리를 띄워두고 걸어다니기 위한 패널.
+           Mongo 처럼 "스키마가 없고 컬렉션만 있는" DB 에서 특히 쓸모가 크다 -->
+      <Border Name="ExplorerPanel" Grid.Column="0" IsVisible="False"
+              Background="{DynamicResource ChromeBgBrush}"
+              BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,1,0">
+        <DockPanel Margin="8,8,6,8">
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+            <TextBlock Grid.Column="0" Text="Database Explorer" FontSize="11" FontWeight="SemiBold"
+                       Opacity="0.75" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="tool" Content="⟳" FontSize="12" Padding="6,1"
+                    Click="OnExplorerRefresh" ToolTip.Tip="스키마 다시 읽기"/>
+          </Grid>
+
+          <TextBox DockPanel.Dock="Top" Name="ExplorerSearch" Classes="search" Margin="0,0,0,6"
+                   PlaceholderText="테이블·컬렉션 검색" TextChanged="OnExplorerSearchChanged"/>
+
+          <TextBlock DockPanel.Dock="Bottom" Name="ExplorerHint" FontSize="10.5" Opacity="0.5"
+                     TextWrapping="Wrap" Margin="0,6,0,0"
+                     Text="더블클릭하면 조회 문장이 에디터에 들어갑니다."/>
+
+          <TreeView Name="ExplorerTree" BorderThickness="0" Background="Transparent"
+                    DoubleTapped="OnExplorerDoubleTapped">
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate x:DataType="local:ExplorerNode" ItemsSource="{Binding Children}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="{Binding Glyph}" FontSize="11" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center"/>
+                  <TextBlock Text="{Binding Detail}" FontSize="10.5" Opacity="0.5"
+                             VerticalAlignment="Center"/>
+                </StackPanel>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Name="ExplorerSplitter" Grid.Column="1" IsVisible="False"
+                    Background="{DynamicResource ChromeBorderBrush}" ResizeDirection="Columns"/>
+
+      <Grid Grid.Column="2">
         <TabControl Name="QueryTabs" SelectionChanged="OnTabSelectionChanged" Padding="0"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,4,0">
           <Button Name="TabListButton" Classes="tool"
@@ -380,10 +423,10 @@
         </StackPanel>
       </Grid>
 
-      <GridSplitter Name="BrowserSplitter" Grid.Column="1" IsVisible="False"
+      <GridSplitter Name="BrowserSplitter" Grid.Column="3" IsVisible="False"
                     Background="{DynamicResource ChromeBorderBrush}" ResizeDirection="Columns"/>
 
-      <Border Name="BrowserPanel" Grid.Column="2" IsVisible="False"
+      <Border Name="BrowserPanel" Grid.Column="4" IsVisible="False"
               Background="{DynamicResource ChromeBgBrush}"
               BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
         <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,1.2*,Auto" Margin="10">

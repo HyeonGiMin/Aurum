@@ -251,6 +251,24 @@ DataGrip 의 unresolved reference 표시 대응입니다.
 그 테이블이 선택되고 컬럼 목록(describe)이 표시됩니다. `prismone.study` 처럼 스키마를
 붙여도 되고 `study` 만 써도 됩니다.
 
+## 7.9 Database Explorer — 왼쪽 스키마 트리 (Alt+1)
+
+**View > Database Explorer** 로 왼쪽 패널을 여닫습니다. **Golden 에는 없던 기능**이고
+DataGrip 의 Database Explorer 에 해당합니다.
+
+오른쪽 Object Browser(§8)와 역할이 다릅니다 — 그쪽은 Golden 방식으로 *한 테이블을 골라
+describe* 하는 곳이고, 이쪽은 **스키마 전체를 트리로 펼쳐두고 걸어다니는** 곳입니다.
+둘을 같이 켜 둘 수 있습니다.
+
+- 스키마 → 테이블/뷰 트리. 스키마 옆 괄호는 테이블 수, 뷰는 `view` 로 표시됩니다.
+- 위 검색창으로 이름을 거릅니다.
+- **더블클릭하면 조회 문장이 에디터에 들어갑니다** — SQL DB 는 `select * from 스키마.테이블`,
+  **MongoDB 는 `db.컬렉션.find({})`** 로 만들어 줍니다.
+- `⟳` 는 카탈로그를 다시 읽습니다(접속당 한 번만 읽어 캐시하므로, 스키마가 바뀌었을 때만 누르세요).
+
+MongoDB 는 스키마 개념이 없어 `collections` 하나 아래에 컬렉션이 늘어섭니다 —
+Studio3T 의 컬렉션 목록처럼 쓰면 됩니다.
+
 ## 8. Object Browser (F8)
 
 - 툴바 ≡ 버튼 또는 **F8** 로 오른쪽 패널 토글 (기본 숨김 — Golden 6 레이아웃).
@@ -412,6 +430,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 | **Ctrl+F5** | **Commit** | | **Ctrl+F6** | **Rollback** |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F / Ctrl+H | 찾기 / 바꾸기 |
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
+| **Alt+1** | **Database Explorer (왼쪽 트리)** | | | |
 | Ctrl+T · Ctrl+N / +⇧ | 새 탭 / 전용 탭 | | Ctrl+W · Ctrl+F4 | 탭 닫기 |
 | Ctrl+Tab / +⇧ | 다음 / 이전 탭 | | Ctrl+Shift+W | 워크스페이스 저장 |
 | Ctrl+D | Describe | | Ctrl+Shift+X | Transpose |

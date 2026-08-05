@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
@@ -286,9 +287,13 @@ public partial class ConnectDialog : Window
         {
             if (ParseDatabase(DatabaseCombo.Text, kind) is not var (host, port, database))
             {
-                ShowError(kind == DbKind.Oracle
-                    ? "Database must be host[:port]/service (e.g. ora-host/ORCLPDB)."
-                    : "Database must be host[:port]/database (e.g. db-host/prismone).");
+                ShowError(kind switch
+                {
+                    DbKind.Oracle => "Database must be host[:port]/service (e.g. ora-host/ORCLPDB).",
+                    DbKind.MongoDb => "Database must be host[:port] or host[:port]/database "
+                                      + "(e.g. mongo-host:27021 — database defaults to test).",
+                    _ => "Database must be host[:port]/database (e.g. db-host/prismone).",
+                });
                 return;
             }
 
@@ -347,7 +352,21 @@ public partial class ConnectDialog : Window
 
         var slash = s.IndexOf('/');
         if (slash < 0)
+        {
+            // "host:port" 만 친 경우. 예전에는 이걸 통째로 DB 이름으로 보고 localhost 에
+            // 붙어버려서, 원격 호스트를 적었는데 조용히 로컬로 가는 함정이 있었다.
+            var onlyColon = s.LastIndexOf(':');
+            if (onlyColon > 0 &&
+                int.TryParse(s[(onlyColon + 1)..], out var onlyPort) && onlyPort is > 0 and <= 65535)
+            {
+                // Mongo 는 DB 를 안 적어도 되는 게 정상이다 (mongosh 도 기본 test 를 쓴다).
+                // PG/Oracle 은 DB·서비스 이름이 반드시 필요하므로 오류로 알린다.
+                return kind == DbKind.MongoDb
+                    ? (s[..onlyColon], onlyPort, MongoSession.DefaultDatabase)
+                    : null;
+            }
             return ("localhost", defaultPort, s);
+        }
         var left = s[..slash].Trim();
         var db = s[(slash + 1)..].Trim();
         if (left.Length == 0 || db.Length == 0) return null;

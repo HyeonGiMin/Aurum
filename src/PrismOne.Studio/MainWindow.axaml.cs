@@ -17,6 +17,20 @@ namespace PrismOne.Studio;
 /// <summary>오른쪽 스키마 패널의 오브젝트 목록 한 행.</summary>
 public sealed record ObjectRow(string Name, string Type, TableInfo Info);
 
+public enum ExplorerNodeKind { Schema, Table }
+
+/// <summary>
+/// Database Explorer 트리의 한 줄. (XAML 컴파일 바인딩 대상이라 public)
+/// <paramref name="Qualified"/> 는 테이블 노드에서만 채워지는 스키마 포함 이름이다.
+/// </summary>
+public sealed record ExplorerNode(
+    string Name,
+    string Glyph,
+    string Detail,
+    ExplorerNodeKind Kind,
+    string Qualified,
+    IReadOnlyList<ExplorerNode> Children);
+
 public partial class MainWindow : Window
 {
     private ConnectionProfile? _profile;
@@ -367,10 +381,92 @@ public partial class MainWindow : Window
         var show = !BrowserPanel.IsVisible;
         BrowserPanel.IsVisible = show;
         BrowserSplitter.IsVisible = show;
-        MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
-        MainGrid.ColumnDefinitions[2].Width = new GridLength(show ? 352 : 0);
+        // 왼쪽 Explorer 가 앞의 두 컬럼을 쓰므로 오른쪽 패널은 3·4 번이다
+        MainGrid.ColumnDefinitions[3].Width = new GridLength(show ? 4 : 0);
+        MainGrid.ColumnDefinitions[4].Width = new GridLength(show ? 352 : 0);
         BrowserMenuItem.Header = show ? "Object Browser ✓" : "Object Browser";
         BrowserToggleButton.Classes.Set("active", show);
+    }
+
+    // ---------- Database Explorer (DataGrip 대응, 왼쪽) ----------
+
+    /// <summary>
+    /// View > Database Explorer (Alt+1). Golden 에는 없던 패널이다 —
+    /// 오른쪽 Object Browser 가 "한 테이블을 골라 describe" 하는 Golden 방식인 반면
+    /// 이쪽은 스키마 전체를 트리로 펼쳐두고 걸어다니는 DataGrip 방식이다.
+    /// </summary>
+    private void OnMenuToggleExplorer(object? sender, RoutedEventArgs e)
+    {
+        var show = !ExplorerPanel.IsVisible;
+        ExplorerPanel.IsVisible = show;
+        ExplorerSplitter.IsVisible = show;
+        MainGrid.ColumnDefinitions[0].Width = new GridLength(show ? 300 : 0);
+        MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
+        ExplorerMenuItem.Header = show
+            ? "Database Explorer (왼쪽 스키마 트리) ✓"
+            : "Database Explorer (왼쪽 스키마 트리)";
+        if (show) RebuildExplorer();
+    }
+
+    private void OnExplorerSearchChanged(object? sender, RoutedEventArgs e) => RebuildExplorer();
+
+    private async void OnExplorerRefresh(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile)
+        {
+            _schemaCache?.Invalidate();
+            await LoadBrowserAsync(profile);
+        }
+        RebuildExplorer();
+    }
+
+    /// <summary>
+    /// 이미 읽어 둔 카탈로그(<c>_allTables</c>)로 트리를 만든다 — 새 조회를 하지 않는다.
+    /// Mongo 는 스키마가 하나(collections)뿐이라 자연히 컬렉션 목록이 된다.
+    /// </summary>
+    private void RebuildExplorer()
+    {
+        if (ExplorerTree is null) return;
+
+        var needle = ExplorerSearch.Text?.Trim() ?? "";
+        var tables = _allTables.AsEnumerable();
+        if (needle.Length > 0)
+            tables = tables.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+
+        var nodes = tables
+            .GroupBy(t => t.Schema)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new ExplorerNode(
+                g.Key, "▸", $"({g.Count()})", ExplorerNodeKind.Schema, "",
+                [.. g.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                     .Select(t => new ExplorerNode(
+                         t.Name,
+                         t.IsView ? "◈" : "▦",
+                         t.IsView ? "view" : "",
+                         ExplorerNodeKind.Table,
+                         t.QualifiedName,
+                         []))]))
+            .ToList();
+
+        ExplorerTree.ItemsSource = nodes;
+        ExplorerHint.Text = nodes.Count == 0
+            ? (_allTables.Count == 0 ? "접속하면 스키마가 표시됩니다." : "검색과 일치하는 것이 없습니다.")
+            : "더블클릭하면 조회 문장이 에디터에 들어갑니다.";
+    }
+
+    /// <summary>
+    /// 테이블/컬렉션을 더블클릭하면 조회 문장을 에디터에 넣는다.
+    /// Mongo 는 SQL 이 아니므로 셸 구문으로 만든다 (Studio3T 에서 컬렉션을 여는 감각).
+    /// </summary>
+    private void OnExplorerDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (ExplorerTree.SelectedItem is not ExplorerNode { Kind: ExplorerNodeKind.Table } node) return;
+        if (ActiveView is not { } view) return;
+
+        var sql = _profile?.Kind == DbKind.MongoDb
+            ? $"db.{node.Name}.find({{}})"
+            : $"select * from {node.Qualified}";
+        view.InsertAtCaret(sql);
     }
 
     /// <summary>탭줄 오른쪽 ▾ — Golden 의 탭 목록 드롭다운.</summary>
@@ -440,6 +536,9 @@ public partial class MainWindow : Window
             StatusLabel.Text = $"Schema load failed: {ex.Message}";
             return;
         }
+
+        // 왼쪽 Explorer 는 같은 카탈로그를 쓰므로 여기서 함께 갱신한다
+        RebuildExplorer();
 
         var schemas = _allTables.Select(t => t.Schema).Distinct().OrderBy(s => s).ToList();
         SchemaCombo.ItemsSource = schemas;
@@ -530,6 +629,12 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             OnMenuRollback(sender, e);
+        }
+        else if (e.Key is Key.D1 or Key.NumPad1 && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            // DataGrip: Alt+1 = Database Explorer
+            e.Handled = true;
+            OnMenuToggleExplorer(sender, e);
         }
         else if (e.Key == Key.F7 && cmdOrCtrl)
         {
@@ -1901,6 +2006,12 @@ public partial class MainWindow : Window
 
             await Task.Delay(800);
             SaveShot(this, System.IO.Path.Combine(dir, "shot_main.png"));
+
+            // 왼쪽 Database Explorer — 트리 템플릿이 실제로 그려지는지 확인용
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
+            await Task.Delay(600);
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_explorer.png"));
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
 
             // Golden 의 결과 보기 전환 (Show Text) — 접속 없이도 렌더를 확인한다
             if (ActiveView is { } textView)
