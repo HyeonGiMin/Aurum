@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 using Xunit;
 
@@ -190,10 +191,57 @@ public class MongoAdoTests
         try
         {
             var catalog = DbProviders.For(DbKind.MongoDb).CreateErdCatalog(Profile(database));
-            var graph = await catalog.LoadAsync([MongoProvider.CollectionsSchema]);
+            var graph = await catalog.LoadAsync([database]);
 
-            Assert.Contains(graph.Tables, t => t.Name == "people");
+            // 스키마 자리에 데이터베이스 이름이 온다 (Studio3T 의 DB → 컬렉션 트리)
+            Assert.Contains(graph.Tables, t => t.Schema == database && t.Name == "people");
             Assert.Empty(graph.Relations);   // Mongo 에는 FK 가 없다
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task ErdCatalog_ListsDatabases_AsSchemas_ExcludingSystemOnes()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            var catalog = DbProviders.For(DbKind.MongoDb).CreateErdCatalog(Profile(database));
+            var schemas = await catalog.GetSchemasAsync();
+
+            Assert.Contains(database, schemas);
+            // admin/local/config 는 잡음이라 뺀다
+            Assert.DoesNotContain("admin", schemas);
+            Assert.DoesNotContain("local", schemas);
+            Assert.DoesNotContain("config", schemas);
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>
+    /// 다른 DB 에 접속해 있어도 서버의 컬렉션을 찾을 수 있어야 한다 —
+    /// "host:port 만 쳐서 test 로 붙었더니 Explorer 가 비어 있다" 를 막는 회귀 테스트.
+    /// </summary>
+    [Fact]
+    public async Task ErdCatalog_FindsCollections_EvenWhenConnectedToAnotherDatabase()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            // 일부러 비어 있는 기본 DB 로 접속한다
+            var catalog = DbProviders.For(DbKind.MongoDb)
+                .CreateErdCatalog(Profile(MongoSession.DefaultDatabase));
+            var graph = await catalog.LoadTablesAsync(await catalog.GetSchemasAsync());
+
+            Assert.Contains(graph.Tables, t => t.Schema == database && t.Name == "people");
         }
         finally
         {

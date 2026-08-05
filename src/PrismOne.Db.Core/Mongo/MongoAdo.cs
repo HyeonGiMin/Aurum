@@ -23,7 +23,7 @@ namespace PrismOne.Db.Core.Mongo;
 /// </summary>
 public sealed class MongoDbConnection : DbConnection
 {
-    private readonly ConnectionProfile _profile;
+    private ConnectionProfile _profile;
     private MongoSession? _session;
     private ConnectionState _state = ConnectionState.Closed;
 
@@ -73,8 +73,21 @@ public sealed class MongoDbConnection : DbConnection
         _state = ConnectionState.Closed;
     }
 
-    public override void ChangeDatabase(string databaseName) =>
-        throw new NotSupportedException("접속 후 데이터베이스 변경은 지원하지 않습니다.");
+    /// <summary>
+    /// 대상 데이터베이스를 바꾼다. Mongo 는 한 접속으로 여러 DB 를 보는 게 정상이라
+    /// (Explorer 트리가 DB → 컬렉션으로 나오는 이유) ADO.NET 의 이 자리를 실제로 쓴다.
+    /// </summary>
+    public override void ChangeDatabase(string databaseName)
+    {
+        if (string.IsNullOrWhiteSpace(databaseName))
+            throw new ArgumentException("데이터베이스 이름이 비어 있습니다.", nameof(databaseName));
+
+        _profile = _profile with { Database = databaseName };
+        if (_state != ConnectionState.Open) return;
+
+        _session?.Dispose();
+        _session = MongoSession.Open(_profile);
+    }
 
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
         throw new NotSupportedException("Mongo 트랜잭션은 지원하지 않습니다 (replica set 필요).");

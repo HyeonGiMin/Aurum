@@ -29,7 +29,11 @@ public sealed record ExplorerNode(
     string Detail,
     ExplorerNodeKind Kind,
     string Qualified,
-    IReadOnlyList<ExplorerNode> Children);
+    IReadOnlyList<ExplorerNode> Children)
+{
+    /// <summary>이 노드가 속한 스키마 (Mongo 는 데이터베이스 이름). 테이블 노드에만 채운다.</summary>
+    public string Schema { get; init; } = "";
+}
 
 public partial class MainWindow : Window
 {
@@ -445,7 +449,7 @@ public partial class MainWindow : Window
                          t.IsView ? "view" : "",
                          ExplorerNodeKind.Table,
                          t.QualifiedName,
-                         []))]))
+                         []) { Schema = t.Schema })]))
             .ToList();
 
         ExplorerTree.ItemsSource = nodes;
@@ -463,10 +467,15 @@ public partial class MainWindow : Window
         if (ExplorerTree.SelectedItem is not ExplorerNode { Kind: ExplorerNodeKind.Table } node) return;
         if (ActiveView is not { } view) return;
 
-        var sql = _profile?.Kind == DbKind.MongoDb
-            ? $"db.{node.Name}.find({{}})"
-            : $"select * from {node.Qualified}";
-        view.InsertAtCaret(sql);
+        if (_profile?.Kind == DbKind.MongoDb)
+        {
+            // Explorer 는 서버의 모든 DB 를 보여주므로, 접속한 DB 가 아닌 컬렉션을
+            // 고를 수 있다 — 그대로 실행하면 엉뚱한 DB 를 조회하게 되니 먼저 옮긴다.
+            view.TryUseDatabase(node.Schema);
+            view.InsertAtCaret($"db.{node.Name}.find({{}})");
+            return;
+        }
+        view.InsertAtCaret($"select * from {node.Qualified}");
     }
 
     /// <summary>탭줄 오른쪽 ▾ — Golden 의 탭 목록 드롭다운.</summary>

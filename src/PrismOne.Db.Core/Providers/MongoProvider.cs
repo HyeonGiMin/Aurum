@@ -12,9 +12,6 @@ namespace PrismOne.Db.Core.Providers;
 /// </summary>
 public sealed class MongoProvider : IDbProvider
 {
-    /// <summary>Mongo 에는 스키마가 없다 — 컬렉션이 곧 최상위다. 표시용 이름.</summary>
-    public const string CollectionsSchema = "collections";
-
     public DbKind Kind => DbKind.MongoDb;
 
     public string DisplayName => "MongoDB";
@@ -71,15 +68,27 @@ public sealed class MongoProvider : IDbProvider
 }
 
 /// <summary>
-/// 컬렉션 목록과 <b>샘플에서 추론한 필드</b>를 ERD 그래프로 준다.
-/// Mongo 에는 FK 가 없으므로 <b>관계는 항상 비어 있다</b> — 상자만 있는 그림이 되며,
-/// ERD 창이 "FK 제약이 없어 관계선이 없습니다" 로 알린다.
-/// Object Browser·자동완성에는 이걸로 충분하다.
+/// <b>데이터베이스 → 컬렉션</b>을 ERD 그래프로 준다 (Studio3T·DataGrip 의 트리 모양).
+/// Mongo 의 "데이터베이스"가 다른 DB 의 스키마 자리에 대응한다 —
+/// 접속한 DB 하나만 보여주면 다른 DB 에 든 컬렉션을 찾을 수 없어서 서버 전체를 읽는다.
+///
+/// FK 가 없으므로 <b>관계는 항상 비어 있다</b> — ERD 창이 "FK 제약이 없어 관계선이
+/// 없습니다" 로 알린다. Explorer·Object Browser·자동완성에는 이걸로 충분하다.
 /// </summary>
 public sealed class MongoErdCatalog(ConnectionProfile profile) : IErdCatalog
 {
-    public Task<List<string>> GetSchemasAsync(CancellationToken ct = default) =>
-        Task.FromResult<List<string>>([MongoProvider.CollectionsSchema]);
+    public async Task<List<string>> GetSchemasAsync(CancellationToken ct = default)
+    {
+        using var session = MongoSession.Open(profile);
+        var databases = (await session.ListDatabaseNamesAsync(ct)).ToList();
+
+        // 접속 대상 DB 가 아직 문서를 하나도 안 받아 목록에 없을 수 있다 — 그래도 보여준다.
+        if (!string.IsNullOrWhiteSpace(profile.Database) &&
+            !databases.Contains(profile.Database, StringComparer.OrdinalIgnoreCase))
+            databases.Insert(0, profile.Database);
+
+        return databases;
+    }
 
     public Task<ErdGraph> LoadAsync(IReadOnlyList<string> schemas, CancellationToken ct = default) =>
         LoadTablesAsync(schemas, ct);
@@ -88,18 +97,22 @@ public sealed class MongoErdCatalog(ConnectionProfile profile) : IErdCatalog
         IReadOnlyList<string> schemas, CancellationToken ct = default)
     {
         using var session = MongoSession.Open(profile);
-        var collections = await session.ListCollectionsAsync(ct);
+        var targets = schemas.Count > 0 ? schemas : await GetSchemasAsync(ct);
 
-        var tables = new List<ErdTable>(collections.Count);
-        foreach (var collection in collections)
+        var tables = new List<ErdTable>();
+        foreach (var database in targets)
         {
             ct.ThrowIfCancellationRequested();
-            var fields = await session.InferFieldsAsync(collection, ct: ct);
-            // 스키마가 없으니 타입·NOT NULL 을 단정할 수 없다 — 이름만 싣는다.
-            var columns = fields
-                .Select(f => new ErdColumn(f, "", NotNull: false, IsPk: f == "_id", IsFk: false))
-                .ToList();
-            tables.Add(new ErdTable(MongoProvider.CollectionsSchema, collection, IsView: false, columns));
+            foreach (var collection in await session.ListCollectionsAsync(database, ct))
+            {
+                ct.ThrowIfCancellationRequested();
+                var fields = await session.InferFieldsAsync(database, collection, ct: ct);
+                // 스키마가 없으니 타입·NOT NULL 을 단정할 수 없다 — 이름만 싣는다.
+                var columns = fields
+                    .Select(f => new ErdColumn(f, "", NotNull: false, IsPk: f == "_id", IsFk: false))
+                    .ToList();
+                tables.Add(new ErdTable(database, collection, IsView: false, columns));
+            }
         }
 
         return new ErdGraph(tables, []);

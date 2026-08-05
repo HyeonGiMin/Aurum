@@ -66,9 +66,34 @@ public sealed class MongoSession : IDisposable
     public async Task PingAsync(CancellationToken ct = default) =>
         await _database.RunCommandAsync<BsonDocument>(new BsonDocument("ping", 1), cancellationToken: ct);
 
-    public async Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken ct = default)
+    /// <summary>
+    /// 서버의 데이터베이스 목록. Studio3T·DataGrip 처럼 <b>DB → 컬렉션</b> 트리를 그리려면
+    /// 접속한 DB 하나가 아니라 서버 전체를 봐야 한다.
+    /// 시스템 DB(admin/local/config)는 뺀다 — PG 카탈로그에서 pg_catalog 를 빼는 것과 같다.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ListDatabaseNamesAsync(CancellationToken ct = default)
     {
-        var names = await _database.ListCollectionNamesAsync(cancellationToken: ct);
+        var cursor = await _client.ListDatabaseNamesAsync(ct);
+        var names = await cursor.ToListAsync(ct);
+        names.RemoveAll(n => SystemDatabases.Contains(n));
+        names.Sort(StringComparer.OrdinalIgnoreCase);
+        return names;
+    }
+
+    private static readonly HashSet<string> SystemDatabases =
+        new(["admin", "local", "config"], StringComparer.OrdinalIgnoreCase);
+
+    public Task<IReadOnlyList<string>> ListCollectionsAsync(CancellationToken ct = default) =>
+        ListCollectionsAsync(_database, ct);
+
+    /// <summary>접속한 DB 가 아닌 다른 DB 의 컬렉션 목록 (Explorer 트리용).</summary>
+    public Task<IReadOnlyList<string>> ListCollectionsAsync(string database, CancellationToken ct = default) =>
+        ListCollectionsAsync(_client.GetDatabase(database), ct);
+
+    private static async Task<IReadOnlyList<string>> ListCollectionsAsync(
+        IMongoDatabase database, CancellationToken ct)
+    {
+        var names = await database.ListCollectionNamesAsync(cancellationToken: ct);
         var list = await names.ToListAsync(ct);
         list.Sort(StringComparer.OrdinalIgnoreCase);
         return list;
@@ -79,10 +104,19 @@ public sealed class MongoSession : IDisposable
     /// 카탈로그를 읽을 수 없다 (MULTI_DB_PLAN §3: "컬렉션·샘플 기반 추론").
     /// 자동완성·브라우저용이라 정확할 필요는 없고 대표적이면 된다.
     /// </summary>
-    public async Task<IReadOnlyList<string>> InferFieldsAsync(
-        string collection, int sampleSize = 50, CancellationToken ct = default)
+    public Task<IReadOnlyList<string>> InferFieldsAsync(
+        string collection, int sampleSize = 50, CancellationToken ct = default) =>
+        InferFieldsAsync(_database, collection, sampleSize, ct);
+
+    /// <summary>다른 DB 의 컬렉션에서 필드를 추론한다 (Explorer 트리용).</summary>
+    public Task<IReadOnlyList<string>> InferFieldsAsync(
+        string database, string collection, int sampleSize = 50, CancellationToken ct = default) =>
+        InferFieldsAsync(_client.GetDatabase(database), collection, sampleSize, ct);
+
+    private static async Task<IReadOnlyList<string>> InferFieldsAsync(
+        IMongoDatabase database, string collection, int sampleSize, CancellationToken ct)
     {
-        var cursor = await _database.GetCollection<BsonDocument>(collection)
+        var cursor = await database.GetCollection<BsonDocument>(collection)
             .Find(new BsonDocument())
             .Limit(sampleSize)
             .ToCursorAsync(ct);

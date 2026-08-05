@@ -1497,6 +1497,26 @@ public partial class QueryTabView : UserControl
         PlanTree.IsVisible = false;
     }
 
+    /// <summary>
+    /// 이 탭의 접속을 다른 데이터베이스로 돌린다 (Mongo 처럼 한 접속으로 여러 DB 를
+    /// 보는 경우). 성공하면 true. 드라이버가 지원하지 않으면 false 를 주고 상태만 알린다.
+    /// </summary>
+    public bool TryUseDatabase(string database)
+    {
+        if (_session is null || string.IsNullOrWhiteSpace(database)) return false;
+        try
+        {
+            _session.Connection.ChangeDatabase(database);
+            SetInfo($"Using {database}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"데이터베이스 전환 실패: {ex.Message}");
+            return false;
+        }
+    }
+
     public void Cancel() => _cts?.Cancel();
 
     // ---------- 그리드 기능 (Golden: Transpose / Size Columns / Filter) ----------
