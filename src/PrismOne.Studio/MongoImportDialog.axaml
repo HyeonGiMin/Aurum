@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.MongoImportDialog"
+        Icon="/Assets/icon.png"
+        Title="Import JSON - Aurum"
+        Width="720" Height="520"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <!-- Studio3T 의 Import 대응 — JSON 배열 또는 JSON Lines(mongoexport 기본 산출물) -->
+  <Grid Margin="14" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+      <Button Grid.Column="0" Content="File…" MinHeight="30" Click="OnPickFile"/>
+      <TextBlock Grid.Column="1" Name="FileLabel" Text="JSON 파일을 선택하세요 (배열 또는 JSON Lines)"
+                 FontSize="13" Opacity="0.8" VerticalAlignment="Center" Margin="10,0"/>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,*" Margin="0,0,0,8">
+      <TextBlock Grid.Column="0" Text="Database:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Grid.Column="1" Name="DatabaseBox" MinHeight="30" FontSize="13" Margin="0,0,12,0"
+               TextChanged="OnTargetChanged"/>
+      <TextBlock Grid.Column="2" Text="Collection:" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBox Grid.Column="3" Name="CollectionBox" MinHeight="30" FontSize="13" TextChanged="OnTargetChanged"/>
+    </Grid>
+
+    <TextBlock Grid.Row="2" Name="SummaryText" FontSize="12" Opacity="0.8" Margin="0,0,0,6"
+               Text="파일을 고르면 몇 개의 문서를 읽었는지 보여줍니다."/>
+
+    <ListBox Grid.Row="3" Name="PreviewList" FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace"
+             FontSize="12" ScrollViewer.HorizontalScrollBarVisibility="Auto"/>
+
+    <DockPanel Grid.Row="4" Margin="0,8,0,8">
+      <ProgressBar Name="ImportProgress" DockPanel.Dock="Left" IsVisible="False"
+                   Width="120" Height="6" Margin="0,0,10,0" VerticalAlignment="Center"/>
+      <TextBlock Name="StatusText" FontSize="12" Opacity="0.85" TextWrapping="Wrap"
+                 Text="Mongo 는 여러 문서를 한 번에 넣을 때 원자성이 없습니다 — 중간에 하나가 실패하면 그 앞까지는 이미 들어간 채로 멈춥니다."/>
+    </DockPanel>
+
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+      <Button Name="ImportButton" Content="Import" MinHeight="32" MinWidth="96" Classes="accent"
+              Click="OnImport" IsEnabled="False"/>
+      <Button Content="Close" MinHeight="32" MinWidth="80" Click="OnClose" IsCancel="True"/>
+    </StackPanel>
+  </Grid>
+</Window>

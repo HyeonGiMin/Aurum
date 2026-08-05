@@ -47,6 +47,19 @@
         <TextBox Name="FilterBox" Width="118" PlaceholderText="table name"
                  TextChanged="OnViewOptionChanged"/>
 
+        <!-- HTML 뷰어의 "테이블로 이동(t)" — 이름을 치면 그 테이블로 스크롤·선택한다.
+             Filter 와 달리 다이어그램을 좁히지 않는다 -->
+        <AutoCompleteBox Name="JumpBox" Width="170" Margin="8,2,6,2"
+                         Watermark="테이블로 이동… (t)"
+                         FilterMode="Contains" MinimumPrefixLength="1"
+                         SelectionChanged="OnJumpSelected"
+                         ToolTip.Tip="이름을 치면 해당 테이블로 이동·선택합니다 (단축키 t)"/>
+
+        <Button Content="◀" Name="BackButton" Width="30" Click="OnHistoryBack" IsEnabled="False"
+                ToolTip.Tip="이전에 보던 테이블로 ( [ )"/>
+        <Button Content="▶" Name="ForwardButton" Width="30" Click="OnHistoryForward" IsEnabled="False"
+                ToolTip.Tip="다시 앞으로 ( ] )"/>
+
         <Border Classes="sep"/>
 
         <CheckBox Name="FocusBox" Content="Focus" IsCheckedChanged="OnViewOptionChanged"
@@ -74,6 +87,12 @@
           <ComboBoxItem Content="묶지 않음"/>
         </ComboBox>
         <CheckBox Name="LegendBox" Content="범례" IsChecked="True" IsCheckedChanged="OnLegendToggled"/>
+        <CheckBox Name="HoverBox" Content="호버 강조" IsChecked="True"
+                  ToolTip.Tip="마우스를 올린 테이블의 관계선을 강조 (단축키 H)"/>
+        <CheckBox Name="FkJumpBox" Content="FK 점프"
+                  ToolTip.Tip="ON: 카드의 FK 컬럼 행을 클릭하면 참조 대상 테이블로 이동 (단축키 F)"/>
+        <CheckBox Name="DetailBox" Content="상세" IsChecked="True" IsCheckedChanged="OnDetailToggled"
+                  ToolTip.Tip="선택한 테이블의 컬럼·관계 목록을 오른쪽 패널에 표시"/>
 
         <Border Classes="sep"/>
 
@@ -126,6 +145,51 @@
         </DockPanel>
       </Border>
 
+      <!-- 선택 테이블 상세 — HTML 뷰어의 오른쪽 패널 대응. 컬럼 전체와 관계 목록을 보여주고,
+           관계 항목을 클릭하면 상대 테이블로 이동한다 -->
+      <Border Name="DetailPanel" DockPanel.Dock="Right" Width="300" Padding="10,8"
+              Background="{DynamicResource ChromeBgBrush}"
+              BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1,0,0,0">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Name="DetailTitle" Text="테이블을 클릭하세요"
+                     FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis"/>
+          <TextBlock DockPanel.Dock="Top" Name="DetailSub" Text="" FontSize="11" Opacity="0.65"
+                     Margin="0,2,0,8" TextWrapping="Wrap"/>
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <TextBlock Text="Columns" FontSize="11" FontWeight="SemiBold" Opacity="0.75" Margin="0,0,0,4"/>
+              <ItemsControl Name="DetailColumns">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="local:ErdColumnRow">
+                    <Grid ColumnDefinitions="26,*,Auto" Margin="0,1">
+                      <TextBlock Grid.Column="0" Text="{Binding Marker}" FontSize="10"
+                                 FontWeight="SemiBold" Foreground="{Binding MarkerBrush}"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="11.5"
+                                 TextTrimming="CharacterEllipsis"/>
+                      <TextBlock Grid.Column="2" Text="{Binding Type}" FontSize="10.5" Opacity="0.6"
+                                 Margin="6,0,0,0"/>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <TextBlock Text="Relations" FontSize="11" FontWeight="SemiBold" Opacity="0.75"
+                         Margin="0,12,0,4"/>
+              <ListBox Name="DetailRelations" BorderThickness="0" Background="Transparent"
+                       SelectionChanged="OnRelationActivated">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="local:ErdRelationRow">
+                    <TextBlock Text="{Binding Text}" FontSize="11.5" TextWrapping="Wrap"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Name="DetailNoRelations" Text="FK 관계 없음" FontSize="11" Opacity="0.5"
+                         IsVisible="False"/>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
       <Grid>
         <ScrollViewer Name="Scroll" Background="#FCFCFA"
                       HorizontalScrollBarVisibility="Auto"
@@ -133,6 +197,14 @@
           <local:ErdCanvas Name="Surface"
                            HorizontalAlignment="Left" VerticalAlignment="Top"/>
         </ScrollViewer>
+        <!-- 축소 지도 — 지금 보는 위치를 알려주고 클릭·드래그로 이동한다 (단축키 M) -->
+        <Border Name="MiniMapPanel" Width="200" Height="140"
+                HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,16"
+                Background="#F4FCFCFA" BorderBrush="#90000000" BorderThickness="1" CornerRadius="3"
+                BoxShadow="0 2 8 0 #30000000">
+          <local:ErdMiniMap Name="MiniMap" Margin="3"/>
+        </Border>
+
         <TextBlock Name="EmptyHint" IsVisible="False" IsHitTestVisible="False"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    FontSize="13" Opacity="0.45" TextAlignment="Center"

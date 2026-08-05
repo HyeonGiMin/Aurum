@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Npgsql;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Mongo;
 
 namespace PrismOne.Studio;
 
@@ -54,6 +55,12 @@ public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
 
     /// <summary>편집 모드 진입 시점의 값 — 무엇이 바뀌었는지 판별한다.</summary>
     public string?[]? Original { get; init; }
+
+    /// <summary>
+    /// Mongo 전용 — 이 행이 온 원본 문서(<see cref="PrismOne.Db.Core.Mongo.MongoRowContext"/>).
+    /// 편집 불가능한 결과(aggregate 등)면 null — Edit Document 메뉴가 이 값으로 활성화 여부를 정한다.
+    /// </summary>
+    public object? MongoContext { get; init; }
 
     /// <summary>
     /// 편집 모드 바인딩 경로. DataGrid 는 바인딩 경로의 속성을 리플렉션으로 검사해
@@ -1497,6 +1504,26 @@ public partial class QueryTabView : UserControl
         PlanTree.IsVisible = false;
     }
 
+    /// <summary>
+    /// 이 탭의 접속을 다른 데이터베이스로 돌린다 (Mongo 처럼 한 접속으로 여러 DB 를
+    /// 보는 경우). 성공하면 true. 드라이버가 지원하지 않으면 false 를 주고 상태만 알린다.
+    /// </summary>
+    public bool TryUseDatabase(string database)
+    {
+        if (_session is null || string.IsNullOrWhiteSpace(database)) return false;
+        try
+        {
+            _session.Connection.ChangeDatabase(database);
+            SetInfo($"Using {database}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"데이터베이스 전환 실패: {ex.Message}");
+            return false;
+        }
+    }
+
     public void Cancel() => _cts?.Cancel();
 
     // ---------- 그리드 기능 (Golden: Transpose / Size Columns / Filter) ----------
@@ -1769,6 +1796,125 @@ public partial class QueryTabView : UserControl
             window.Show();
     }
 
+    // ---------- Edit Document (Mongo, Studio3T 대응) ----------
+
+    /// <summary>
+    /// 선택한 행이 순수 <c>find</c> 결과(projection 없음)에서 왔으면 문서 편집 창을 연다.
+    /// SQL 결과나 Mongo aggregate 결과는 <see cref="RowItem.MongoContext"/> 가 null 이라
+    /// 자연히 비활성 상태와 같다(메뉴에서 안내만 하고 아무 일도 하지 않는다).
+    /// </summary>
+    public async Task EditSelectedDocumentAsync()
+    {
+        if (ResultGrid.SelectedItem is not RowItem { MongoContext: MongoRowContext context })
+        {
+            SetInfo("편집할 문서가 없습니다 — Mongo 컬렉션을 조회한 뒤 행을 선택하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var dialog = new MongoDocumentDialog(context.Document);
+        if (VisualRoot is Window owner)
+            await dialog.ShowDialog(owner);
+        else
+            return;
+        if (dialog.Result is not { } updated) return;   // 취소
+
+        try
+        {
+            await mongoConnection.ReplaceDocumentAsync(
+                context.Database, context.Collection, context.Document["_id"], updated);
+            SetInfo("문서를 저장했습니다 (다시 조회하면 최신 상태를 봅니다).");
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"저장 실패: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 이미 조회된 행 아무거나로 컬렉션 위치(Database+Collection)를 짐작해 그 컬렉션에
+    /// 새 문서를 추가한다. 아직 조회한 적이 없으면(또는 결과 0건) 어느 컬렉션인지 알 수
+    /// 없어 거부한다 — Explorer 로 컬렉션을 한 번 열어 본 뒤 쓰는 걸 전제한다.
+    /// </summary>
+    public async Task AddMongoDocumentAsync()
+    {
+        var context = _rows.Select(r => r.MongoContext).OfType<MongoRowContext>().FirstOrDefault();
+        if (context is null)
+        {
+            SetInfo("추가할 컬렉션을 알 수 없습니다 — 먼저 Mongo 컬렉션을 조회하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var dialog = MongoDocumentDialog.ForNewDocument();
+        if (VisualRoot is not Window owner) return;
+        await dialog.ShowDialog(owner);
+        if (dialog.Result is not { } document) return;   // 취소
+
+        try
+        {
+            await mongoConnection.InsertDocumentAsync(context.Database, context.Collection, document);
+            SetInfo($"{context.Collection} 에 문서를 추가했습니다 (다시 조회하면 보입니다).");
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"추가 실패: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 선택된 행들의 문서를 <c>_id</c> 로 하나씩 지운다. 성공한 행은 재조회 없이
+    /// 그리드에서도 바로 뺀다. Mongo 문서가 아닌 행(SQL·aggregate 결과)은 건너뛴다.
+    /// </summary>
+    public async Task DeleteSelectedMongoDocumentsAsync()
+    {
+        var selected = ResultGrid.SelectedItems.OfType<RowItem>()
+            .Where(r => r.MongoContext is MongoRowContext)
+            .ToList();
+        if (selected.Count == 0)
+        {
+            SetInfo("삭제할 Mongo 문서가 없습니다 — 행을 선택하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var deleted = 0;
+        string? firstFailure = null;
+        var failureCount = 0;
+        foreach (var row in selected)
+        {
+            var context = (MongoRowContext)row.MongoContext!;
+            try
+            {
+                await mongoConnection.DeleteDocumentAsync(
+                    context.Database, context.Collection, context.Document["_id"]);
+                _rows.Remove(row);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                firstFailure ??= ex.Message;
+                failureCount++;
+            }
+        }
+
+        SetInfo(failureCount == 0
+            ? $"{deleted}개 문서를 지웠습니다."
+            : $"{deleted}개 지움, {failureCount}개 실패: {firstFailure}");
+    }
+
     // ---------- Commit / Rollback (Golden) ----------
 
     public async Task CommitAsync()
@@ -1912,8 +2058,9 @@ public partial class QueryTabView : UserControl
                     {
                         RowId = cells.Length > 0 ? cells[0] : null,
                         Original = (string?[])cells.Clone(),
+                        MongoContext = row.RowContext,
                     }
-                    : new RowItem(++no, cells, row.Raw));
+                    : new RowItem(++no, cells, row.Raw) { MongoContext = row.RowContext });
             }
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).

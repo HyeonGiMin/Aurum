@@ -135,6 +135,60 @@ SQL 이 아니라 **에디터(쿼리 언어)·그리드(중첩 문서)·자동�
 UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단계와 성격이 완전히
 달라 별도 계획으로 분리한다.
 
+**진행 상황 (2026-08-05) — Core + ADO 셰임 + Explorer 까지 연결됨**
+
+들어온 것 (전부 테스트 있음, Mongo 관련 342개 스위트 안에 포함):
+
+| 부분 | 파일 | 검증 |
+|---|---|---|
+| 셸 구문 파서 (`find`/`aggregate`/`use` 등) | `Mongo/MongoCommand.cs` | 서버 없이 다수 |
+| 문서 → 표 평탄화 | `Mongo/MongoDocuments.cs` | 서버 없이 다수 |
+| 접속·실행·필드 추론·DB 전환 | `Mongo/MongoSession.cs` | 실서버 다수 |
+| **ADO.NET 셰임** (DataGrip 의 mongo-jdbc-driver 대응) | `Mongo/MongoAdo.cs` | 실서버 다수 |
+| provider 등록·ERD 카탈로그(DB→컬렉션) | `Providers/MongoProvider.cs` | 실서버 다수 |
+
+- 지원 구문: `find`(filter·projection·`.limit/.skip/.sort`) · `findOne` · `aggregate` ·
+  `countDocuments` · `distinct` · `show collections` · **`use <db>`**(실 mongosh 문법 —
+  이후 문장이 조회할 DB 를 바꾼다). **읽기 전용** — `drop`/`insert` 같은 쓰기는 파서가
+  받지 않는다 (Studio 는 조회 전용, STATUS §2·3).
+- 필터·파이프라인은 문자열이 아니라 **BSON 문서로 드라이버에 전달**한다 (주입 여지 없음).
+- 중첩 문서는 `address.city` 점 경로로 펴고(기본 3단계), 배열은 JSON 한 칸으로 둔다.
+- 컬렉션 필드는 카탈로그가 없으므로 **샘플 50건에서 추론**한다.
+- **DB 미지정 접속 지원**: `host[:port]` 만 쳐도 되고, 그러면 Explorer 가 서버의 모든 DB 를
+  보여준다(`host[:port]/db` 로 쓰면 그 DB 만). **DB 를 한 번도 안 정한 채 조회하면
+  예전처럼 임의 DB(test)로 조용히 넘어가지 않고 에러로 알린다** — 엉뚱한 빈 DB 를 조회해
+  "0건"으로 착각하는 걸 막기 위해서다. Explorer 더블클릭·`use` 명령으로 DB 를 정한다.
+- **ADO.NET 셰임 완료**: `MongoDbConnection`/`MongoDbCommand`/`MongoDbDataReader` 가
+  `DbConnection` 계약을 채워 `QuerySession` 이하(그리드·정렬·내보내기·Text 뷰)를 그대로
+  재사용한다 — DataGrip 이 JDBC 드라이버로 하는 것과 같은 수. `ChangeDatabase` 가
+  실제로 DB 를 바꾼다(재접속 없이).
+- **Database Explorer(왼쪽, Alt+1)**: DataGrip 식 DB→컬렉션 트리, 아이콘(원통/표/뷰),
+  더블클릭 시 자동 DB 전환 + 조회 문장 삽입. Golden 에 없던 패널.
+- **Edit Document(Studio3T 대응, Ctrl+Shift+D)**: 그리드 행 하나를 JSON 으로 통째로 고쳐
+  `_id` 기준 `replaceOne` 으로 저장한다. `find`(projection 없음) 결과에만 붙는다 —
+  `aggregate`·projection 있는 find 는 문서가 원본과 달라질 수 있어 제외(SQL 의
+  "단일 테이블 SELECT 만 편집"과 같은 이유). `_id` 변경은 DB 왕복 전에 막는다.
+  구현: `MongoRowContext`(어느 문서였는지)가 `FetchedRow`(Core, provider 중립 `object?`
+  자리)를 거쳐 `RowItem.MongoContext` 까지 그대로 실려간다 — 그리드·정렬·QuerySession
+  은 손대지 않았다.
+- **Add/Delete Document**: Edit Document 와 같은 급의 즉시 저장. Add 는 이미 조회된
+  행 아무거나로 대상 컬렉션을 짐작한다(0건 조회 상태에선 거부). Delete 는 SQL 의
+  단계적 커밋과 달리 즉시 지워지므로 먼저 확인창을 띄우고, 성공한 행은 재조회 없이
+  그리드에서도 바로 뺀다.
+- **Explorer 자동 열림**: Mongo 로 접속하면 왼쪽 Database Explorer 를 자동으로 연다 —
+  스키마가 없어 오른쪽 Object Browser 보다 DB→컬렉션 트리가 실질적인 시작점이다.
+- **JSON Import/Export**: `Tools > Import JSON…` 은 JSON 배열·JSON Lines(mongoexport
+  기본 산출물) 둘 다 받는다. 컬럼 매핑 없이 그대로 InsertMany — **원자성이 없어**
+  중간에 실패하면 그 앞까지는 이미 들어간 채로 멈추고, 몇 개가 들어갔는지 예외
+  메시지로 알린다. `Results > Save Grid As JSON…` 은 Mongo 뿐 아니라 **모든 DB
+  종류에서** 되는 범용 내보내기로 넣었다(GridExporter 에 Json 포맷 추가).
+- 검증 인프라: `docker run -d --name aurum-mongo-test -p 127.0.0.1:27017:27017 mongo:7`
+  후 `AURUM_MONGO_TEST_HOST=localhost`. 환경변수가 없으면 실서버 테스트는 그냥 통과한다.
+  포트를 일부러 틀리면 실서버 테스트만 실패하는 것으로 "정말 서버를 친다"를 확인했다.
+
+**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시), `explain()`,
+`currentOp` 세션 모니터. Studio3T 대비 더 가져올 만한 동작은 검토 중.
+
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
 Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),
 _id 기준 편집, JSON import/export)을 목표로 한다. 착수 시 검증 인프라부터:

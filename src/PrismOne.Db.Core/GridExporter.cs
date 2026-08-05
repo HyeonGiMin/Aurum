@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace PrismOne.Db.Core;
 
@@ -8,6 +9,7 @@ public enum GridExportFormat
     Csv,
     Tsv,
     Insert,
+    Json,
 }
 
 /// <summary>
@@ -27,6 +29,7 @@ public static class GridExporter
             GridExportFormat.Csv => Delimited(columns, rows, ','),
             GridExportFormat.Tsv => Delimited(columns, rows, '\t'),
             GridExportFormat.Insert => Inserts(columns, rows, tableName, blankLineBetweenStatements),
+            GridExportFormat.Json => JsonArray(columns, rows),
             _ => throw new ArgumentOutOfRangeException(nameof(format)),
         };
 
@@ -76,6 +79,22 @@ public static class GridExporter
              value is "true" or "false"))
             return value;
         return "'" + value.Replace("'", "''") + "'";
+    }
+
+    /// <summary>
+    /// 그리드를 JSON 배열(행마다 객체)로 낸다. Dictionary 로 만들어 System.Text.Json 에
+    /// 이스케이프를 맡긴다 — 값에 따옴표·개행이 있어도 직접 손대지 않는다.
+    /// </summary>
+    private static string JsonArray(IReadOnlyList<string> columns, IReadOnlyList<string?[]> rows)
+    {
+        var list = rows.Select(row =>
+        {
+            var obj = new Dictionary<string, string?>();
+            for (var i = 0; i < columns.Count && i < row.Length; i++)
+                obj[columns[i]] = row[i];
+            return obj;
+        }).ToList();
+        return JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
     }
 
     private static string Quote(string ident) =>

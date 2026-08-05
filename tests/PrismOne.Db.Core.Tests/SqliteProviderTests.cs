@@ -85,9 +85,20 @@ public sealed class SqliteProviderTests : IDisposable
     [Fact]
     public void UnsupportedKindIsReportedNotSilentlyAccepted()
     {
-        // MongoDB 는 아직 provider 가 없다 (Oracle 은 2026-08-04 에 추가됨)
-        Assert.False(DbProviders.IsSupported(DbKind.MongoDb));
-        Assert.Throws<NotSupportedException>(() => DbProviders.For(DbKind.MongoDb));
+        // 등록된 종류가 아니면 조용히 넘어가지 않고 바로 알린다.
+        // (한때 MongoDB 가 이 자리였지만 2026-08-05 에 provider 가 붙었다 —
+        //  이제 네 종류가 모두 등록돼 있어 enum 밖의 값으로 확인한다)
+        var unregistered = (DbKind)999;
+
+        Assert.False(DbProviders.IsSupported(unregistered));
+        Assert.Throws<NotSupportedException>(() => DbProviders.For(unregistered));
+    }
+
+    [Fact]
+    public void AllKnownKindsAreRegistered()
+    {
+        foreach (var kind in Enum.GetValues<DbKind>())
+            Assert.True(DbProviders.IsSupported(kind), $"{kind} provider 가 없습니다.");
     }
 
     [Fact]

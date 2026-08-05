@@ -4,9 +4,11 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Npgsql;
 using PrismOne.Db.Core;
@@ -16,6 +18,33 @@ namespace PrismOne.Studio;
 
 /// <summary>오른쪽 스키마 패널의 오브젝트 목록 한 행.</summary>
 public sealed record ObjectRow(string Name, string Type, TableInfo Info);
+
+public enum ExplorerNodeKind { Schema, Table }
+
+/// <summary>
+/// Database Explorer 트리의 한 줄. (XAML 컴파일 바인딩 대상이라 public)
+/// <paramref name="Qualified"/> 는 테이블 노드에서만 채워지는 스키마 포함 이름이다.
+/// </summary>
+public sealed record ExplorerNode(
+    string Name,
+    string Detail,
+    ExplorerNodeKind Kind,
+    string Qualified,
+    IReadOnlyList<ExplorerNode> Children)
+{
+    /// <summary>이 노드가 속한 스키마 (Mongo 는 데이터베이스 이름). 테이블 노드에만 채운다.</summary>
+    public string Schema { get; init; } = "";
+
+    /// <summary>트리 아이콘. 스키마=원통, 테이블=표, 뷰=칸 적은 표.</summary>
+    public Geometry? Icon { get; init; }
+    public IBrush? IconBrush { get; init; }
+
+    /// <summary>표 아이콘의 머리줄만 옅게 채운다 (윤곽선만이면 밋밋하다).</summary>
+    public IBrush? IconFill { get; init; }
+
+    /// <summary>열린 채로 그릴지 — 스키마가 하나뿐이거나 검색 중이면 펼쳐 둔다.</summary>
+    public bool IsExpanded { get; init; }
+}
 
 public partial class MainWindow : Window
 {
@@ -132,6 +161,11 @@ public partial class MainWindow : Window
         // SchemaCache 가 provider 별로 카탈로그를 읽으므로 Object Browser·자동완성도
         // 모든 DB 에서 채워진다 (PG 이외는 ERD 카탈로그를 재활용)
         await LoadBrowserAsync(profile);
+
+        // Mongo 는 스키마가 없어 오른쪽 Object Browser(테이블 describe)보다 왼쪽
+        // Database Explorer(DB→컬렉션 트리)가 실질적인 첫 진입점이라 자동으로 연다.
+        if (profile.Kind == DbKind.MongoDb && !ExplorerPanel.IsVisible)
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
 
         foreach (var v in AllViews())
         {
@@ -302,6 +336,7 @@ public partial class MainWindow : Window
             Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
             Item("Goto Record Number… (⌘G)", () => OnMenuGotoRecord(this, args)),
             Item("Cell Details… (⌃F11)", () => OnMenuCellDetail(this, args)),
+            Item("Edit Document… (Mongo) (⇧⌘D)", () => OnMenuEditDocument(this, args)),
             new NativeMenuItemSeparator(),
             Item("Filter Records Like Selected Cell", () => OnMenuFilterCellGrid(this, args)),
             Item("Clear Filter", () => OnMenuClearFilter(this, args)),
@@ -312,6 +347,7 @@ public partial class MainWindow : Window
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
             Item("Save Grid As INSERT…", () => OnMenuExportInsert(this, args)),
+            Item("Save Grid As JSON…", () => OnMenuExportJson(this, args)),
             new NativeMenuItemSeparator(),
             Item("Print Grid…", () => PrintGrid(auto: true)),
             Item("Print Preview (Grid)", () => PrintGrid(auto: false))));
@@ -332,6 +368,7 @@ public partial class MainWindow : Window
             Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
             Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
             Item("Import CSV/TSV…", () => OnMenuImportCsv(this, args)),
+            Item("Import JSON… (Mongo)", () => OnMenuImportJson(this, args)),
             Item("Query History…", () => OnMenuHistory(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
@@ -367,10 +404,117 @@ public partial class MainWindow : Window
         var show = !BrowserPanel.IsVisible;
         BrowserPanel.IsVisible = show;
         BrowserSplitter.IsVisible = show;
-        MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
-        MainGrid.ColumnDefinitions[2].Width = new GridLength(show ? 352 : 0);
+        // 왼쪽 Explorer 가 앞의 두 컬럼을 쓰므로 오른쪽 패널은 3·4 번이다
+        MainGrid.ColumnDefinitions[3].Width = new GridLength(show ? 4 : 0);
+        MainGrid.ColumnDefinitions[4].Width = new GridLength(show ? 352 : 0);
         BrowserMenuItem.Header = show ? "Object Browser ✓" : "Object Browser";
         BrowserToggleButton.Classes.Set("active", show);
+    }
+
+    // ---------- Database Explorer (DataGrip 대응, 왼쪽) ----------
+
+    /// <summary>
+    /// View > Database Explorer (Alt+1). Golden 에는 없던 패널이다 —
+    /// 오른쪽 Object Browser 가 "한 테이블을 골라 describe" 하는 Golden 방식인 반면
+    /// 이쪽은 스키마 전체를 트리로 펼쳐두고 걸어다니는 DataGrip 방식이다.
+    /// </summary>
+    private void OnMenuToggleExplorer(object? sender, RoutedEventArgs e)
+    {
+        var show = !ExplorerPanel.IsVisible;
+        ExplorerPanel.IsVisible = show;
+        ExplorerSplitter.IsVisible = show;
+        MainGrid.ColumnDefinitions[0].Width = new GridLength(show ? 300 : 0);
+        MainGrid.ColumnDefinitions[1].Width = new GridLength(show ? 4 : 0);
+        ExplorerMenuItem.Header = show
+            ? "Database Explorer (왼쪽 스키마 트리) ✓"
+            : "Database Explorer (왼쪽 스키마 트리)";
+        if (show) RebuildExplorer();
+    }
+
+    private void OnExplorerSearchChanged(object? sender, RoutedEventArgs e) => RebuildExplorer();
+
+    private async void OnExplorerRefresh(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is { } profile)
+        {
+            _schemaCache?.Invalidate();
+            await LoadBrowserAsync(profile);
+        }
+        RebuildExplorer();
+    }
+
+    /// <summary>
+    /// 이미 읽어 둔 카탈로그(<c>_allTables</c>)로 트리를 만든다 — 새 조회를 하지 않는다.
+    /// Mongo 는 스키마가 하나(collections)뿐이라 자연히 컬렉션 목록이 된다.
+    /// </summary>
+    private void RebuildExplorer()
+    {
+        if (ExplorerTree is null) return;
+
+        var needle = ExplorerSearch.Text?.Trim() ?? "";
+        var tables = _allTables.AsEnumerable();
+        if (needle.Length > 0)
+            tables = tables.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+
+        // 스키마가 하나뿐이거나 검색 중이면 펼쳐서 보여준다 — 한 번 더 클릭하게 만들 이유가 없다
+        var groups = tables.GroupBy(t => t.Schema).ToList();
+        var expand = groups.Count == 1 || needle.Length > 0;
+
+        var nodes = groups
+            .AsEnumerable()
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new ExplorerNode(
+                g.Key, $"({g.Count()})", ExplorerNodeKind.Schema, "",
+                [.. g.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                     .Select(t => new ExplorerNode(
+                         t.Name,
+                         t.IsView ? "view" : "",
+                         ExplorerNodeKind.Table,
+                         t.QualifiedName,
+                         [])
+                     {
+                         Schema = t.Schema,
+                         Icon = Icon(t.IsView ? "IconViewGrid" : "IconTableGrid"),
+                         IconBrush = Brush(t.IsView ? "ViewPurpleBrush" : "TableBlueBrush"),
+                     })])
+            {
+                Icon = Icon("IconDatabase"),
+                IconBrush = Brush("DbGreenBrush"),
+                IsExpanded = expand,
+            })
+            .ToList();
+
+        ExplorerTree.ItemsSource = nodes;
+        ExplorerHint.Text = nodes.Count == 0
+            ? (_allTables.Count == 0 ? "접속하면 스키마가 표시됩니다." : "검색과 일치하는 것이 없습니다.")
+            : "더블클릭하면 조회 문장이 에디터에 들어갑니다.";
+    }
+
+    /// <summary>앱 리소스에서 아이콘 도형을 꺼낸다. 없으면 null (아이콘만 비고 트리는 뜬다).</summary>
+    private Geometry? Icon(string key) =>
+        Application.Current?.TryFindResource(key, out var value) == true ? value as Geometry : null;
+
+    private IBrush? Brush(string key) =>
+        Application.Current?.TryFindResource(key, out var value) == true ? value as IBrush : null;
+
+    /// <summary>
+    /// 테이블/컬렉션을 더블클릭하면 조회 문장을 에디터에 넣는다.
+    /// Mongo 는 SQL 이 아니므로 셸 구문으로 만든다 (Studio3T 에서 컬렉션을 여는 감각).
+    /// </summary>
+    private void OnExplorerDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (ExplorerTree.SelectedItem is not ExplorerNode { Kind: ExplorerNodeKind.Table } node) return;
+        if (ActiveView is not { } view) return;
+
+        if (_profile?.Kind == DbKind.MongoDb)
+        {
+            // Explorer 는 서버의 모든 DB 를 보여주므로, 접속한 DB 가 아닌 컬렉션을
+            // 고를 수 있다 — 그대로 실행하면 엉뚱한 DB 를 조회하게 되니 먼저 옮긴다.
+            view.TryUseDatabase(node.Schema);
+            view.InsertAtCaret($"db.{node.Name}.find({{}})");
+            return;
+        }
+        view.InsertAtCaret($"select * from {node.Qualified}");
     }
 
     /// <summary>탭줄 오른쪽 ▾ — Golden 의 탭 목록 드롭다운.</summary>
@@ -440,6 +584,9 @@ public partial class MainWindow : Window
             StatusLabel.Text = $"Schema load failed: {ex.Message}";
             return;
         }
+
+        // 왼쪽 Explorer 는 같은 카탈로그를 쓰므로 여기서 함께 갱신한다
+        RebuildExplorer();
 
         var schemas = _allTables.Select(t => t.Schema).Distinct().OrderBy(s => s).ToList();
         SchemaCombo.ItemsSource = schemas;
@@ -530,6 +677,12 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             OnMenuRollback(sender, e);
+        }
+        else if (e.Key is Key.D1 or Key.NumPad1 && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            // DataGrip: Alt+1 = Database Explorer
+            e.Handled = true;
+            OnMenuToggleExplorer(sender, e);
         }
         else if (e.Key == Key.F7 && cmdOrCtrl)
         {
@@ -1126,6 +1279,21 @@ public partial class MainWindow : Window
             StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
     }
 
+    private void OnMenuImportJson(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is not { } profile)
+        {
+            StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+            return;
+        }
+        if (profile.Kind != DbKind.MongoDb)
+        {
+            StatusLabel.Text = "Import JSON 은 MongoDB 접속에서만 됩니다";
+            return;
+        }
+        new MongoImportDialog(profile).Show(this);
+    }
+
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
     private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
 
@@ -1383,6 +1551,31 @@ public partial class MainWindow : Window
     private void OnMenuClearResults(object? sender, RoutedEventArgs e) => ActiveView?.ClearResults();
     private void OnMenuCellDetail(object? sender, RoutedEventArgs e) => ActiveView?.ShowCellDetail();
 
+    private async void OnMenuEditDocument(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view) await view.EditSelectedDocumentAsync();
+    }
+
+    private async void OnMenuAddDocument(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view) await view.AddMongoDocumentAsync();
+    }
+
+    /// <summary>SQL 의 "Delete Selected Records…"(단계적 커밋)와 달리 즉시 지운다 —
+    /// Mongo 는 Run and Edit 단계적 커밋 흐름이 없다. 그래서 확인을 먼저 받는다.</summary>
+    private async void OnMenuDeleteDocuments(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+        var count = view.SelectedRowCount;
+        if (count == 0)
+        {
+            StatusLabel.Text = "삭제할 문서를 선택하세요";
+            return;
+        }
+        if (await ConfirmAsync($"Delete {count} selected document(s)? 즉시 지워지며 되돌릴 수 없습니다."))
+            await view.DeleteSelectedMongoDocumentsAsync();
+    }
+
     /// <summary>Golden F12 — DataGrid → Text → Log 순환. 툴바 라벨도 같이 맞춘다.</summary>
     private void OnMenuCycleResultView(object? sender, RoutedEventArgs e)
     {
@@ -1443,6 +1636,9 @@ public partial class MainWindow : Window
 
     private async void OnMenuExportInsert(object? sender, RoutedEventArgs e)
         => await SaveGridAsAsync(GridExportFormat.Insert, "result.sql", "sql", "SQL script");
+
+    private async void OnMenuExportJson(object? sender, RoutedEventArgs e)
+        => await SaveGridAsAsync(GridExportFormat.Json, "result.json", "json", "JSON");
 
     /// <summary>Golden 의 Save Grid As xlsx — 로드된 행을 Excel 통합문서로.</summary>
     private async void OnMenuExportXlsx(object? sender, RoutedEventArgs e)
@@ -1902,6 +2098,12 @@ public partial class MainWindow : Window
             await Task.Delay(800);
             SaveShot(this, System.IO.Path.Combine(dir, "shot_main.png"));
 
+            // 왼쪽 Database Explorer — 트리 템플릿이 실제로 그려지는지 확인용
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
+            await Task.Delay(600);
+            SaveShot(this, System.IO.Path.Combine(dir, "shot_explorer.png"));
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
+
             // Golden 의 결과 보기 전환 (Show Text) — 접속 없이도 렌더를 확인한다
             if (ActiveView is { } textView)
             {
@@ -2051,6 +2253,26 @@ public partial class MainWindow : Window
             await Task.Delay(700);
             SaveShot(erd, System.IO.Path.Combine(dir, "shot_erd.png"));
             erd.Close();
+
+            // Edit Document (Mongo) — 접속 없이 합성 문서로 렌더만 확인
+            var mongoDoc = new MongoDocumentDialog(MongoDB.Bson.BsonDocument.Parse(
+                "{ _id: 1, name: 'sample', age: 30, address: { city: 'Seoul' } }"));
+            mongoDoc.Show(this);
+            await Task.Delay(500);
+            SaveShot(mongoDoc, System.IO.Path.Combine(dir, "shot_mongo_edit.png"));
+            mongoDoc.Close();
+
+            // Import JSON (Mongo) — 접속 없이 합성 JSON 으로 미리보기 렌더만 확인
+            var mongoImport = new MongoImportDialog(
+                ConnectionProfile.Default with { Kind = DbKind.MongoDb, Database = "demo" });
+            mongoImport.Show(this);
+            await Task.Delay(300);
+            mongoImport.LoadText("people.json",
+                "[{ \"_id\": 1, \"name\": \"kim\" }, { \"_id\": 2, \"name\": \"lee\" }]");
+            mongoImport.CollectionBox.Text = "people";
+            await Task.Delay(400);
+            SaveShot(mongoImport, System.IO.Path.Combine(dir, "shot_mongo_import.png"));
+            mongoImport.Close();
         }
         finally
         {

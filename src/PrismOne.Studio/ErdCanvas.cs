@@ -73,10 +73,23 @@ public sealed class ErdCanvas : Control
     public static readonly StyledProperty<IReadOnlySet<string>?> RelatedKeysProperty =
         AvaloniaProperty.Register<ErdCanvas, IReadOnlySet<string>?>(nameof(RelatedKeys));
 
+    /// <summary>마우스가 올라간 테이블 키 — 선택과 별개로 옅게 강조한다.</summary>
+    public static readonly StyledProperty<string?> HoveredKeyProperty =
+        AvaloniaProperty.Register<ErdCanvas, string?>(nameof(HoveredKey));
+
+    /// <summary>
+    /// 그릴 범위(이 컨트롤 좌표계). 대형 스키마는 캔버스가 수천만 픽셀이라 화면 밖까지
+    /// 전부 그리면 렌더 한 번에 텍스트를 수천 개 만든다 — 밖은 건너뛴다.
+    /// <b>null 이면 전부 그린다</b> (PNG 내보내기처럼 화면과 무관한 렌더용).
+    /// </summary>
+    public static readonly StyledProperty<Rect?> ViewportProperty =
+        AvaloniaProperty.Register<ErdCanvas, Rect?>(nameof(Viewport));
+
     static ErdCanvas()
     {
         AffectsMeasure<ErdCanvas>(DiagramProperty, ScaleProperty);
-        AffectsRender<ErdCanvas>(DiagramProperty, ScaleProperty, SelectedKeyProperty, RelatedKeysProperty);
+        AffectsRender<ErdCanvas>(DiagramProperty, ScaleProperty, SelectedKeyProperty, RelatedKeysProperty,
+            HoveredKeyProperty, ViewportProperty);
     }
 
     public ErdDiagram? Diagram
@@ -103,6 +116,18 @@ public sealed class ErdCanvas : Control
         set => SetValue(RelatedKeysProperty, value);
     }
 
+    public string? HoveredKey
+    {
+        get => GetValue(HoveredKeyProperty);
+        set => SetValue(HoveredKeyProperty, value);
+    }
+
+    public Rect? Viewport
+    {
+        get => GetValue(ViewportProperty);
+        set => SetValue(ViewportProperty, value);
+    }
+
     /// <summary>범례가 캔버스와 같은 색을 쓰도록 팔레트를 공개한다.</summary>
     public static Color GroupColor(int index) => Palette[Math.Abs(index) % Palette.Length];
 
@@ -114,6 +139,24 @@ public sealed class ErdCanvas : Control
         var x = point.X / Scale;
         var y = point.Y / Scale;
         return diagram.Boxes.FirstOrDefault(b => x >= b.X && x <= b.Right && y >= b.Y && y <= b.Bottom);
+    }
+
+    /// <summary>
+    /// 화면 좌표 아래에 있는 컬럼 행. 박스는 맞지만 헤더/여백을 짚었으면 컬럼만 null 이다.
+    /// FK 행을 클릭해 참조 대상으로 점프하는 데 쓴다.
+    /// </summary>
+    public (ErdBox Box, ErdColumn? Column)? ColumnAt(Point point)
+    {
+        var box = BoxAt(point);
+        if (box is null) return null;
+        if (Scale <= 0) return (box, null);
+
+        var y = point.Y / Scale;
+        var top = box.Y + ErdMetrics.HeaderHeight + 3;
+        var index = (int)Math.Floor((y - top) / ErdMetrics.RowHeight);
+        return index >= 0 && index < box.VisibleColumns.Count
+            ? (box, box.VisibleColumns[index])
+            : (box, null);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -133,26 +176,54 @@ public sealed class ErdCanvas : Control
         var scale = Scale;
         var selected = SelectedKey;
         var related = RelatedKeys;
+        var hovered = HoveredKey;
+
+        // 컬링 범위는 다이어그램 좌표로 환산해 둔다 (박스·엣지 좌표가 그 계이므로).
+        // 여백을 조금 둬서 화면 경계에 걸친 관계선 끝이 잘리지 않게 한다.
+        var clip = Viewport is { } vp && scale > 0
+            ? new Rect(vp.X / scale - 64, vp.Y / scale - 64, vp.Width / scale + 128, vp.Height / scale + 128)
+            : (Rect?)null;
 
         foreach (var group in diagram.Groups)
+        {
+            if (clip is { } c && !c.Intersects(new Rect(group.X, group.Y, group.Width, group.Height))) continue;
             DrawGroup(context, group, scale);
+        }
 
         foreach (var edge in diagram.Edges)
         {
-            var active = selected is not null &&
-                         (edge.Relation.ChildKey == selected || edge.Relation.ParentKey == selected);
+            if (clip is { } c && !c.Intersects(EdgeBounds(edge))) continue;
+            var active = IsIncident(edge, selected) || IsIncident(edge, hovered);
             DrawEdge(context, edge, scale, active);
         }
 
         foreach (var box in diagram.Boxes)
         {
+            if (clip is { } c && !c.Intersects(new Rect(box.X, box.Y, box.Width, box.Height))) continue;
             var key = box.Table.Key;
             var outline = key == selected ? AccentPen
-                : related?.Contains(key) == true ? RelatedPen
+                : key == hovered || related?.Contains(key) == true ? RelatedPen
                 : box.Table.IsView ? ViewBorderPen
                 : BorderPen;
             DrawBox(context, box, scale, outline);
         }
+    }
+
+    private static bool IsIncident(ErdEdge edge, string? key) =>
+        key is not null && (edge.Relation.ChildKey == key || edge.Relation.ParentKey == key);
+
+    /// <summary>꺾인 관계선의 외접 사각형 — 컬링 판정용.</summary>
+    private static Rect EdgeBounds(ErdEdge edge)
+    {
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        foreach (var p in edge.Points)
+        {
+            if (p.X < minX) minX = p.X;
+            if (p.Y < minY) minY = p.Y;
+            if (p.X > maxX) maxX = p.X;
+            if (p.Y > maxY) maxY = p.Y;
+        }
+        return minX > maxX ? default : new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     // ---------- 주제영역 ----------

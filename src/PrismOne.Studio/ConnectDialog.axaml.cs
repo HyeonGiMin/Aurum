@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
@@ -286,9 +287,13 @@ public partial class ConnectDialog : Window
         {
             if (ParseDatabase(DatabaseCombo.Text, kind) is not var (host, port, database))
             {
-                ShowError(kind == DbKind.Oracle
-                    ? "Database must be host[:port]/service (e.g. ora-host/ORCLPDB)."
-                    : "Database must be host[:port]/database (e.g. db-host/prismone).");
+                ShowError(kind switch
+                {
+                    DbKind.Oracle => "Database must be host[:port]/service (e.g. ora-host/ORCLPDB).",
+                    DbKind.MongoDb => "Database must be host[:port] or host[:port]/database "
+                                      + "(e.g. mongo-host:27021 — database is optional).",
+                    _ => "Database must be host[:port]/database (e.g. db-host/prismone).",
+                });
                 return;
             }
 
@@ -347,7 +352,28 @@ public partial class ConnectDialog : Window
 
         var slash = s.IndexOf('/');
         if (slash < 0)
+        {
+            if (kind == DbKind.MongoDb)
+            {
+                // Mongo 는 DB 를 안 적어도 되는 게 정상이다 (Studio3T·DataGrip 과 같은 관례) —
+                // "/" 가 없는 입력은 통째로 host[:port] 로 본다. 호스트 이름 하나만 쳐도
+                // (콜론도 없이) 여기로 오게 해야 한다 — 예전엔 이걸 "DB 이름 하나만 친 것"으로
+                // 보고 localhost 에 붙어버려서, 원격 호스트를 적었는데 조용히 로컬로 가는
+                // 함정이 있었다. 빈 DB 로 두면 Explorer 가 서버의 DB 를 전부 보여준다.
+                var onlyColon = s.LastIndexOf(':');
+                if (onlyColon > 0 &&
+                    int.TryParse(s[(onlyColon + 1)..], out var onlyPort) && onlyPort is > 0 and <= 65535)
+                    return (s[..onlyColon], onlyPort, "");
+                return (s, defaultPort, "");
+            }
+            // PG/Oracle 은 DB·서비스 이름이 반드시 필요하다 — 콜론이 있으면 host:port 로,
+            // 아니면 문서화된 관례대로 "이름 하나만 치면 localhost/그 이름" 이다.
+            var colonOnly = s.LastIndexOf(':');
+            if (colonOnly > 0 &&
+                int.TryParse(s[(colonOnly + 1)..], out var portOnly) && portOnly is > 0 and <= 65535)
+                return null;
             return ("localhost", defaultPort, s);
+        }
         var left = s[..slash].Trim();
         var db = s[(slash + 1)..].Trim();
         if (left.Length == 0 || db.Length == 0) return null;
@@ -360,10 +386,14 @@ public partial class ConnectDialog : Window
         return (left[..colon], port, db);
     }
 
-    private static string FormatDatabase(string host, int port, string database, DbKind kind) =>
-        kind == DbKind.Sqlite ? database
-        : port == SavedConnection.DefaultPort(kind) ? $"{host}/{database}"
-        : $"{host}:{port}/{database}";
+    private static string FormatDatabase(string host, int port, string database, DbKind kind)
+    {
+        if (kind == DbKind.Sqlite) return database;
+        var hostPort = port == SavedConnection.DefaultPort(kind) ? host : $"{host}:{port}";
+        // Mongo 는 DB 가 빈 값일 수 있다 — 그때는 슬래시도 안 붙인다("host:port/" 로
+        // 어정쩡하게 보이지 않도록).
+        return database.Length == 0 ? hostPort : $"{hostPort}/{database}";
+    }
 
     private void ShowError(string message)
     {

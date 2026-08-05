@@ -95,6 +95,7 @@ public static class DbProviders
         new PostgresProvider(),
         new OracleProvider(),
         new SqliteProvider(),
+        new MongoProvider(),
     ];
 
     /// <summary>지금 붙일 수 있는 DB 들 (로그온 창 목록).</summary>

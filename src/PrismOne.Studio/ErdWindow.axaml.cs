@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -14,6 +15,12 @@ namespace PrismOne.Studio;
 
 /// <summary>범례 한 줄 — 주제영역 색 스와치 + 이름. (XAML 컴파일 바인딩 대상이라 public)</summary>
 public sealed record ErdLegendRow(IBrush Swatch, string Label);
+
+/// <summary>상세 패널의 컬럼 한 줄. (XAML 컴파일 바인딩 대상이라 public)</summary>
+public sealed record ErdColumnRow(string Marker, IBrush MarkerBrush, string Name, string Type);
+
+/// <summary>상세 패널의 관계 한 줄 — 클릭하면 <c>TargetKey</c> 로 이동한다.</summary>
+public sealed record ErdRelationRow(string Text, string TargetKey);
 
 /// <summary>
 /// 스키마 ERD 창 (Tools &gt; Diagram). 읽기 전용 — DDL 을 만들거나 바꾸지 않는다.
@@ -43,6 +50,14 @@ public partial class ErdWindow : Window
     private Point _panOrigin;
     private Vector _panStartOffset;
 
+    /// <summary>선택 히스토리 — 넓은 스키마를 FK 로 걸어다니다 되돌아오기 위한 것. [ / ] 로 이동.</summary>
+    private readonly List<string> _history = [];
+    private int _historyIndex = -1;
+    /// <summary>히스토리 이동으로 인한 선택은 다시 히스토리에 쌓지 않는다.</summary>
+    private bool _navigatingHistory;
+    private string? _hoveredKey;
+    private bool _suppressJump;
+
     public ErdWindow() : this(ConnectionProfile.Default, null) { }
 
     public ErdWindow(ConnectionProfile profile, string? focusKey)
@@ -65,6 +80,11 @@ public partial class ErdWindow : Window
         Scroll.PointerReleased += OnSurfaceReleased;
         Scroll.PointerWheelChanged += OnSurfaceWheel;
         Scroll.DoubleTapped += OnSurfaceDoubleTapped;
+        Scroll.PointerExited += (_, _) => SetHover(null);
+        MiniMap.Navigate += (_, at) => CenterOn(at);
+        // 화면 밖 렌더를 건너뛰려면 캔버스가 지금 보이는 범위를 알아야 한다
+        Scroll.ScrollChanged += (_, _) => UpdateViewport();
+        Scroll.SizeChanged += (_, _) => UpdateViewport();
 
         Opened += async (_, _) => await InitAsync();
     }
@@ -187,6 +207,10 @@ public partial class ErdWindow : Window
         FocusLabel.Text = _focusKey ?? "—";
         EmptyHint.IsVisible = diagram.Boxes.Count == 0;
         BuildLegend(diagram);
+        RefreshJumpSource(diagram);
+        MiniMap.Diagram = diagram;
+        MiniMapPanel.IsVisible = diagram.Boxes.Count > 0;
+        UpdateViewport();
 
         ErdStatus.Text = Describe(graph, narrowed);
         if (fit) FitToWindow();
@@ -293,11 +317,18 @@ public partial class ErdWindow : Window
 
     private void OnSurfacePressed(object? sender, PointerPressedEventArgs e)
     {
-        var box = Surface.BoxAt(e.GetPosition(Surface));
-        if (box is not null)
+        var hit = Surface.ColumnAt(e.GetPosition(Surface));
+        if (hit is { } h)
         {
-            Select(box.Table.Key);
-            ErdStatus.Text = DescribeBox(box);
+            // FK 점프가 켜져 있고 FK 컬럼 행을 짚었으면 참조 대상으로 이동한다
+            if (FkJumpBox.IsChecked == true && h.Column is { IsFk: true } column
+                && FindFkTarget(h.Box.Table.Key, column.Name) is { } target)
+            {
+                GoToTable(target);
+                return;
+            }
+            Select(h.Box.Table.Key);
+            ErdStatus.Text = DescribeBox(h.Box);
             return;
         }
 
@@ -319,11 +350,189 @@ public partial class ErdWindow : Window
                 .Where(r => r.ChildKey == key || r.ParentKey == key)
                 .Select(r => r.ChildKey == key ? r.ParentKey : r.ChildKey)
                 .ToHashSet();
+
+        if (key is not null && !_navigatingHistory) PushHistory(key);
+        UpdateDetail(key);
     }
+
+    // ---------- 뷰포트 컬링 ----------
+
+    /// <summary>지금 보이는 범위를 캔버스와 미니맵에 알린다 — 캔버스는 밖을 그리지 않는다.</summary>
+    private void UpdateViewport()
+    {
+        var viewport = Scroll.Viewport;
+        if (viewport.Width <= 0 || viewport.Height <= 0)
+        {
+            Surface.Viewport = null;
+            MiniMap.ViewBox = null;
+            return;
+        }
+
+        Surface.Viewport = new Rect(Scroll.Offset.X, Scroll.Offset.Y, viewport.Width, viewport.Height);
+
+        // 미니맵은 줌과 무관한 다이어그램 좌표로 받는다
+        var scale = Surface.Scale;
+        MiniMap.ViewBox = scale <= 0
+            ? null
+            : new Rect(Scroll.Offset.X / scale, Scroll.Offset.Y / scale,
+                       viewport.Width / scale, viewport.Height / scale);
+    }
+
+    /// <summary>다이어그램 좌표의 한 점을 화면 가운데로 가져온다 (미니맵 이동용).</summary>
+    private void CenterOn(ErdPoint at)
+    {
+        var scale = Surface.Scale;
+        if (scale <= 0) return;
+        Scroll.Offset = new Vector(
+            Math.Max(0, at.X * scale - Scroll.Viewport.Width / 2),
+            Math.Max(0, at.Y * scale - Scroll.Viewport.Height / 2));
+    }
+
+    // ---------- 호버 강조 ----------
+
+    private void SetHover(string? key)
+    {
+        if (HoverBox.IsChecked != true) key = null;
+        if (_hoveredKey == key) return;
+        _hoveredKey = key;
+        Surface.HoveredKey = key;
+    }
+
+    // ---------- 선택 히스토리 ----------
+
+    private void PushHistory(string key)
+    {
+        if (_historyIndex >= 0 && _historyIndex < _history.Count && _history[_historyIndex] == key) return;
+        // 뒤로 갔다가 새 곳을 고르면 앞쪽 기록은 버린다 (브라우저와 같은 규칙)
+        if (_historyIndex < _history.Count - 1)
+            _history.RemoveRange(_historyIndex + 1, _history.Count - _historyIndex - 1);
+        _history.Add(key);
+        _historyIndex = _history.Count - 1;
+        UpdateHistoryButtons();
+    }
+
+    private void UpdateHistoryButtons()
+    {
+        BackButton.IsEnabled = _historyIndex > 0;
+        ForwardButton.IsEnabled = _historyIndex >= 0 && _historyIndex < _history.Count - 1;
+    }
+
+    private void GoHistory(int delta)
+    {
+        var next = _historyIndex + delta;
+        if (next < 0 || next >= _history.Count) return;
+        _historyIndex = next;
+        _navigatingHistory = true;
+        GoToTable(_history[next]);
+        _navigatingHistory = false;
+        UpdateHistoryButtons();
+    }
+
+    private void OnHistoryBack(object? sender, RoutedEventArgs e) => GoHistory(-1);
+
+    private void OnHistoryForward(object? sender, RoutedEventArgs e) => GoHistory(1);
+
+    // ---------- 테이블로 이동 ----------
+
+    /// <summary>해당 테이블을 화면 가운데로 스크롤하고 선택한다. 현재 화면에 없으면 알린다.</summary>
+    private void GoToTable(string key)
+    {
+        var box = Surface.Diagram?.Boxes.FirstOrDefault(b => b.Table.Key == key);
+        if (box is null)
+        {
+            ErdStatus.Text = $"{key} 은(는) 지금 화면 조건(Filter/Focus)에 없습니다.";
+            return;
+        }
+
+        var scale = Surface.Scale;
+        Scroll.Offset = new Vector(
+            Math.Max(0, box.CenterX * scale - Scroll.Viewport.Width / 2),
+            Math.Max(0, box.CenterY * scale - Scroll.Viewport.Height / 2));
+        Select(key);
+        ErdStatus.Text = DescribeBox(box);
+    }
+
+    /// <summary>이동 상자의 후보 목록 — 지금 그려진 테이블들.</summary>
+    private void RefreshJumpSource(ErdDiagram diagram)
+    {
+        _suppressJump = true;
+        JumpBox.ItemsSource = diagram.Boxes.Select(b => b.Table.Key).OrderBy(k => k).ToList();
+        JumpBox.SelectedItem = null;
+        JumpBox.Text = "";
+        _suppressJump = false;
+    }
+
+    private void OnJumpSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressJump || JumpBox.SelectedItem is not string key) return;
+        GoToTable(key);
+    }
+
+    // ---------- 상세 패널 ----------
+
+    private void OnDetailToggled(object? sender, RoutedEventArgs e)
+    {
+        if (DetailPanel is null) return;
+        DetailPanel.IsVisible = DetailBox.IsChecked == true;
+    }
+
+    private void UpdateDetail(string? key)
+    {
+        if (DetailColumns is null) return;
+
+        var table = key is null ? null : _full.Tables.FirstOrDefault(t => t.Key == key);
+        if (table is null)
+        {
+            DetailTitle.Text = "테이블을 클릭하세요";
+            DetailSub.Text = "";
+            DetailColumns.ItemsSource = null;
+            DetailRelations.ItemsSource = null;
+            DetailNoRelations.IsVisible = false;
+            return;
+        }
+
+        DetailTitle.Text = table.Name;
+        DetailSub.Text = $"{table.Schema}{(table.IsView ? " · view" : "")} · {table.Columns.Count} columns";
+
+        DetailColumns.ItemsSource = table.Columns
+            .Select(c => new ErdColumnRow(
+                c.IsPk ? "PK" : c.IsFk ? "FK" : "",
+                c.IsPk ? PkBrush : FkBrush,
+                c.Name + (c.NotNull ? " *" : ""),
+                c.Type))
+            .ToList();
+
+        // 나가는 FK 와 들어오는 참조를 한 목록에 — 어느 쪽이든 클릭하면 상대로 간다
+        var rows = _full.Relations
+            .Where(r => r.ChildKey == key || r.ParentKey == key)
+            .Select(r => r.ChildKey == key
+                ? new ErdRelationRow($"→ {r.ParentKey}  ({string.Join(", ", r.ChildColumns)})", r.ParentKey)
+                : new ErdRelationRow($"← {r.ChildKey}  ({string.Join(", ", r.ChildColumns)})", r.ChildKey))
+            .ToList();
+
+        _suppressJump = true;
+        DetailRelations.ItemsSource = rows;
+        DetailRelations.SelectedItem = null;
+        _suppressJump = false;
+        DetailNoRelations.IsVisible = rows.Count == 0;
+    }
+
+    private void OnRelationActivated(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressJump || DetailRelations.SelectedItem is not ErdRelationRow row) return;
+        GoToTable(row.TargetKey);
+    }
+
+    private static readonly IBrush PkBrush = new SolidColorBrush(Color.Parse("#8A5A00"));
+    private static readonly IBrush FkBrush = new SolidColorBrush(Color.Parse("#1F4E79"));
 
     private void OnSurfaceMoved(object? sender, PointerEventArgs e)
     {
-        if (!_panning) return;
+        if (!_panning)
+        {
+            SetHover(Surface.BoxAt(e.GetPosition(Surface))?.Table.Key);
+            return;
+        }
         var delta = _panOrigin - e.GetPosition(Scroll);
         Scroll.Offset = _panStartOffset + delta;
     }
@@ -397,12 +606,38 @@ public partial class ErdWindow : Window
             case Key.Escape:
                 Select(null);
                 break;
+            case Key.T:
+                JumpBox.Focus();
+                break;
+            case Key.H:
+                HoverBox.IsChecked = HoverBox.IsChecked != true;
+                if (HoverBox.IsChecked != true) SetHover(null);
+                break;
+            case Key.F:
+                FkJumpBox.IsChecked = FkJumpBox.IsChecked != true;
+                break;
+            case Key.M:
+                MiniMapPanel.IsVisible = !MiniMapPanel.IsVisible;
+                break;
+            case Key.OemOpenBrackets:
+                GoHistory(-1);
+                break;
+            case Key.OemCloseBrackets:
+                GoHistory(1);
+                break;
             default:
                 base.OnKeyDown(e);
                 return;
         }
         e.Handled = true;
     }
+
+    /// <summary>이 테이블의 해당 FK 컬럼이 가리키는 부모 테이블. 없으면 null.</summary>
+    private string? FindFkTarget(string childKey, string columnName) =>
+        _full.Relations
+            .FirstOrDefault(r => r.ChildKey == childKey &&
+                                 r.ChildColumns.Any(c => c.Equals(columnName, StringComparison.OrdinalIgnoreCase)))
+            ?.ParentKey;
 
     private string DescribeBox(ErdBox box)
     {

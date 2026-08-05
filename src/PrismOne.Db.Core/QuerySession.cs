@@ -360,8 +360,13 @@ public sealed class BatchRowException(int rowNumber, Exception inner)
     public int RowNumber { get; } = rowNumber;
 }
 
-/// <summary>fetch 된 행 하나. Raw 는 표시용으로 잘린 셀의 원문만 담는다 (없으면 null).</summary>
-public readonly record struct FetchedRow(string?[] Cells, string?[]? Raw);
+/// <summary>
+/// fetch 된 행 하나. Raw 는 표시용으로 잘린 셀의 원문만 담는다 (없으면 null).
+/// <paramref name="RowContext"/> 는 provider 별 부가 정보를 담는 불투명한 자리다 —
+/// 지금은 Mongo 의 <see cref="Mongo.MongoRowContext"/>(Edit Document 용 원본 문서)만 쓴다.
+/// 다른 provider 는 항상 null.
+/// </summary>
+public readonly record struct FetchedRow(string?[] Cells, string?[]? Raw, object? RowContext = null);
 
 /// <summary>
 /// 실행된 문장 하나. SELECT 면 reader 를 열어둔 채 배치 단위로 점진 fetch 한다.
@@ -435,7 +440,10 @@ public sealed class ActiveQuery : IAsyncDisposable
                 raw[i] = ValueFormatter.FormatFull(value);
             }
         }
-        return new FetchedRow(cells, raw);
+        // Mongo 는 Edit Document 가 되쓸 원본 문서를 리더가 커서 위치별로 들고 있다 —
+        // 다른 provider 는 이 타입이 아니므로 항상 null.
+        var rowContext = _reader is Mongo.MongoDbDataReader mongoReader ? mongoReader.CurrentRowContext : null;
+        return new FetchedRow(cells, raw, rowContext);
     }
 
     private async Task FinishAsync()
