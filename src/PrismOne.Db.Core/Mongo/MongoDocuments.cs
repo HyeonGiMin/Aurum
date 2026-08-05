@@ -5,8 +5,15 @@ using MongoDB.Bson;
 
 namespace PrismOne.Db.Core.Mongo;
 
-/// <summary>문서 목록을 표로 바꾼 결과. 컬럼은 문서들에 나온 필드의 합집합이다.</summary>
-public sealed record MongoTable(IReadOnlyList<string> Columns, IReadOnlyList<object?[]> Rows);
+/// <summary>
+/// 문서 목록을 표로 바꾼 결과. 컬럼은 문서들에 나온 필드의 합집합이다.
+/// <paramref name="RowContexts"/> 는 각 행이 원래 어느 문서였는지(Edit Document 용) —
+/// <see cref="Rows"/> 와 같은 순서로 정렬되며, 편집 가능한 결과(순수 find)에서만 채워진다.
+/// </summary>
+public sealed record MongoTable(
+    IReadOnlyList<string> Columns,
+    IReadOnlyList<object?[]> Rows,
+    IReadOnlyList<MongoRowContext>? RowContexts = null);
 
 /// <summary>
 /// BSON 문서를 그리드가 쓸 수 있는 표로 편다.

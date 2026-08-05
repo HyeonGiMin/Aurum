@@ -74,6 +74,116 @@ public class MongoSessionLiveTests
         }
     }
 
+    /// <summary>순수 find(projection 없음)는 Edit Document 가 쓸 원본 문서를 행마다 남긴다.</summary>
+    [Fact]
+    public async Task Execute_PlainFind_AttachesRowContext_ForEditDocument()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var result = await session.ExecuteAsync("db.people.find({ name: 'a' })");
+
+            var contexts = result.Table.RowContexts;
+            Assert.NotNull(contexts);
+            Assert.Single(contexts!);
+            Assert.Equal(database, contexts![0].Database);
+            Assert.Equal("people", contexts[0].Collection);
+            Assert.Equal("a", contexts[0].Document["name"].AsString);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>projection 이 있으면 문서가 원본과 달라(필드 누락) 편집을 허용하지 않는다.</summary>
+    [Fact]
+    public async Task Execute_FindWithProjection_DoesNotAttachRowContext()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var result = await session.ExecuteAsync("db.people.find({}, { name: 1 })");
+
+            Assert.Null(result.Table.RowContexts);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>aggregate 는 파이프라인이 문서를 재구성할 수 있어 편집 대상에서 뺀다.</summary>
+    [Fact]
+    public async Task Execute_Aggregate_DoesNotAttachRowContext()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var result = await session.ExecuteAsync("db.people.aggregate([{ $match: {} }])");
+
+            Assert.Null(result.Table.RowContexts);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>Edit Document 저장 경로 — _id 로 찾아 통째로 바꾸고, 재조회하면 반영돼 있다.</summary>
+    [Fact]
+    public async Task ReplaceDocumentAsync_UpdatesDocument_ById()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var before = await session.ExecuteAsync("db.people.find({ name: 'a' })");
+            var id = before.Table.RowContexts![0].Document["_id"];
+
+            var updated = BsonDocument.Parse("{ _id: 1, name: 'a-renamed', age: 99 }");
+            await session.ReplaceDocumentAsync(database, "people", id, updated);
+
+            var after = await session.ExecuteAsync("db.people.find({ _id: 1 })");
+            var nameCol = after.Table.Columns.ToList().IndexOf("name");
+            Assert.Equal("a-renamed", after.Table.Rows[0][nameCol]);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>다른 곳에서 먼저 지운 문서를 저장하면 조용히 넘어가지 않고 알린다.</summary>
+    [Fact]
+    public async Task ReplaceDocumentAsync_Throws_WhenDocumentNoLongerExists()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            await new MongoClient($"mongodb://{Host}:{Port}").GetDatabase(database)
+                .GetCollection<BsonDocument>("people").DeleteOneAsync(
+                    Builders<BsonDocument>.Filter.Eq("_id", 1));
+
+            var updated = BsonDocument.Parse("{ _id: 1, name: 'ghost' }");
+            await Assert.ThrowsAsync<MongoQueryException>(
+                () => session.ReplaceDocumentAsync(database, "people", new BsonInt32(1), updated));
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
     /// <summary>
     /// DB 를 안 정하고(host:port 만 접속) 바로 조회하면 예전처럼 아무 DB(test)로 조용히
     /// 넘어가지 않고 바로 알려야 한다 — 안 그러면 실제로는 다른 DB 에 있는 컬렉션을

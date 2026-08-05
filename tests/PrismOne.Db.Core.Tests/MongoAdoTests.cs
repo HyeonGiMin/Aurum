@@ -215,6 +215,35 @@ public class MongoAdoTests
         }
     }
 
+    /// <summary>
+    /// QueryTabView.EditSelectedDocumentAsync 가 실제로 타는 다리 —
+    /// MongoDbConnection.ReplaceDocumentAsync 가 내부 세션에 위임해 정확히 저장한다.
+    /// </summary>
+    [Fact]
+    public async Task ReplaceDocumentAsync_ThroughConnection_UpdatesDocument()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            await using var connection =
+                (MongoDbConnection)await DbProviders.For(DbKind.MongoDb).OpenAsync(Profile(database));
+
+            var updated = BsonDocument.Parse("{ _id: 1, name: 'a-renamed' }");
+            await connection.ReplaceDocumentAsync(database, "people", new BsonInt32(1), updated);
+
+            var command = connection.CreateCommand();
+            command.CommandText = "db.people.find({ _id: 1 })";
+            await using var reader = await command.ExecuteReaderAsync();
+            await reader.ReadAsync();
+            Assert.Equal("a-renamed", reader.GetValue(reader.GetOrdinal("name")));
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
     [Fact]
     public async Task ErdCatalog_ListsCollections_WithNoRelations()
     {

@@ -12,12 +12,23 @@ namespace PrismOne.Db.Core.Mongo;
 public sealed record MongoResult(MongoTable Table, string Summary);
 
 /// <summary>
+/// 그리드 한 행이 실제로 어느 문서에서 왔는지 — Edit Document(Studio3T 대응)가
+/// <c>_id</c> 로 정확히 되쓰기 위해 쓴다. <c>find</c>/<c>findOne</c> 결과에만 붙는다 —
+/// <c>aggregate</c> 는 파이프라인이 문서를 재구성할 수 있어 원본을 그대로 대표하지
+/// 않으므로 편집 대상에서 뺀다(SQL 의 "단일 테이블 SELECT 만 편집" 과 같은 이유).
+/// </summary>
+public sealed record MongoRowContext(string Database, string Collection, BsonDocument Document);
+
+/// <summary>
 /// Mongo 접속·실행. <c>QuerySession</c> 과 나란한 역할이지만 별도 타입이다 —
 /// Mongo 드라이버는 ADO.NET(<c>DbConnection</c>/<c>DbDataReader</c>)이 아니라
 /// 기존 SQL 경로를 재사용할 수 없다 (MULTI_DB_PLAN §2).
 ///
-/// 읽기 전용이다. drop·insert·update 같은 쓰기 연산은 파서가 애초에 받지 않는다 —
-/// Studio 는 조회·관리 전용이라는 원칙(STATUS §2·3)을 여기서도 지킨다.
+/// **타이핑한 명령은 읽기 전용이다** — drop·insert·update 같은 쓰기 연산은 셸 구문
+/// 파서(<see cref="MongoQueryParser"/>)가 애초에 받지 않는다. 다만 그리드에서 문서 하나를
+/// 고쳐 저장하는 것(Edit Document)은 SQL 의 Run and Edit 과 같은 급의 **구조화된 데이터
+/// 편집**이라 별도 경로(<see cref="ReplaceDocumentAsync"/>)로 허용한다 — Studio 가
+/// 막는 것은 스키마 패치이지(STATUS §2·3), 행 단위 데이터 편집이 아니다.
 /// </summary>
 public sealed class MongoSession : IDisposable
 {
@@ -192,7 +203,10 @@ public sealed class MongoSession : IDisposable
         var effective = Math.Min(command.Limit ?? limit, limit);
         var documents = await (await find.Limit(effective).ToCursorAsync(ct)).ToListAsync(ct);
 
-        return Materialize(documents, effective);
+        // projection 이 있으면 문서가 원본과 다를 수 있다(필드 누락 등) — 그대로 되쓰면
+        // 화면에 없던 필드가 통째로 사라지므로 Edit Document 를 허용하지 않는다.
+        var editContext = command.Projection is null ? (_databaseName!, command.Collection) : ((string, string)?)null;
+        return Materialize(documents, effective, editContext);
     }
 
     private async Task<MongoResult> RunAggregateAsync(MongoCommand command, int limit, CancellationToken ct)
@@ -236,13 +250,34 @@ public sealed class MongoSession : IDisposable
             new MongoTable([command.DistinctField!], rows), $"{rows.Count:N0} distinct value(s)");
     }
 
-    private static MongoResult Materialize(List<BsonDocument> documents, int limit)
+    private static MongoResult Materialize(
+        List<BsonDocument> documents, int limit, (string Database, string Collection)? editContext = null)
     {
         var table = MongoDocuments.Flatten(documents);
+        if (editContext is { } ctx)
+            table = table with
+            {
+                RowContexts = documents.Select(d => new MongoRowContext(ctx.Database, ctx.Collection, d)).ToList(),
+            };
         var summary = documents.Count >= limit
             ? $"{documents.Count:N0} document(s) (limit reached)"
             : $"{documents.Count:N0} document(s)";
         return new MongoResult(table, summary);
+    }
+
+    /// <summary>
+    /// Edit Document 저장 — <c>_id</c> 로 찾아 통째로 바꾼다. 다른 곳에서 먼저 지웠으면
+    /// (매치 0건) 조용히 넘어가지 않고 알린다 — 사라진 문서를 "저장됐다"고 오인하면 안 된다.
+    /// </summary>
+    public async Task ReplaceDocumentAsync(
+        string database, string collection, BsonValue id, BsonDocument updated, CancellationToken ct = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+        var result = await _client.GetDatabase(database).GetCollection<BsonDocument>(collection)
+            .ReplaceOneAsync(filter, updated, cancellationToken: ct);
+        if (result.MatchedCount == 0)
+            throw new MongoQueryException(
+                "문서를 찾지 못했습니다 — 다른 곳에서 먼저 지웠거나 바뀌었을 수 있습니다. 다시 조회해 주세요.");
     }
 
     public void Dispose() => _client.Dispose();

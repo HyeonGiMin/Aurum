@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Npgsql;
 using PrismOne.Db.Core;
+using PrismOne.Db.Core.Mongo;
 
 namespace PrismOne.Studio;
 
@@ -54,6 +55,12 @@ public sealed record RowItem(int No, string?[] Cells, string?[]? Raw = null)
 
     /// <summary>편집 모드 진입 시점의 값 — 무엇이 바뀌었는지 판별한다.</summary>
     public string?[]? Original { get; init; }
+
+    /// <summary>
+    /// Mongo 전용 — 이 행이 온 원본 문서(<see cref="PrismOne.Db.Core.Mongo.MongoRowContext"/>).
+    /// 편집 불가능한 결과(aggregate 등)면 null — Edit Document 메뉴가 이 값으로 활성화 여부를 정한다.
+    /// </summary>
+    public object? MongoContext { get; init; }
 
     /// <summary>
     /// 편집 모드 바인딩 경로. DataGrid 는 바인딩 경로의 속성을 리플렉션으로 검사해
@@ -1789,6 +1796,45 @@ public partial class QueryTabView : UserControl
             window.Show();
     }
 
+    // ---------- Edit Document (Mongo, Studio3T 대응) ----------
+
+    /// <summary>
+    /// 선택한 행이 순수 <c>find</c> 결과(projection 없음)에서 왔으면 문서 편집 창을 연다.
+    /// SQL 결과나 Mongo aggregate 결과는 <see cref="RowItem.MongoContext"/> 가 null 이라
+    /// 자연히 비활성 상태와 같다(메뉴에서 안내만 하고 아무 일도 하지 않는다).
+    /// </summary>
+    public async Task EditSelectedDocumentAsync()
+    {
+        if (ResultGrid.SelectedItem is not RowItem { MongoContext: MongoRowContext context })
+        {
+            SetInfo("편집할 문서가 없습니다 — Mongo 컬렉션을 조회한 뒤 행을 선택하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var dialog = new MongoDocumentDialog(context.Document);
+        if (VisualRoot is Window owner)
+            await dialog.ShowDialog(owner);
+        else
+            return;
+        if (dialog.Result is not { } updated) return;   // 취소
+
+        try
+        {
+            await mongoConnection.ReplaceDocumentAsync(
+                context.Database, context.Collection, context.Document["_id"], updated);
+            SetInfo("문서를 저장했습니다 (다시 조회하면 최신 상태를 봅니다).");
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"저장 실패: {ex.Message}");
+        }
+    }
+
     // ---------- Commit / Rollback (Golden) ----------
 
     public async Task CommitAsync()
@@ -1932,8 +1978,9 @@ public partial class QueryTabView : UserControl
                     {
                         RowId = cells.Length > 0 ? cells[0] : null,
                         Original = (string?[])cells.Clone(),
+                        MongoContext = row.RowContext,
                     }
-                    : new RowItem(++no, cells, row.Raw));
+                    : new RowItem(++no, cells, row.Raw) { MongoContext = row.RowContext });
             }
             UpdateFetchInfo();
             // 행이 추가되어 스크롤바가 새로 생겼을 수 있다. 여전히 바닥이면 이어서 fetch (Golden 의 연속 로딩).

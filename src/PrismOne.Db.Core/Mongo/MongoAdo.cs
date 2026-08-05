@@ -5,6 +5,7 @@ using System.Data;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using MongoDB.Bson;
 
 namespace PrismOne.Db.Core.Mongo;
 
@@ -90,6 +91,14 @@ public sealed class MongoDbConnection : DbConnection
         _session?.UseDatabase(databaseName);
     }
 
+    /// <summary>
+    /// Edit Document (Studio3T 대응) 저장 경로 — <c>Session</c> 이 internal 이라
+    /// Studio 쪽(다른 어셈블리)에서 접근할 수 있게 여기 하나만 열어 둔다.
+    /// </summary>
+    public Task ReplaceDocumentAsync(
+        string database, string collection, BsonValue id, BsonDocument updated, CancellationToken ct = default) =>
+        Session.ReplaceDocumentAsync(database, collection, id, updated, ct);
+
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
         throw new NotSupportedException("Mongo 트랜잭션은 지원하지 않습니다 (replica set 필요).");
 
@@ -173,6 +182,15 @@ public sealed class MongoDbDataReader(MongoResult result) : DbDataReader
 
     /// <summary>상태바에 쓸 요약 ("3 document(s)").</summary>
     public string Summary => result.Summary;
+
+    /// <summary>
+    /// 지금 커서가 가리키는 행의 원본 문서(Edit Document 용). 편집 불가능한 결과
+    /// (aggregate·projection 있는 find 등)면 null — <see cref="MongoTable.RowContexts"/> 참고.
+    /// </summary>
+    public MongoRowContext? CurrentRowContext =>
+        _index >= 0 && result.Table.RowContexts is { } contexts && _index < contexts.Count
+            ? contexts[_index]
+            : null;
 
     public override int FieldCount => result.Table.Columns.Count;
     public override bool HasRows => result.Table.Rows.Count > 0;

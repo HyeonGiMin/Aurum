@@ -164,12 +164,20 @@ UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단
   실제로 DB 를 바꾼다(재접속 없이).
 - **Database Explorer(왼쪽, Alt+1)**: DataGrip 식 DB→컬렉션 트리, 아이콘(원통/표/뷰),
   더블클릭 시 자동 DB 전환 + 조회 문장 삽입. Golden 에 없던 패널.
+- **Edit Document(Studio3T 대응, Ctrl+Shift+D)**: 그리드 행 하나를 JSON 으로 통째로 고쳐
+  `_id` 기준 `replaceOne` 으로 저장한다. `find`(projection 없음) 결과에만 붙는다 —
+  `aggregate`·projection 있는 find 는 문서가 원본과 달라질 수 있어 제외(SQL 의
+  "단일 테이블 SELECT 만 편집"과 같은 이유). `_id` 변경은 DB 왕복 전에 막는다.
+  구현: `MongoRowContext`(어느 문서였는지)가 `FetchedRow`(Core, provider 중립 `object?`
+  자리)를 거쳐 `RowItem.MongoContext` 까지 그대로 실려간다 — 그리드·정렬·QuerySession
+  은 손대지 않았다.
 - 검증 인프라: `docker run -d --name aurum-mongo-test -p 127.0.0.1:27017:27017 mongo:7`
   후 `AURUM_MONGO_TEST_HOST=localhost`. 환경변수가 없으면 실서버 테스트는 그냥 통과한다.
   포트를 일부러 틀리면 실서버 테스트만 실패하는 것으로 "정말 서버를 친다"를 확인했다.
 
-**남은 것**: 중첩 문서 트리 뷰, `_id` 기준 그리드 편집, JSON import/export, `explain()`,
-`currentOp` 세션 모니터. Studio3T 대비 더 가져올 만한 동작은 검토 중.
+**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시), JSON import/export, `explain()`,
+`currentOp` 세션 모니터, Add Row/Delete(문서 추가·삭제 — 지금은 기존 문서 수정만).
+Studio3T 대비 더 가져올 만한 동작은 검토 중.
 
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
 Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),

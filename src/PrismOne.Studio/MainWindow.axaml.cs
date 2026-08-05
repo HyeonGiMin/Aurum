@@ -331,6 +331,7 @@ public partial class MainWindow : Window
             Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
             Item("Goto Record Number… (⌘G)", () => OnMenuGotoRecord(this, args)),
             Item("Cell Details… (⌃F11)", () => OnMenuCellDetail(this, args)),
+            Item("Edit Document… (Mongo) (⇧⌘D)", () => OnMenuEditDocument(this, args)),
             new NativeMenuItemSeparator(),
             Item("Filter Records Like Selected Cell", () => OnMenuFilterCellGrid(this, args)),
             Item("Clear Filter", () => OnMenuClearFilter(this, args)),
@@ -1528,6 +1529,11 @@ public partial class MainWindow : Window
     private void OnMenuClearResults(object? sender, RoutedEventArgs e) => ActiveView?.ClearResults();
     private void OnMenuCellDetail(object? sender, RoutedEventArgs e) => ActiveView?.ShowCellDetail();
 
+    private async void OnMenuEditDocument(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view) await view.EditSelectedDocumentAsync();
+    }
+
     /// <summary>Golden F12 — DataGrid → Text → Log 순환. 툴바 라벨도 같이 맞춘다.</summary>
     private void OnMenuCycleResultView(object? sender, RoutedEventArgs e)
     {
@@ -2202,6 +2208,14 @@ public partial class MainWindow : Window
             await Task.Delay(700);
             SaveShot(erd, System.IO.Path.Combine(dir, "shot_erd.png"));
             erd.Close();
+
+            // Edit Document (Mongo) — 접속 없이 합성 문서로 렌더만 확인
+            var mongoDoc = new MongoDocumentDialog(MongoDB.Bson.BsonDocument.Parse(
+                "{ _id: 1, name: 'sample', age: 30, address: { city: 'Seoul' } }"));
+            mongoDoc.Show(this);
+            await Task.Delay(500);
+            SaveShot(mongoDoc, System.IO.Path.Combine(dir, "shot_mongo_edit.png"));
+            mongoDoc.Close();
         }
         finally
         {

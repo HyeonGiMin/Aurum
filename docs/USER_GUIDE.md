@@ -116,6 +116,7 @@ select * from prismone.study where study_key = :key and modality = :mod;
 | **전체 레코드 수** | Options 의 *전체 레코드 수 조회* — 점진 fetch 로 둘 때만 씁니다. SELECT 실행 후 `COUNT(*)` 를 따로 돌려 상태바에 `Fetched 2,000 of 12,345 records` 로 보여줍니다. **기본은 꺼짐**. 세는 동안 결과 표시는 막히지 않고(별도 접속), 실패하면 조용히 건너뜁니다 |
 | **Goto Record Number…** (Ctrl+G) | 행 번호로 이동·선택 |
 | **Cell Details…** (Ctrl+F11) | 선택 셀을 별도 창으로 (더블클릭과 동일, jsonb pretty-print) |
+| **Edit Document…** (Ctrl+Shift+D) | **MongoDB 전용** — 선택 행의 문서를 JSON 으로 통째로 고쳐 저장 (§7.10) |
 
 ### 결과 보기 전환 — `Show: DataGrid ▾` (툴바)
 
@@ -284,6 +285,22 @@ DB → 컬렉션 트리와 같은 모양입니다.
   않고 **"먼저 데이터베이스를 선택하세요"** 오류로 알립니다. 엉뚱한 빈 DB 를 조회해
   "결과 0건"으로 착각하는 것을 막기 위해서입니다.
 
+## 7.10 Edit Document (MongoDB, Studio3T 대응)
+
+**Results > Edit Document… (Ctrl+Shift+D)** — 선택한 행의 문서를 JSON 으로 통째로 고쳐
+저장합니다. **Golden 에는 없던 기능**입니다.
+
+- `db.컬렉션.find(...)` 로 받은 **순수 조회 결과에서만** 동작합니다. `aggregate` 결과나
+  **projection 을 쓴 find**(예: `find({}, {name:1})`)는 안 됩니다 — 파이프라인이나
+  projection 은 문서를 재구성해 원본과 달라질 수 있고, 그대로 되쓰면 화면에 없던 필드가
+  통째로 사라지기 때문입니다(SQL 의 "단일 테이블 SELECT 만 편집 가능"과 같은 이유).
+  해당 안 되는 행에서 실행하면 상태바가 알려줍니다.
+- 창에 문서 전체가 들여쓰기된 JSON 으로 나옵니다. 고친 뒤 **Save** 를 누르면 `_id` 로
+  찾아 **그대로 치환**됩니다(부분 수정이 아니라 문서 전체 교체 — Mongo 의 `replaceOne`).
+- **`_id` 는 바꿀 수 없습니다** — 바꾸면 DB 에 보내기 전에 바로 막습니다.
+- 저장하는 사이 다른 곳에서 그 문서가 지워졌으면(매치 0건) 조용히 넘어가지 않고 알립니다.
+- 저장 후에는 그리드가 자동으로 새로고침되지 않습니다 — 최신 값을 보려면 다시 조회하세요.
+
 ## 8. Object Browser (F8)
 
 - 툴바 ≡ 버튼 또는 **F8** 로 오른쪽 패널 토글 (기본 숨김 — Golden 6 레이아웃).
@@ -450,7 +467,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 | Ctrl+Tab / +⇧ | 다음 / 이전 탭 | | Ctrl+Shift+W | 워크스페이스 저장 |
 | Ctrl+D | Describe | | Ctrl+Shift+X | Transpose |
 | **F12** | **DataGrid/Text/Log 전환** | | **Ctrl+G** | **Goto Record Number** |
-| **Ctrl+F11** | **Cell Details** | | | |
+| **Ctrl+F11** | **Cell Details** | | **Ctrl+Shift+D** | **Edit Document (Mongo)** |
 | Ctrl+O / S | 열기 / 저장 | | Ctrl+Shift+F | 즐겨찾기에 추가 |
 | Ctrl+- / +⇧ | 주석 처리 / 해제 | | Ctrl+R | 에디터 ↔ 결과 포커스 |
 | Ctrl+P | Print SQL | | Ctrl+Z / Y | Undo / Redo |
