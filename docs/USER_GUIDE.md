@@ -301,6 +301,19 @@ DB → 컬렉션 트리와 같은 모양입니다.
 - 저장하는 사이 다른 곳에서 그 문서가 지워졌으면(매치 0건) 조용히 넘어가지 않고 알립니다.
 - 저장 후에는 그리드가 자동으로 새로고침되지 않습니다 — 최신 값을 보려면 다시 조회하세요.
 
+**Add Document…** (Ctrl+Shift+I) — 새 문서를 추가합니다. 빈 JSON 창이 뜨고,
+`_id` 를 안 적으면 Mongo 가 만들어 줍니다. **이미 조회된 행 아무거나로 대상 컬렉션을
+짐작**하므로, 아직 그 컬렉션을 한 번도 조회한 적이 없으면 "추가할 컬렉션을 모른다"고
+거부합니다 — Explorer 로 컬렉션을 한 번 열어 본 뒤 쓰세요.
+
+**Delete Selected Documents…** — 선택한 행(들)의 문서를 `_id` 로 하나씩 지웁니다.
+SQL 의 "Delete Selected Records…"(Submit Edits 로 나중에 커밋)와 달리 **확인 즉시
+지워지며 되돌릴 수 없습니다** — 실행 전 몇 개를 지울지 확인창이 뜹니다. 지운 행은
+재조회 없이 그리드에서도 바로 빠집니다.
+
+Mongo 로 접속하면 **왼쪽 Database Explorer 가 자동으로 열립니다** — 스키마가 없어
+오른쪽 Object Browser보다 DB→컬렉션 트리가 실질적인 시작점이기 때문입니다.
+
 ## 8. Object Browser (F8)
 
 - 툴바 ≡ 버튼 또는 **F8** 로 오른쪽 패널 토글 (기본 숨김 — Golden 6 레이아웃).
@@ -468,6 +481,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 | Ctrl+D | Describe | | Ctrl+Shift+X | Transpose |
 | **F12** | **DataGrid/Text/Log 전환** | | **Ctrl+G** | **Goto Record Number** |
 | **Ctrl+F11** | **Cell Details** | | **Ctrl+Shift+D** | **Edit Document (Mongo)** |
+| **Ctrl+Shift+I** | **Add Document (Mongo)** | | | |
 | Ctrl+O / S | 열기 / 저장 | | Ctrl+Shift+F | 즐겨찾기에 추가 |
 | Ctrl+- / +⇧ | 주석 처리 / 해제 | | Ctrl+R | 에디터 ↔ 결과 포커스 |
 | Ctrl+P | Print SQL | | Ctrl+Z / Y | Undo / Redo |
