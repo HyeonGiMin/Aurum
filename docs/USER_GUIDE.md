@@ -314,6 +314,15 @@ SQL 의 "Delete Selected Records…"(Submit Edits 로 나중에 커밋)와 달�
 Mongo 로 접속하면 **왼쪽 Database Explorer 가 자동으로 열립니다** — 스키마가 없어
 오른쪽 Object Browser보다 DB→컬렉션 트리가 실질적인 시작점이기 때문입니다.
 
+### Tree View (MongoDB, Studio3T 대응)
+
+**Results > View Documents as Tree** — 그리드(Table View)는 중첩 문서를
+`address.city` 점 경로로 펴서 보여주지만, 이 창은 문서의 **중첩 구조 그대로**
+접었다 펴며 봅니다. 문서마다 `(순번) { N field(s) } _id: …` 로 요약되고,
+중첩 문서·배열은 펼칠 때 로드됩니다(큰 문서에서도 안 굳음). 값 우클릭 →
+Copy Value. Edit Document 와 같은 조건 — **순수 find 결과**에서만 열립니다
+(aggregate·projection 결과는 원본 문서가 아닐 수 있어 제외).
+
 ### explain · 세션 모니터 (MongoDB)
 
 - **Explain 버튼(⚡ᴱ/⚡ᴬ)이 Mongo 에서도 동작합니다** — ⚡ᴱ 는 `queryPlanner`

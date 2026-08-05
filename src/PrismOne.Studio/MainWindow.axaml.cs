@@ -343,6 +343,7 @@ public partial class MainWindow : Window
             Item("Append Filter Clause to Editor", () => OnMenuFilterCell(this, args)),
             Item("Clear Results", () => OnMenuClearResults(this, args)),
             Item("Pin Results to New Window", () => OnMenuPinResult(this, args)),
+            Item("View Documents as Tree (Mongo)", () => OnMenuMongoTree(this, args)),
             new NativeMenuItemSeparator(),
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
@@ -1308,6 +1309,15 @@ public partial class MainWindow : Window
             StatusLabel.Text = "고정할 결과가 없습니다 (편집 모드에서는 고정할 수 없습니다)";
     }
 
+    /// <summary>Results > View Documents as Tree — Mongo 문서를 중첩 구조 그대로 (Studio3T Tree View).</summary>
+    private void OnMenuMongoTree(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view && view.SnapshotMongoTree() is { } documents)
+            new MongoTreeWindow(view.LastGridSql ?? "documents", documents).Show(this);
+        else
+            StatusLabel.Text = "트리로 볼 문서가 없습니다 — Mongo 컬렉션을 find 로 조회하세요 (aggregate·projection 결과는 제외).";
+    }
+
     /// <summary>Tools > Query History — 검색해서 에디터에 삽입 (실행은 사용자가).</summary>
     private async void OnMenuHistory(object? sender, RoutedEventArgs e)
     {
@@ -2227,6 +2237,36 @@ public partial class MainWindow : Window
                 SaveShot(pin, System.IO.Path.Combine(dir, "shot_pin.png"));
                 pin.Close();
             }
+
+            // Mongo Tree View — 합성 문서로 렌더 확인 (접속 없이)
+            var treeDocs = new[]
+            {
+                MongoDB.Bson.BsonDocument.Parse("""
+                    { _id: 1001, patient_id: "P000182", name: "kim",
+                      address: { city: "Seoul", geo: { lat: 37.5, lon: 127.0 } },
+                      studies: [ { study_id: "ST20260801-0007", modality: "CT" },
+                                 { study_id: "ST20260731-0140", modality: "MR" } ] }
+                    """),
+                MongoDB.Bson.BsonDocument.Parse("""
+                    { _id: 1002, patient_id: "P004417", name: "lee",
+                      address: { city: "Busan" }, tags: ["vip", "follow-up"] }
+                    """),
+            };
+            var treeWin = new MongoTreeWindow("db.patients.find({})",
+                treeDocs.Select((d, i) => PrismOne.Db.Core.Mongo.MongoTree.FromDocument(d, i)).ToList());
+            treeWin.Show(this);
+            await Task.Delay(400);
+            // 첫 문서를 펼쳐 중첩 구조가 보이게
+            if (treeWin.Content is TreeView tv && tv.Items.Count > 0 && tv.Items[0] is TreeViewItem first)
+            {
+                first.IsExpanded = true;
+                await Task.Delay(300);
+                foreach (var child in first.Items.OfType<TreeViewItem>().Where(c => c.Items.Count > 0))
+                    child.IsExpanded = true;
+            }
+            await Task.Delay(400);
+            SaveShot(treeWin, System.IO.Path.Combine(dir, "shot_mongotree.png"));
+            treeWin.Close();
 
             var dialog = new ConnectDialog();
             dialog.Show(this);

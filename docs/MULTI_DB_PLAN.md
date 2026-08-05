@@ -194,8 +194,13 @@ UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단
   분기해 Mongo 는 `currentOp` → 같은 ActivityRow/창 재사용, Cancel/Terminate 는
   둘 다 `killOp`. SQLite 처럼 지원 없는 DB 는 메뉴에서 안내로 막는다.
 
-**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시).
-Studio3T 대비 더 가져올 만한 동작은 검토 중.
+- **중첩 문서 트리 뷰 — 완료 (2026-08-05)**: Results > View Documents as Tree.
+  `Core/MongoTree`(순수 변환, 테스트 6개) + `MongoTreeWindow`(자식은 펼칠 때
+  생성 — 큰 문서에서 안 굳는다, Copy Value 컨텍스트 메뉴). Edit Document 와
+  같은 조건(순수 find)의 원본 문서를 쓴다. 스크린샷 `shot_mongotree.png`.
+
+**남은 것**: 없음 — 3단계 계획 범위 완료. Studio3T 대비 더 가져올 만한 동작은
+실사용 후 검토.
 
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
 Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),
