@@ -1,3 +1,4 @@
+using System.Text.Json;
 using PrismOne.Db.Core;
 using Xunit;
 
@@ -44,5 +45,35 @@ public class GridExporterTests
     {
         var sql = GridExporter.Build(GridExportFormat.Insert, Columns, Rows, "t", blankLineBetweenStatements: true);
         Assert.Contains(");\n\n", sql.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void Json_ProducesArrayOfObjects_OneRowPerElement()
+    {
+        var json = GridExporter.Build(GridExportFormat.Json, Columns, Rows);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+        Assert.Equal(3, doc.RootElement.GetArrayLength());
+        Assert.Equal("1001", doc.RootElement[0].GetProperty("study_key").GetString());
+    }
+
+    [Fact]
+    public void Json_RepresentsNullCells_AsJsonNull()
+    {
+        var json = GridExporter.Build(GridExportFormat.Json, Columns, Rows);
+        using var doc = JsonDocument.Parse(json);
+
+        Assert.Equal(JsonValueKind.Null, doc.RootElement[1].GetProperty("note").ValueKind);
+    }
+
+    [Fact]
+    public void Json_EscapesCommasAndNewlines_ViaStandardJsonEncoding()
+    {
+        var json = GridExporter.Build(GridExportFormat.Json, Columns, Rows);
+        using var doc = JsonDocument.Parse(json);   // 파싱 자체가 이스케이프 정확성 검증
+
+        Assert.Equal("with,comma", doc.RootElement[2].GetProperty("study_id").GetString());
+        Assert.Equal("line1\nline2", doc.RootElement[2].GetProperty("note").GetString());
     }
 }

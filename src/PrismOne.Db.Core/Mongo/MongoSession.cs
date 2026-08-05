@@ -287,6 +287,30 @@ public sealed class MongoSession : IDisposable
             .InsertOneAsync(document, cancellationToken: ct);
 
     /// <summary>
+    /// Import JSON 저장 — 여러 문서를 한 번에 넣는다. <b>원자성이 없다</b> — 중간에 하나가
+    /// 실패하면(예: 중복 키) 그 앞까지는 이미 들어간 채로 멈춘다. Mongo 의 다중 문서
+    /// 트랜잭션은 replica set 이 있어야 하는데, 그럴 값어치가 없는 조회 위주 툴이라
+    /// 쓰지 않는다 — 대신 실패 시 몇 개가 들어갔는지는 알려준다.
+    /// </summary>
+    public async Task<int> InsertManyDocumentsAsync(
+        string database, string collection, IReadOnlyList<BsonDocument> documents, CancellationToken ct = default)
+    {
+        if (documents.Count == 0) return 0;
+        try
+        {
+            await _client.GetDatabase(database).GetCollection<BsonDocument>(collection)
+                .InsertManyAsync(documents, cancellationToken: ct);
+            return documents.Count;
+        }
+        catch (MongoBulkWriteException<BsonDocument> ex)
+        {
+            var firstError = ex.WriteErrors.Count > 0 ? ex.WriteErrors[0].Message : ex.Message;
+            throw new MongoQueryException(
+                $"{ex.Result.InsertedCount}개는 들어갔고 그 뒤에서 실패했습니다: {firstError}");
+        }
+    }
+
+    /// <summary>
     /// Delete Document 저장 — <c>_id</c> 로 하나 지운다. 이미 없으면(매치 0건) 조용히
     /// 넘어가지 않고 알린다 — 다른 곳에서 먼저 지운 것을 "지웠다"고 오인하면 안 된다.
     /// </summary>

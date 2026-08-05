@@ -227,6 +227,60 @@ public class MongoSessionLiveTests
         }
     }
 
+    /// <summary>Import JSON 저장 경로 — 여러 문서가 한 번에 들어간다.</summary>
+    [Fact]
+    public async Task InsertManyDocumentsAsync_AddsAllDocuments()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var documents = MongoJsonImport.Parse("""
+                [{ "_id": 101, "name": "bulk-1" }, { "_id": 102, "name": "bulk-2" }]
+                """);
+            var inserted = await session.InsertManyDocumentsAsync(database, "people", documents);
+
+            Assert.Equal(2, inserted);
+            var result = await session.ExecuteAsync("db.people.countDocuments({})");
+            Assert.Equal(5L, result.Table.Rows[0][0]);   // 씨앗 3건 + 새로 2건
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>
+    /// 원자성이 없다 — 중복 키로 중간에 실패해도 그 앞까지는 이미 들어간다.
+    /// 몇 개가 들어갔는지는 예외 메시지로 알려준다.
+    /// </summary>
+    [Fact]
+    public async Task InsertManyDocumentsAsync_Throws_WithInsertedCount_OnDuplicateKey()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            // _id: 1 은 SeedAsync 가 이미 넣어 둔 값이라 두 번째 문서에서 중복 키로 실패한다
+            var documents = MongoJsonImport.Parse("""
+                [{ "_id": 200, "name": "ok" }, { "_id": 1, "name": "dup" }]
+                """);
+
+            var ex = await Assert.ThrowsAsync<MongoQueryException>(
+                () => session.InsertManyDocumentsAsync(database, "people", documents));
+            Assert.Contains("1", ex.Message);   // 1개는 들어갔다는 메시지
+
+            var check = await session.ExecuteAsync("db.people.find({ _id: 200 })");
+            Assert.Equal(1, check.Table.Rows.Count);   // 첫 문서는 실제로 들어갔다
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
     /// <summary>Delete Document 저장 경로 — 지운 문서는 더 이상 조회되지 않는다.</summary>
     [Fact]
     public async Task DeleteDocumentAsync_RemovesDocument()

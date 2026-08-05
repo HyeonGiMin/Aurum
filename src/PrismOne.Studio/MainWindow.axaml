@@ -77,6 +77,7 @@
         <MenuItem Header="Export All Rows As CSV… (COPY)" Click="OnMenuExport"/>
         <MenuItem Header="Save Grid As TSV…" Click="OnMenuExportTsv"/>
         <MenuItem Header="Save Grid As INSERT…" Click="OnMenuExportInsert"/>
+        <MenuItem Header="Save Grid As JSON…" Click="OnMenuExportJson"/>
         <MenuItem Header="Save Grid As xlsx…" Click="OnMenuExportXlsx"/>
         <Separator/>
         <MenuItem Header="Print Grid…" Click="OnMenuPrintGrid"/>
@@ -103,6 +104,7 @@
         <MenuItem Header="Diagram (ERD)…" Click="OnMenuErd"/>
         <MenuItem Header="Schema Diff…" Click="OnMenuSchemaDiff"/>
         <MenuItem Header="Import CSV/TSV…" Click="OnMenuImportCsv"/>
+        <MenuItem Header="Import JSON… (Mongo)" Click="OnMenuImportJson"/>
         <MenuItem Header="Query History…" Click="OnMenuHistory"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>

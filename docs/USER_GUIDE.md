@@ -314,6 +314,23 @@ SQL 의 "Delete Selected Records…"(Submit Edits 로 나중에 커밋)와 달�
 Mongo 로 접속하면 **왼쪽 Database Explorer 가 자동으로 열립니다** — 스키마가 없어
 오른쪽 Object Browser보다 DB→컬렉션 트리가 실질적인 시작점이기 때문입니다.
 
+### JSON Import/Export (MongoDB)
+
+**Tools > Import JSON… (Mongo)** — 파일을 컬렉션에 넣습니다. **Golden 에는 없던 기능**입니다.
+
+- **JSON 배열**(`[{...}, {...}]`, `mongoexport --jsonArray` 산출물)과
+  **JSON Lines**(줄마다 문서 하나, `mongoexport` 기본 산출물) 둘 다 받습니다 —
+  파일 앞 글자가 `[` 인지로 자동 판단합니다.
+- CSV Import 와 달리 **컬럼 매핑이 없습니다** — 스키마가 없으므로 파일의 문서를 그대로 넣습니다.
+- Database·Collection 을 직접 입력합니다(기존 컬렉션이든 새 컬렉션이든 상관없습니다).
+- **원자성이 없습니다** — CSV Import 는 "전량 성공 아니면 전량 롤백"이지만, Mongo 의
+  여러 문서 삽입은 트랜잭션 없이 순서대로 들어가서 중간에 하나가 실패하면(예: 중복 키)
+  그 앞까지는 이미 들어간 채로 멈춥니다. 실패 메시지에 몇 개가 들어갔는지 나옵니다.
+- 실행은 열려 있는 탭과 무관한 전용 접속에서 합니다.
+
+**Results > Save Grid As JSON…** — 지금 그리드를 JSON 배열로 저장합니다.
+Mongo 뿐 아니라 **모든 DB 종류에서 됩니다**(TSV·INSERT 내보내기와 같은 자리).
+
 ## 8. Object Browser (F8)
 
 - 툴바 ≡ 버튼 또는 **F8** 로 오른쪽 패널 토글 (기본 숨김 — Golden 6 레이아웃).

@@ -177,11 +177,16 @@ UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단
   그리드에서도 바로 뺀다.
 - **Explorer 자동 열림**: Mongo 로 접속하면 왼쪽 Database Explorer 를 자동으로 연다 —
   스키마가 없어 오른쪽 Object Browser 보다 DB→컬렉션 트리가 실질적인 시작점이다.
+- **JSON Import/Export**: `Tools > Import JSON…` 은 JSON 배열·JSON Lines(mongoexport
+  기본 산출물) 둘 다 받는다. 컬럼 매핑 없이 그대로 InsertMany — **원자성이 없어**
+  중간에 실패하면 그 앞까지는 이미 들어간 채로 멈추고, 몇 개가 들어갔는지 예외
+  메시지로 알린다. `Results > Save Grid As JSON…` 은 Mongo 뿐 아니라 **모든 DB
+  종류에서** 되는 범용 내보내기로 넣었다(GridExporter 에 Json 포맷 추가).
 - 검증 인프라: `docker run -d --name aurum-mongo-test -p 127.0.0.1:27017:27017 mongo:7`
   후 `AURUM_MONGO_TEST_HOST=localhost`. 환경변수가 없으면 실서버 테스트는 그냥 통과한다.
   포트를 일부러 틀리면 실서버 테스트만 실패하는 것으로 "정말 서버를 친다"를 확인했다.
 
-**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시), JSON import/export, `explain()`,
+**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시), `explain()`,
 `currentOp` 세션 모니터. Studio3T 대비 더 가져올 만한 동작은 검토 중.
 
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,

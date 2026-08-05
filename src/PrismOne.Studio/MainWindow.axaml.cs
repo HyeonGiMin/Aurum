@@ -347,6 +347,7 @@ public partial class MainWindow : Window
             Item("Export All Rows As CSV… (COPY)", () => OnMenuExport(this, args)),
             Item("Save Grid As TSV…", () => OnMenuExportTsv(this, args)),
             Item("Save Grid As INSERT…", () => OnMenuExportInsert(this, args)),
+            Item("Save Grid As JSON…", () => OnMenuExportJson(this, args)),
             new NativeMenuItemSeparator(),
             Item("Print Grid…", () => PrintGrid(auto: true)),
             Item("Print Preview (Grid)", () => PrintGrid(auto: false))));
@@ -367,6 +368,7 @@ public partial class MainWindow : Window
             Item("Diagram (ERD)…", () => OnMenuErd(this, args)),
             Item("Schema Diff…", () => OnMenuSchemaDiff(this, args)),
             Item("Import CSV/TSV…", () => OnMenuImportCsv(this, args)),
+            Item("Import JSON… (Mongo)", () => OnMenuImportJson(this, args)),
             Item("Query History…", () => OnMenuHistory(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
@@ -1277,6 +1279,21 @@ public partial class MainWindow : Window
             StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
     }
 
+    private void OnMenuImportJson(object? sender, RoutedEventArgs e)
+    {
+        if (_profile is not { } profile)
+        {
+            StatusLabel.Text = "Import 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+            return;
+        }
+        if (profile.Kind != DbKind.MongoDb)
+        {
+            StatusLabel.Text = "Import JSON 은 MongoDB 접속에서만 됩니다";
+            return;
+        }
+        new MongoImportDialog(profile).Show(this);
+    }
+
     private void OnMenuHistoryPrev(object? sender, RoutedEventArgs e) => ActiveView?.HistoryPrev();
     private void OnMenuHistoryNext(object? sender, RoutedEventArgs e) => ActiveView?.HistoryNext();
 
@@ -1619,6 +1636,9 @@ public partial class MainWindow : Window
 
     private async void OnMenuExportInsert(object? sender, RoutedEventArgs e)
         => await SaveGridAsAsync(GridExportFormat.Insert, "result.sql", "sql", "SQL script");
+
+    private async void OnMenuExportJson(object? sender, RoutedEventArgs e)
+        => await SaveGridAsAsync(GridExportFormat.Json, "result.json", "json", "JSON");
 
     /// <summary>Golden 의 Save Grid As xlsx — 로드된 행을 Excel 통합문서로.</summary>
     private async void OnMenuExportXlsx(object? sender, RoutedEventArgs e)
@@ -2241,6 +2261,18 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(mongoDoc, System.IO.Path.Combine(dir, "shot_mongo_edit.png"));
             mongoDoc.Close();
+
+            // Import JSON (Mongo) — 접속 없이 합성 JSON 으로 미리보기 렌더만 확인
+            var mongoImport = new MongoImportDialog(
+                ConnectionProfile.Default with { Kind = DbKind.MongoDb, Database = "demo" });
+            mongoImport.Show(this);
+            await Task.Delay(300);
+            mongoImport.LoadText("people.json",
+                "[{ \"_id\": 1, \"name\": \"kim\" }, { \"_id\": 2, \"name\": \"lee\" }]");
+            mongoImport.CollectionBox.Text = "people";
+            await Task.Delay(400);
+            SaveShot(mongoImport, System.IO.Path.Combine(dir, "shot_mongo_import.png"));
+            mongoImport.Close();
         }
         finally
         {
