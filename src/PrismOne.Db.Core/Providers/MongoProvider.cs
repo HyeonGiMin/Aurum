@@ -36,12 +36,17 @@ public sealed class MongoProvider : IDbProvider
 
     public string? SessionIsolationSql(TransactionIsolation level) => null;
 
+    /// <summary>DB 를 안 적었으면(전체 DB 대상) 슬래시도 안 붙인다.</summary>
+    private static string HostPort(ConnectionProfile profile) =>
+        string.IsNullOrEmpty(profile.Database)
+            ? $"{profile.Host}:{profile.Port}"
+            : $"{profile.Host}:{profile.Port}/{profile.Database}";
+
     /// <summary>
     /// 표시·진단용. <b>비밀번호를 담지 않는다</b> —
     /// 실제 접속에 쓰는 문자열은 <see cref="MongoSession.BuildConnectionString"/> 이 만든다.
     /// </summary>
-    public string BuildConnectionString(ConnectionProfile profile) =>
-        $"mongodb://{profile.Host}:{profile.Port}/{profile.Database}";
+    public string BuildConnectionString(ConnectionProfile profile) => $"mongodb://{HostPort(profile)}";
 
     public async Task<DbConnection> OpenAsync(ConnectionProfile profile, CancellationToken ct = default)
     {
@@ -61,7 +66,7 @@ public sealed class MongoProvider : IDbProvider
     public string Describe(ConnectionProfile profile)
     {
         var who = string.IsNullOrEmpty(profile.Username) ? "" : $"{profile.Username}@";
-        return $"{who}{profile.Host}:{profile.Port}/{profile.Database}";
+        return $"{who}{HostPort(profile)}";
     }
 
     public IErdCatalog CreateErdCatalog(ConnectionProfile profile) => new MongoErdCatalog(profile);

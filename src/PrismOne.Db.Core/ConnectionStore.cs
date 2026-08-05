@@ -28,19 +28,26 @@ public sealed record SavedConnection(
     /// <summary>파일 DB(SQLite)는 host/port/user 가 없어 경로만 쓴다.</summary>
     private bool IsFileDb => Kind == DbKind.Sqlite;
 
+    /// <summary>DB 이름 부분 — Mongo 는 비어 있을 수 있고, 그때는 슬래시도 안 붙인다.</summary>
+    private string DbSuffix => Database.Length == 0 ? "" : $"/{Database}";
+
     public string DisplayName => IsFileDb
         ? Database
-        : $"{Username}@{Host}:{Port}/{Database}";
+        : $"{Username}@{Host}:{Port}{DbSuffix}";
 
     /// <summary>Golden 의 Database 표기: host[:port]/db (기본 포트는 생략).</summary>
     public string DisplayDatabase => IsFileDb
         ? Database
-        : Port == DefaultPort(Kind) ? $"{Host}/{Database}" : $"{Host}:{Port}/{Database}";
+        : (Port == DefaultPort(Kind) ? Host : $"{Host}:{Port}") + DbSuffix;
 
-    /// <summary>종류가 다르면 같은 호스트·DB 라도 별개 항목이다.</summary>
+    /// <summary>
+    /// 종류가 다르면 같은 호스트·DB 라도 별개 항목이다.
+    /// Mongo 는 Database 를 비교에서 뺀다 — 한 서버에 매번 다른 DB 로(또는 아예 안 적고)
+    /// 접속해도 같은 로그인 항목으로 취급해, 저장할 때마다 중복이 쌓이지 않게 한다.
+    /// </summary>
     public bool SameTarget(ConnectionProfile p) =>
-        Kind == p.Kind && Host == p.Host && Port == p.Port
-        && Database == p.Database && Username == p.Username;
+        Kind == p.Kind && Host == p.Host && Port == p.Port && Username == p.Username
+        && (Kind == DbKind.MongoDb || Database == p.Database);
 
     public static int DefaultPort(DbKind kind) => kind switch
     {
@@ -99,10 +106,13 @@ public static class ConnectionStore
         var list = Load();
         var prior = list.Find(c => c.SameTarget(profile));
         list.RemoveAll(c => c.SameTarget(profile));
+        // Name 은 기본적으로 Database 이름을 쓴다. Mongo 는 Database 가 비어 있을 수 있어
+        // 그때는 대신 Host 를 쓴다 — Login List 에 빈 이름 줄이 뜨지 않게.
+        var defaultName = profile.Database.Length > 0 ? profile.Database : profile.Host;
         list.Insert(0, new SavedConnection(
             profile.Host, profile.Port, profile.Database, profile.Username,
             savePassword ? profile.Password : null,
-            prior?.Name ?? profile.Database,
+            prior?.Name ?? defaultName,
             prior?.Category,
             prior?.Comment,
             profile.Kind));

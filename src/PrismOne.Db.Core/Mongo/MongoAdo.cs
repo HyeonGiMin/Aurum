@@ -42,7 +42,9 @@ public sealed class MongoDbConnection : DbConnection
     [System.Diagnostics.CodeAnalysis.AllowNull]
     public override string ConnectionString
     {
-        get => $"mongodb://{_profile.Host}:{_profile.Port}/{_profile.Database}";
+        get => string.IsNullOrEmpty(_profile.Database)
+            ? $"mongodb://{_profile.Host}:{_profile.Port}"
+            : $"mongodb://{_profile.Host}:{_profile.Port}/{_profile.Database}";
         set => throw new NotSupportedException("접속 정보는 ConnectionProfile 로 지정합니다.");
     }
 
