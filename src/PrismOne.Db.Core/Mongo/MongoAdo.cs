@@ -99,6 +99,16 @@ public sealed class MongoDbConnection : DbConnection
         string database, string collection, BsonValue id, BsonDocument updated, CancellationToken ct = default) =>
         Session.ReplaceDocumentAsync(database, collection, id, updated, ct);
 
+    /// <summary>Add Document (Studio3T 대응) 저장 경로.</summary>
+    public Task InsertDocumentAsync(
+        string database, string collection, BsonDocument document, CancellationToken ct = default) =>
+        Session.InsertDocumentAsync(database, collection, document, ct);
+
+    /// <summary>Delete Document (Studio3T 대응) 저장 경로.</summary>
+    public Task DeleteDocumentAsync(
+        string database, string collection, BsonValue id, CancellationToken ct = default) =>
+        Session.DeleteDocumentAsync(database, collection, id, ct);
+
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
         throw new NotSupportedException("Mongo 트랜잭션은 지원하지 않습니다 (replica set 필요).");
 

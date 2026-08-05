@@ -63,8 +63,10 @@
         <MenuItem Header="Size All Columns to Fit" Click="OnMenuSizeColumns"/>
         <MenuItem Header="Goto Record Number…" InputGesture="Ctrl+G" Click="OnMenuGotoRecord"/>
         <MenuItem Header="Cell Details…" InputGesture="Ctrl+F11" Click="OnMenuCellDetail"/>
-        <!-- Studio3T 의 Edit Document 대응 — Mongo 의 순수 find 결과에서만 동작한다 -->
+        <!-- Studio3T 의 Edit/Add/Delete Document 대응 — Mongo 전용, 즉시 저장(단계적 커밋 없음) -->
         <MenuItem Header="Edit Document… (Mongo)" InputGesture="Ctrl+Shift+D" Click="OnMenuEditDocument"/>
+        <MenuItem Header="Add Document… (Mongo)" InputGesture="Ctrl+Shift+I" Click="OnMenuAddDocument"/>
+        <MenuItem Header="Delete Selected Documents… (Mongo)" Click="OnMenuDeleteDocuments"/>
         <Separator/>
         <MenuItem Header="Filter Records Like Selected Cell" Click="OnMenuFilterCellGrid"/>
         <MenuItem Header="Clear Filter" Click="OnMenuClearFilter"/>

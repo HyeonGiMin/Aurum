@@ -244,6 +244,53 @@ public class MongoAdoTests
         }
     }
 
+    /// <summary>QueryTabView.AddMongoDocumentAsync 가 타는 다리.</summary>
+    [Fact]
+    public async Task InsertDocumentAsync_ThroughConnection_AddsDocument()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            await using var connection =
+                (MongoDbConnection)await DbProviders.For(DbKind.MongoDb).OpenAsync(Profile(database));
+
+            await connection.InsertDocumentAsync(
+                database, "people", BsonDocument.Parse("{ _id: 99, name: 'new-guy' }"));
+
+            var command = connection.CreateCommand();
+            command.CommandText = "db.people.countDocuments({})";
+            Assert.Equal(3L, await command.ExecuteScalarAsync());   // 씨앗 2건 + 새로 1건
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>QueryTabView.DeleteSelectedMongoDocumentsAsync 가 타는 다리.</summary>
+    [Fact]
+    public async Task DeleteDocumentAsync_ThroughConnection_RemovesDocument()
+    {
+        if (Host is null) return;
+        var database = await SeedAsync();
+        try
+        {
+            await using var connection =
+                (MongoDbConnection)await DbProviders.For(DbKind.MongoDb).OpenAsync(Profile(database));
+
+            await connection.DeleteDocumentAsync(database, "people", new BsonInt32(1));
+
+            var command = connection.CreateCommand();
+            command.CommandText = "db.people.countDocuments({})";
+            Assert.Equal(1L, await command.ExecuteScalarAsync());   // 씨앗 2건 중 1건 지움
+        }
+        finally
+        {
+            await DropAsync(database);
+        }
+    }
+
     [Fact]
     public async Task ErdCatalog_ListsCollections_WithNoRelations()
     {

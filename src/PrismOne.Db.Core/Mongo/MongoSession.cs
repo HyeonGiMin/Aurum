@@ -280,5 +280,25 @@ public sealed class MongoSession : IDisposable
                 "문서를 찾지 못했습니다 — 다른 곳에서 먼저 지웠거나 바뀌었을 수 있습니다. 다시 조회해 주세요.");
     }
 
+    /// <summary>Add Document 저장 — 문서를 그대로 넣는다. <c>_id</c> 를 안 적으면 Mongo 가 만든다.</summary>
+    public async Task InsertDocumentAsync(
+        string database, string collection, BsonDocument document, CancellationToken ct = default) =>
+        await _client.GetDatabase(database).GetCollection<BsonDocument>(collection)
+            .InsertOneAsync(document, cancellationToken: ct);
+
+    /// <summary>
+    /// Delete Document 저장 — <c>_id</c> 로 하나 지운다. 이미 없으면(매치 0건) 조용히
+    /// 넘어가지 않고 알린다 — 다른 곳에서 먼저 지운 것을 "지웠다"고 오인하면 안 된다.
+    /// </summary>
+    public async Task DeleteDocumentAsync(
+        string database, string collection, BsonValue id, CancellationToken ct = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+        var result = await _client.GetDatabase(database).GetCollection<BsonDocument>(collection)
+            .DeleteOneAsync(filter, cancellationToken: ct);
+        if (result.DeletedCount == 0)
+            throw new MongoQueryException("문서를 찾지 못했습니다 — 다른 곳에서 먼저 지웠을 수 있습니다.");
+    }
+
     public void Dispose() => _client.Dispose();
 }

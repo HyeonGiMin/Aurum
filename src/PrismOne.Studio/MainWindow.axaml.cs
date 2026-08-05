@@ -162,6 +162,11 @@ public partial class MainWindow : Window
         // 모든 DB 에서 채워진다 (PG 이외는 ERD 카탈로그를 재활용)
         await LoadBrowserAsync(profile);
 
+        // Mongo 는 스키마가 없어 오른쪽 Object Browser(테이블 describe)보다 왼쪽
+        // Database Explorer(DB→컬렉션 트리)가 실질적인 첫 진입점이라 자동으로 연다.
+        if (profile.Kind == DbKind.MongoDb && !ExplorerPanel.IsVisible)
+            OnMenuToggleExplorer(this, new RoutedEventArgs());
+
         foreach (var v in AllViews())
         {
             v.CompletionTables = _allTables;   // 자동완성 카탈로그 갱신
@@ -1532,6 +1537,26 @@ public partial class MainWindow : Window
     private async void OnMenuEditDocument(object? sender, RoutedEventArgs e)
     {
         if (ActiveView is { } view) await view.EditSelectedDocumentAsync();
+    }
+
+    private async void OnMenuAddDocument(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is { } view) await view.AddMongoDocumentAsync();
+    }
+
+    /// <summary>SQL 의 "Delete Selected Records…"(단계적 커밋)와 달리 즉시 지운다 —
+    /// Mongo 는 Run and Edit 단계적 커밋 흐름이 없다. 그래서 확인을 먼저 받는다.</summary>
+    private async void OnMenuDeleteDocuments(object? sender, RoutedEventArgs e)
+    {
+        if (ActiveView is not { } view) return;
+        var count = view.SelectedRowCount;
+        if (count == 0)
+        {
+            StatusLabel.Text = "삭제할 문서를 선택하세요";
+            return;
+        }
+        if (await ConfirmAsync($"Delete {count} selected document(s)? 즉시 지워지며 되돌릴 수 없습니다."))
+            await view.DeleteSelectedMongoDocumentsAsync();
     }
 
     /// <summary>Golden F12 — DataGrid → Text → Log 순환. 툴바 라벨도 같이 맞춘다.</summary>

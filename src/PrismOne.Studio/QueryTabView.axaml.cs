@@ -1835,6 +1835,86 @@ public partial class QueryTabView : UserControl
         }
     }
 
+    /// <summary>
+    /// 이미 조회된 행 아무거나로 컬렉션 위치(Database+Collection)를 짐작해 그 컬렉션에
+    /// 새 문서를 추가한다. 아직 조회한 적이 없으면(또는 결과 0건) 어느 컬렉션인지 알 수
+    /// 없어 거부한다 — Explorer 로 컬렉션을 한 번 열어 본 뒤 쓰는 걸 전제한다.
+    /// </summary>
+    public async Task AddMongoDocumentAsync()
+    {
+        var context = _rows.Select(r => r.MongoContext).OfType<MongoRowContext>().FirstOrDefault();
+        if (context is null)
+        {
+            SetInfo("추가할 컬렉션을 알 수 없습니다 — 먼저 Mongo 컬렉션을 조회하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var dialog = MongoDocumentDialog.ForNewDocument();
+        if (VisualRoot is not Window owner) return;
+        await dialog.ShowDialog(owner);
+        if (dialog.Result is not { } document) return;   // 취소
+
+        try
+        {
+            await mongoConnection.InsertDocumentAsync(context.Database, context.Collection, document);
+            SetInfo($"{context.Collection} 에 문서를 추가했습니다 (다시 조회하면 보입니다).");
+        }
+        catch (Exception ex)
+        {
+            SetInfo($"추가 실패: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 선택된 행들의 문서를 <c>_id</c> 로 하나씩 지운다. 성공한 행은 재조회 없이
+    /// 그리드에서도 바로 뺀다. Mongo 문서가 아닌 행(SQL·aggregate 결과)은 건너뛴다.
+    /// </summary>
+    public async Task DeleteSelectedMongoDocumentsAsync()
+    {
+        var selected = ResultGrid.SelectedItems.OfType<RowItem>()
+            .Where(r => r.MongoContext is MongoRowContext)
+            .ToList();
+        if (selected.Count == 0)
+        {
+            SetInfo("삭제할 Mongo 문서가 없습니다 — 행을 선택하세요.");
+            return;
+        }
+        if (_session?.Connection is not MongoDbConnection mongoConnection)
+        {
+            SetInfo("Mongo 접속이 아닙니다.");
+            return;
+        }
+
+        var deleted = 0;
+        string? firstFailure = null;
+        var failureCount = 0;
+        foreach (var row in selected)
+        {
+            var context = (MongoRowContext)row.MongoContext!;
+            try
+            {
+                await mongoConnection.DeleteDocumentAsync(
+                    context.Database, context.Collection, context.Document["_id"]);
+                _rows.Remove(row);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                firstFailure ??= ex.Message;
+                failureCount++;
+            }
+        }
+
+        SetInfo(failureCount == 0
+            ? $"{deleted}개 문서를 지웠습니다."
+            : $"{deleted}개 지움, {failureCount}개 실패: {firstFailure}");
+    }
+
     // ---------- Commit / Rollback (Golden) ----------
 
     public async Task CommitAsync()

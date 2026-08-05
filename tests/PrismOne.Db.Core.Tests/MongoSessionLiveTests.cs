@@ -184,6 +184,89 @@ public class MongoSessionLiveTests
         }
     }
 
+    /// <summary>Add Document 저장 경로 — 넣은 문서가 그대로 조회된다.</summary>
+    [Fact]
+    public async Task InsertDocumentAsync_AddsDocument_VisibleOnNextFind()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var document = BsonDocument.Parse("{ _id: 99, name: 'new-guy', age: 5 }");
+            await session.InsertDocumentAsync(database, "people", document);
+
+            var result = await session.ExecuteAsync("db.people.find({ _id: 99 })");
+            var nameCol = result.Table.Columns.ToList().IndexOf("name");
+            Assert.Equal("new-guy", result.Table.Rows[0][nameCol]);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>_id 를 안 적으면 Mongo 가 만들어 준다 — insertOne 이 그대로 받아들인다.</summary>
+    [Fact]
+    public async Task InsertDocumentAsync_GeneratesId_WhenOmitted()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var document = BsonDocument.Parse("{ name: 'auto-id' }");
+            await session.InsertDocumentAsync(database, "people", document);
+
+            var result = await session.ExecuteAsync("db.people.find({ name: 'auto-id' })");
+            Assert.Equal(1, result.Table.Rows.Count);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>Delete Document 저장 경로 — 지운 문서는 더 이상 조회되지 않는다.</summary>
+    [Fact]
+    public async Task DeleteDocumentAsync_RemovesDocument()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            await session.DeleteDocumentAsync(database, "people", new BsonInt32(1));
+
+            var result = await session.ExecuteAsync("db.people.countDocuments({})");
+            Assert.Equal(2L, result.Table.Rows[0][0]);   // 3건 중 1건 지움
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    /// <summary>다른 곳에서 먼저 지운 문서를 또 지우려 하면 조용히 넘어가지 않고 알린다.</summary>
+    [Fact]
+    public async Task DeleteDocumentAsync_Throws_WhenAlreadyGone()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            await session.DeleteDocumentAsync(database, "people", new BsonInt32(1));
+
+            await Assert.ThrowsAsync<MongoQueryException>(
+                () => session.DeleteDocumentAsync(database, "people", new BsonInt32(1)));
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
     /// <summary>
     /// DB 를 안 정하고(host:port 만 접속) 바로 조회하면 예전처럼 아무 DB(test)로 조용히
     /// 넘어가지 않고 바로 알려야 한다 — 안 그러면 실제로는 다른 DB 에 있는 컬렉션을
