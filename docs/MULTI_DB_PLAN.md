@@ -186,8 +186,16 @@ UX 를 전부 새로 설계**해야 한다 (Studio3T 가 참고 대상). 앞 단
   후 `AURUM_MONGO_TEST_HOST=localhost`. 환경변수가 없으면 실서버 테스트는 그냥 통과한다.
   포트를 일부러 틀리면 실서버 테스트만 실패하는 것으로 "정말 서버를 친다"를 확인했다.
 
-**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시), `explain()`,
-`currentOp` 세션 모니터. Studio3T 대비 더 가져올 만한 동작은 검토 중.
+- **explain() — 완료 (2026-08-05)**: 툴바 ⚡ᴱ=queryPlanner · ⚡ᴬ=executionStats 를
+  `explain` 커맨드로 돌려 **PG 와 같은 플랜 트리(self 시간 막대)** 로 매핑한다
+  (`MongoExplain` — winningPlan/executionStages/aggregate stages 세 모양 + 미지 형태
+  폴백). `.explain()` 체인도 파서가 받는다(원문 JSON 한 칸). 실서버 검증 3건.
+- **currentOp 세션 모니터 — 완료 (2026-08-05)**: `SessionMonitor` 가 Kind 로
+  분기해 Mongo 는 `currentOp` → 같은 ActivityRow/창 재사용, Cancel/Terminate 는
+  둘 다 `killOp`. SQLite 처럼 지원 없는 DB 는 메뉴에서 안내로 막는다.
+
+**남은 것**: 중첩 문서 트리 뷰(지금은 점 경로로 펴서 표시).
+Studio3T 대비 더 가져올 만한 동작은 검토 중.
 
 **범위 확인 (2026-08-04 사용자)**: DataGrip 처럼 접속 대상 DB 로 직접 지원하되,
 Studio3T 의 실무 기능(컬렉션 브라우저, find/aggregate 실행, 문서 그리드(중첩 펼침),

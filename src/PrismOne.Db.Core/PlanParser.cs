@@ -145,8 +145,9 @@ public static class PlanParser
     /// <summary>
     /// 누적치(Total Cost·actual time)에서 자식 몫을 빼 자기 몫을 만든다.
     /// InitPlan/CTE 처럼 회계가 어긋나는 노드는 0 으로 자른다 — 음수 막대는 없다.
+    /// (Mongo explain 파서도 같은 계산을 쓴다 — internal)
     /// </summary>
-    private static void ComputeSelf(PlanNode node)
+    internal static void ComputeSelf(PlanNode node)
     {
         foreach (var child in node.Children)
             ComputeSelf(child);

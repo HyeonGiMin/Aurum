@@ -163,6 +163,14 @@ public sealed class MongoSession : IDisposable
         string text, int limit = DefaultLimit, CancellationToken ct = default)
     {
         var command = MongoQueryParser.Parse(text);
+        // mongosh 습관대로 .explain() 을 문장에 붙인 경우 — 결과 문서를 한 칸에 담아 준다
+        // (트리로 보려면 툴바 Explain 버튼)
+        if (command.ExplainVerbosity is { } verbosity)
+        {
+            var doc = await RunExplainCommandAsync(command, verbosity, ct);
+            var json = doc.ToJson(new MongoDB.Bson.IO.JsonWriterSettings { Indent = true });
+            return new MongoResult(new MongoTable(["explain"], [[json]]), $"explain ({verbosity})");
+        }
         return command.Operation switch
         {
             MongoOperation.UseDatabase => RunUseDatabase(command),
@@ -173,6 +181,26 @@ public sealed class MongoSession : IDisposable
             MongoOperation.Distinct => await RunDistinctAsync(command, ct),
             _ => throw new MongoQueryException($"{command.Operation} 는 아직 실행할 수 없습니다."),
         };
+    }
+
+    /// <summary>
+    /// 툴바 Explain 경로 — 문장을 explain 으로 실행해 플랜 트리를 준다.
+    /// ⚡ᴱ = queryPlanner(실행 안 함) · ⚡ᴬ = executionStats(실제 실행·실측).
+    /// 문장에 <c>.explain("...")</c> 이 붙어 있으면 그 verbosity 가 이긴다.
+    /// </summary>
+    public async Task<PlanResult> ExplainAsync(
+        string text, bool executionStats, CancellationToken ct = default)
+    {
+        var command = MongoQueryParser.Parse(text);
+        var verbosity = command.ExplainVerbosity ?? (executionStats ? "executionStats" : "queryPlanner");
+        return MongoExplain.Parse(await RunExplainCommandAsync(command, verbosity, ct));
+    }
+
+    private async Task<BsonDocument> RunExplainCommandAsync(
+        MongoCommand command, string verbosity, CancellationToken ct)
+    {
+        var explain = MongoExplain.BuildCommand(command, verbosity);
+        return await RequireDatabase().RunCommandAsync<BsonDocument>(explain, cancellationToken: ct);
     }
 
     /// <summary>실 mongosh 처럼 이후 문장이 볼 DB 를 바꾼다 — 존재하지 않아도 오류가 아니다.</summary>

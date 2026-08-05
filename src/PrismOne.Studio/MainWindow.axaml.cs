@@ -1255,10 +1255,12 @@ public partial class MainWindow : Window
 
     private void OnMenuSessionMonitor(object? sender, RoutedEventArgs e)
     {
-        if (_profile is { } profile)
-            new SessionMonitorWindow(profile).Show(this);
-        else
+        if (_profile is not { } profile)
             StatusLabel.Text = "Session Monitor 는 로그온 후 사용할 수 있습니다 (Ctrl+L)";
+        else if (!profile.Provider.Capabilities.SessionMonitor)
+            StatusLabel.Text = $"{profile.Provider.DisplayName} 는 세션 모니터를 지원하지 않습니다";
+        else
+            new SessionMonitorWindow(profile).Show(this);
     }
 
     /// <summary>Tools > Schema Diff — 읽기 전용 비교 (기준 스냅샷/접속 ↔ 현재 접속).</summary>

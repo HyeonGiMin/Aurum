@@ -33,7 +33,9 @@ public sealed record MongoCommand(
     int? Skip = null,
     string? DistinctField = null,
     /// <summary><c>UseDatabase</c> 전용 — 대상 데이터베이스 이름.</summary>
-    string? Argument = null);
+    string? Argument = null,
+    /// <summary><c>.explain()</c> 체인 — null 이면 보통 실행, 아니면 explain verbosity.</summary>
+    string? ExplainVerbosity = null);
 
 /// <summary>Mongo 셸 구문을 이해하지 못했을 때. 메시지는 사용자에게 그대로 보인다.</summary>
 public sealed class MongoQueryException(string message) : Exception(message);
@@ -103,6 +105,7 @@ public static class MongoQueryParser
                 "sort" => command with { Sort = Doc(call.Arguments, 0, "sort") },
                 "projection" => command with { Projection = Doc(call.Arguments, 0, "projection") },
                 "toArray" or "pretty" => command,   // 셸 습관 — 결과에 영향 없음
+                "explain" => command with { ExplainVerbosity = Verbosity(call.Arguments) },
                 _ => throw new MongoQueryException($"'{call.Name}' 체인은 지원하지 않습니다."),
             };
         }
@@ -153,6 +156,18 @@ public static class MongoQueryParser
         {
             throw new MongoQueryException($"{what} JSON 을 읽지 못했습니다: {ex.Message}");
         }
+    }
+
+    /// <summary><c>.explain()</c> 의 verbosity — mongosh 와 같은 세 값만 받는다.</summary>
+    private static string Verbosity(IReadOnlyList<string> args)
+    {
+        if (args.Count == 0 || args[0].Trim().Length == 0)
+            return "queryPlanner";
+        var value = args[0].Trim().Trim('"', '\'');
+        return value is "queryPlanner" or "executionStats" or "allPlansExecution"
+            ? value
+            : throw new MongoQueryException(
+                $"explain('{value}') 는 모릅니다 — queryPlanner · executionStats · allPlansExecution 중 하나를 쓰세요.");
     }
 
     private static int Int(IReadOnlyList<string> args, string what)

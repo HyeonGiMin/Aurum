@@ -114,6 +114,10 @@ public sealed class MongoDbConnection : DbConnection
         string database, string collection, IReadOnlyList<BsonDocument> documents, CancellationToken ct = default) =>
         Session.InsertManyDocumentsAsync(database, collection, documents, ct);
 
+    /// <summary>툴바 Explain 경로 — ⚡ᴱ queryPlanner · ⚡ᴬ executionStats (플랜 트리 재사용).</summary>
+    public Task<PlanResult> ExplainAsync(string text, bool executionStats, CancellationToken ct = default) =>
+        Session.ExplainAsync(text, executionStats, ct);
+
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel) =>
         throw new NotSupportedException("Mongo 트랜잭션은 지원하지 않습니다 (replica set 필요).");
 

@@ -1070,6 +1070,19 @@ public partial class QueryTabView : UserControl
             await _session.EnsureAliveAsync(ct);
             SetInfo(analyze ? "Running EXPLAIN ANALYZE…" : "Running EXPLAIN…", "", null);
 
+            // Mongo — explain 커맨드가 따로 있다 (⚡ᴱ queryPlanner · ⚡ᴬ executionStats).
+            // 읽기 연산만 explain 되므로 롤백 처리도 필요 없다.
+            if (_session.Connection is MongoDbConnection mongo)
+            {
+                var mongoPlan = await mongo.ExplainAsync(stmt.Text, executionStats: analyze, ct);
+                _scriptWatch.Stop();
+                BindPlanTree(mongoPlan, analyze);
+                SetInfo("Explain complete — " + (mongoPlan.ExecutionMs is { } mongoMs
+                    ? $"Execution {mongoMs:0.###} ms"
+                    : "plan only (not executed)"), "", ScriptTime());
+                return;
+            }
+
             // ANALYZE 는 DML 을 실제 실행하므로 트랜잭션으로 감싸 되돌린다
             if (needRollback && !wasInTx)
                 await _session.EnsureTransactionAsync(ct);

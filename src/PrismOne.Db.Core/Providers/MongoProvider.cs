@@ -20,9 +20,9 @@ public sealed class MongoProvider : IDbProvider
         Transactions: false,      // replica set 이 있어야 하고 조회 전용이라 쓰지 않는다
         IsolationLevels: false,
         GridEditing: false,       // _id 기준 편집은 아직 (MULTI_DB_PLAN 3단계 잔여)
-        ExplainPlan: false,       // explain() 은 아직
+        ExplainPlan: true,        // explain() — queryPlanner/executionStats 를 플랜 트리로
         ServerMessages: false,
-        SessionMonitor: false,    // currentOp 은 아직
+        SessionMonitor: true,     // currentOp / killOp
         BulkExport: false,        // COPY 같은 서버측 내보내기 없음 — 행 단위
         ForeignKeys: false,       // FK 개념이 없다 → ERD 관계선 없음
         Schemas: false);

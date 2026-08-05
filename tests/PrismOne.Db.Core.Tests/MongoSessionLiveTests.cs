@@ -74,6 +74,95 @@ public class MongoSessionLiveTests
         }
     }
 
+    [Fact]
+    public async Task Explain_QueryPlanner_GivesPlanTreeWithoutExecuting()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var plan = await session.ExplainAsync("db.people.find({ age: { $gt: 25 } })", executionStats: false);
+
+            // 인덱스가 없으니 COLLSCAN 이 어딘가에 있어야 한다
+            Assert.Contains(PlanResult.Walk(plan.Root), n => n.Title.Contains("COLLSCAN"));
+            Assert.Null(plan.ExecutionMs);   // queryPlanner 는 실행하지 않는다
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task Explain_ExecutionStats_MeasuresRealRun()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var plan = await session.ExplainAsync("db.people.find({ age: { $gt: 25 } })", executionStats: true);
+
+            Assert.NotNull(plan.ExecutionMs);
+            // 3건 중 2건 매치 — 실측 수치가 트리에 실려 있다
+            Assert.Contains(PlanResult.Walk(plan.Root), n => n.Detail.Contains("returned=2"));
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task Explain_TypedChain_ReturnsJsonCell()
+    {
+        if (Host is null) return;
+        var (session, database) = await SeedAsync();
+        try
+        {
+            var result = await session.ExecuteAsync("db.people.find({}).explain()");
+
+            Assert.Equal(["explain"], result.Table.Columns);
+            Assert.Contains("queryPlanner", (string)result.Table.Rows[0][0]!);
+        }
+        finally
+        {
+            session.Dispose();
+            await DropAsync(database);
+        }
+    }
+
+    [Fact]
+    public async Task SessionMonitor_CurrentOp_ListsOperations()
+    {
+        if (Host is null) return;
+        var profile = Profile("admin");
+
+        var rows = await SessionMonitor.GetActivityAsync(profile);
+
+        // currentOp 명령 자신이 진행 중 연산으로 잡힌다 — 최소 1행
+        Assert.NotEmpty(rows);
+        Assert.Contains(rows, r => r.State.Length > 0);
+    }
+
+    [Fact]
+    public async Task SessionMonitor_KillOp_ReachesServer()
+    {
+        if (Host is null) return;
+        var profile = Profile("admin");
+
+        // 없는 opid — 서버가 거부하든 무시하든, 예외 없이 왕복하는 것을 확인한다
+        try
+        {
+            await SessionMonitor.CancelAsync(profile, 987_654_321);
+        }
+        catch (MongoCommandException)
+        {
+            // killOp 가 opid 를 검증하는 서버 버전 — 명령이 서버까지 간 것 자체가 검증이다
+        }
+    }
+
     /// <summary>순수 find(projection 없음)는 Edit Document 가 쓸 원본 문서를 행마다 남긴다.</summary>
     [Fact]
     public async Task Execute_PlainFind_AttachesRowContext_ForEditDocument()

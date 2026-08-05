@@ -13,11 +13,16 @@ public sealed record ActivityRow(
     string Wait,
     string Query);
 
-/// <summary>pgAdmin 대시보드의 서버 활동 뷰 — 현재 DB 의 세션 조회와 취소/종료.</summary>
+/// <summary>
+/// pgAdmin 대시보드의 서버 활동 뷰 — 현재 DB 의 세션 조회와 취소/종료.
+/// PG 는 pg_stat_activity, Mongo 는 currentOp 로 같은 창을 채운다.
+/// </summary>
 public static class SessionMonitor
 {
     public static async Task<List<ActivityRow>> GetActivityAsync(ConnectionProfile profile, CancellationToken ct = default)
     {
+        if (profile.Kind == Providers.DbKind.MongoDb)
+            return await Mongo.MongoSessionMonitor.GetActivityAsync(profile, ct);
         const string sql = """
             SELECT pid,
                    COALESCE(usename, ''),
@@ -43,13 +48,17 @@ public static class SessionMonitor
         return rows;
     }
 
-    /// <summary>실행 중 쿼리만 취소 (세션 유지) — pg_cancel_backend.</summary>
+    /// <summary>실행 중 쿼리만 취소 (세션 유지) — pg_cancel_backend, Mongo 는 killOp.</summary>
     public static Task<bool> CancelAsync(ConnectionProfile profile, int pid, CancellationToken ct = default)
-        => SignalAsync(profile, pid, "pg_cancel_backend", ct);
+        => profile.Kind == Providers.DbKind.MongoDb
+            ? Mongo.MongoSessionMonitor.KillOpAsync(profile, pid, ct)
+            : SignalAsync(profile, pid, "pg_cancel_backend", ct);
 
-    /// <summary>세션 자체를 종료 — pg_terminate_backend.</summary>
+    /// <summary>세션 자체를 종료 — pg_terminate_backend. Mongo 는 구분이 없어 역시 killOp.</summary>
     public static Task<bool> TerminateAsync(ConnectionProfile profile, int pid, CancellationToken ct = default)
-        => SignalAsync(profile, pid, "pg_terminate_backend", ct);
+        => profile.Kind == Providers.DbKind.MongoDb
+            ? Mongo.MongoSessionMonitor.KillOpAsync(profile, pid, ct)
+            : SignalAsync(profile, pid, "pg_terminate_backend", ct);
 
     private static async Task<bool> SignalAsync(ConnectionProfile profile, int pid, string fn, CancellationToken ct)
     {
