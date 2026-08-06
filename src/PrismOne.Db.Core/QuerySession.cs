@@ -2,6 +2,8 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
 using Npgsql;
+using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Db.Core;
@@ -108,8 +110,14 @@ public sealed class QuerySession : IAsyncDisposable
             RunningOwner = null;
     }
 
-    /// <summary>RAISE NOTICE/WARNING 등 서버 메시지 (pgAdmin 의 Messages 탭).</summary>
+    /// <summary>RAISE NOTICE/WARNING·DBMS_OUTPUT 등 서버 메시지 (pgAdmin 의 Messages 탭).</summary>
     public event Action<string>? NoticeReceived;
+
+    /// <summary>
+    /// Oracle 은 DBMS_OUTPUT.ENABLE 을 먼저 안 하면 그 뒤 PUT_LINE 이 그냥 사라진다 —
+    /// 첫 실행 전에 한 번만 걸어 둔다(재접속하면 새 세션이라 다시 걸어야 한다).
+    /// </summary>
+    private bool _oracleOutputEnabled;
 
     private QuerySession(ConnectionProfile profile, DbConnection conn)
     {
@@ -129,6 +137,54 @@ public sealed class QuerySession : IAsyncDisposable
                 NoticeReceived?.Invoke($"{e.Notice.Severity}: {e.Notice.MessageText}");
     }
 
+    private static async Task EnableOracleOutputAsync(OracleConnection conn, CancellationToken ct)
+    {
+        var cmd = conn.CreateCommand();
+        cmd.CommandText = "begin dbms_output.enable(1000000); end;";
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// DBMS_OUTPUT 버퍼를 비우며 한 줄씩 <see cref="NoticeReceived"/> 로 올린다.
+    /// GET_LINES 의 첫 인자는 PL/SQL 연관 배열(DBMSOUTPUT_LINESARRAY)이라 일반 배열
+    /// 바인딩이 아니라 CollectionType=PLSQLAssociativeArray 로 묶어야 한다. 한 번에
+    /// 배치(batchSize)만큼만 받아, 반환된 줄 수가 요청보다 적으면(=버퍼 소진) 멈춘다.
+    /// </summary>
+    private async Task DrainOracleOutputAsync(OracleConnection conn, CancellationToken ct)
+    {
+        const int batchSize = 100;
+        while (true)
+        {
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "begin dbms_output.get_lines(:lines, :numlines); end;";
+            var linesParam = new OracleParameter("lines", OracleDbType.Varchar2, 32767)
+            {
+                Direction = ParameterDirection.Output,
+                CollectionType = OracleCollectionType.PLSQLAssociativeArray,
+                Size = batchSize,
+                ArrayBindSize = Enumerable.Repeat(32767, batchSize).ToArray(),
+            };
+            var numlinesParam = new OracleParameter("numlines", OracleDbType.Int32, ParameterDirection.InputOutput)
+            {
+                Value = batchSize,
+            };
+            cmd.Parameters.Add(linesParam);
+            cmd.Parameters.Add(numlinesParam);
+            await cmd.ExecuteNonQueryAsync(ct);
+
+            var numLines = ((OracleDecimal)numlinesParam.Value).ToInt32();
+            if (numLines <= 0) break;
+            if (linesParam.Value is Array lines)
+                for (var i = 0; i < numLines; i++)
+                    // GET_LINES 로 받은 PL/SQL 테이블 원소는 System.String 이 아니라
+                    // OracleString 으로 온다 — is string 패턴 매치는 항상 실패한다.
+                    if (lines.GetValue(i) is { } raw)
+                        NoticeReceived?.Invoke(raw.ToString() ?? "");
+
+            if (numLines < batchSize) break;   // 버퍼 소진
+        }
+    }
+
     private DbCommand NewCommand(string sql)
     {
         var cmd = Connection.CreateCommand();
@@ -136,9 +192,35 @@ public sealed class QuerySession : IAsyncDisposable
         return cmd;
     }
 
+    /// <summary>PL/Edit 3단계 — CREATE OR REPLACE 실행 뒤 USER_ERRORS 조회.
+    /// 컴파일 대상이 아닌 세션(Oracle 아님)이면 빈 목록.</summary>
+    public async Task<List<OracleCompileError>> GetOracleCompileErrorsAsync(
+        string objectName, string objectType, CancellationToken ct = default)
+    {
+        if (Connection is not OracleConnection conn) return [];
+
+        var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "select line, position, text from user_errors where name = :name and type = :type order by sequence";
+        cmd.Parameters.Add(new OracleParameter("name", objectName.ToUpperInvariant()));
+        cmd.Parameters.Add(new OracleParameter("type", objectType));
+
+        var result = new List<OracleCompileError>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            result.Add(new OracleCompileError(reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+        return result;
+    }
+
     public async Task<ActiveQuery> ExecuteAsync(
         string sql, CancellationToken ct = default, IReadOnlyDictionary<string, string?>? binds = null)
     {
+        if (Connection is OracleConnection oracleConn && !_oracleOutputEnabled)
+        {
+            await EnableOracleOutputAsync(oracleConn, ct);
+            _oracleOutputEnabled = true;
+        }
+
         var cmd = NewCommand(binds is { Count: > 0 } ? BindVariables.Rewrite(sql) : sql);
         if (binds is { Count: > 0 })
         {
@@ -160,6 +242,12 @@ public sealed class QuerySession : IAsyncDisposable
             var reader = await cmd.ExecuteReaderAsync(ct);
             sw.Stop();
             var query = await ActiveQuery.CreateAsync(cmd, reader, sw.Elapsed);
+            // ODP.NET 은 접속 하나에 열린 reader 가 하나뿐이어야 한다 — SELECT 는 fetch 가
+            // 나중(여러 배치에 걸쳐)이라 reader 가 계속 열려 있고, 그 상태로 GET_LINES 를
+            // 위한 새 명령을 실행하면 충돌한다. PL/SQL 블록·DML 처럼 결과셋이 없는
+            // 문장(HasGrid==false)은 위 CreateAsync 가 이미 reader 를 닫아 안전하다.
+            if (!query.HasGrid && Connection is OracleConnection outputConn)
+                await DrainOracleOutputAsync(outputConn, ct);
             Current = query;
             return query;
         }
@@ -177,6 +265,7 @@ public sealed class QuerySession : IAsyncDisposable
         try { await Connection.DisposeAsync(); } catch { /* 이미 죽은 접속 */ }
         Connection = await Profile.OpenDbAsync(ct);
         HookNotices(Connection);
+        _oracleOutputEnabled = false;   // 새 접속은 새 세션 — DBMS_OUTPUT 다시 걸어야 한다
         InTransaction = false;
         // 새 접속은 DB 기본값으로 시작하므로 고른 격리 수준을 다시 걸어준다
         if (Isolation != TransactionIsolation.DatabaseDefault)

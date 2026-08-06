@@ -116,18 +116,25 @@ SQLite 를 넣으면 이 경로들이 CI 에서 자동 검증된다. Oracle/Mong
 Benthic 은 Golden(쿼리) 외에 **PL/Edit(PL/SQL 에디터)** 를 따로 판다. Oracle 을
 제대로 지원하려면 PL/Edit 몫까지 흡수해야 한다. 요구 분해:
 
-| 기능 | 내용 | 우리 기반 |
-|---|---|---|
-| PL/SQL 블록 실행 | `BEGIN…END;` + `/` 종결 — 문장 분리기가 블록을 통째로 보내야 한다 | StatementSplitter 확장 (핵심 선행) |
-| DBMS_OUTPUT 수신 | `DBMS_OUTPUT.ENABLE` 후 `GET_LINES` 폴링 → Messages pane | Capabilities.ServerMessages 이미 true, Messages pane 재사용 |
-| 저장 프로시저 편집 | Object Browser 에 Procedure/Function/Package 표시 → 소스 로드(`USER_SOURCE`) → 에디터 | 카탈로그 확장 |
-| 컴파일 + 오류 목록 | `CREATE OR REPLACE …` 실행 후 `USER_ERRORS` 조회 → 줄 번호 클릭 이동 | SqlErrorRenderer(밑줄) 재사용 가능 |
-| 실행/테스트 | 프로시저 선택 → 파라미터 입력 창 → 호출 + 결과/OUT 값 | BindVariableDialog 확장 |
-| 디버거(브레이크포인트) | PL/Edit 의 DBMS_DEBUG 디버거 | **비채택** — 비용 대비 사용 빈도 낮음, 후순위 |
+| 기능 | 내용 | 우리 기반 | 상태 |
+|---|---|---|---|
+| PL/SQL 블록 실행 | `BEGIN…END;` + `/` 종결 — 문장 분리기가 블록을 통째로 보내야 한다 | StatementSplitter 확장 (핵심 선행) | **완료 (2026-08-06)** |
+| DBMS_OUTPUT 수신 | `DBMS_OUTPUT.ENABLE` 후 `GET_LINES` 폴링 → Messages pane | Capabilities.ServerMessages 이미 true, Messages pane 재사용 | **완료 (2026-08-06)** |
+| 저장 프로시저 편집 | Object Browser 에 Procedure/Function/Package 표시 → 소스 로드(`USER_SOURCE`) → 에디터 | 카탈로그 확장 | 미착수 |
+| 컴파일 + 오류 목록 | `CREATE OR REPLACE …` 실행 후 `USER_ERRORS` 조회 → 줄 번호 클릭 이동 | SqlErrorRenderer(밑줄) 재사용 가능 | **완료 (2026-08-06)** |
+| 실행/테스트 | 프로시저 선택 → 파라미터 입력 창 → 호출 + 결과/OUT 값 | BindVariableDialog 확장 | 미착수 |
+| 디버거(브레이크포인트) | PL/Edit 의 DBMS_DEBUG 디버거 | **비채택** — 비용 대비 사용 빈도 낮음, 후순위 | 비채택 |
 
-전부 **Oracle 실서버 검증이 선행 조건** — 현재 개발 머신에는 Oracle 접속이
-없다 (STATUS.md §1.7). 서버 확보 후: 쿼리 실행 실검증 → 블록 분리 →
-DBMS_OUTPUT → 소스 편집·컴파일 순.
+**Oracle 실서버 검증 완료 (2026-08-06)** — 테스트/개발 전용 서버로 진행. 블록 분리는
+`StatementSplitter.Split(sql, oracleBlocks: true)`(Oracle 세션이면 `QueryTabView` 가
+자동으로 켠다), DBMS_OUTPUT 은 `QuerySession.ExecuteAsync` 가 결과셋 없는 문장 실행 뒤
+`GET_LINES` 로 회수해 `NoticeReceived` 이벤트로 Messages pane 에 올린다. 컴파일 오류는
+`CREATE OR REPLACE …` 실행 뒤(결과셋 없는 문장일 때) `OracleCompileErrorParser.
+ParseObjectHeader` 로 오브젝트 이름/타입을 뽑아 `QuerySession.
+GetOracleCompileErrorsAsync` 로 USER_ERRORS 를 조회하고, (LINE, POSITION) 을
+`ToSqlIssue` 로 에디터 오프셋에 매핑해 기존 `SqlErrorRenderer` 밑줄에 얹고 Messages
+pane 에도 적는다 — USER_ERRORS.POSITION 은 1-based(실서버로 직접 검증해 확인).
+남은 건 저장 프로시저 소스 편집·파라미터 실행 2가지.
 
 ### 3단계 — MongoDB
 

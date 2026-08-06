@@ -16,6 +16,7 @@ using Avalonia.VisualTree;
 using Npgsql;
 using PrismOne.Db.Core;
 using PrismOne.Db.Core.Mongo;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Studio;
 
@@ -92,6 +93,12 @@ public partial class QueryTabView : UserControl
     private int FetchBatch => Options.FetchBatch;
 
     private QuerySession? _session;
+
+    /// <summary>
+    /// Oracle 접속이면 문장 분리기가 SQL*Plus 관례(PL/SQL 블록 + '/' 종결)를 따르게 한다 —
+    /// PL/SQL 안의 세미콜론을 잘못 끊으면 블록 실행 자체가 깨진다.
+    /// </summary>
+    private bool IsOracleSession => _session?.Profile.Kind == DbKind.Oracle;
     private bool _ownsSession;      // private 탭이면 true — 닫을 때 세션도 정리
     private ActiveQuery? _current;
     private CancellationTokenSource? _cts;
@@ -877,7 +884,7 @@ public partial class QueryTabView : UserControl
         if (!string.IsNullOrWhiteSpace(Editor.SelectedText))
             return Editor.SelectedText.Trim();
         var text = Editor.Text ?? "";
-        return StatementSplitter.StatementAt(text, Editor.CaretOffset)?.Text ?? text.Trim();
+        return StatementSplitter.StatementAt(text, Editor.CaretOffset, IsOracleSession)?.Text ?? text.Trim();
     }
 
     /// <summary>즐겨찾기 실행 — 에디터를 해당 SQL 로 바꾸고 처음부터 스크립트로 돌린다.</summary>
@@ -1014,11 +1021,11 @@ public partial class QueryTabView : UserControl
         List<SqlStatement> statements;
         if (!string.IsNullOrEmpty(Editor.SelectedText))
         {
-            statements = StatementSplitter.Split(Editor.SelectedText);
+            statements = StatementSplitter.Split(Editor.SelectedText, IsOracleSession);
         }
         else
         {
-            var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
+            var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset, IsOracleSession);
             statements = stmt is null ? [] : [stmt];
         }
         return ExecuteStatementsAsync(statements, explain: false);
@@ -1036,7 +1043,7 @@ public partial class QueryTabView : UserControl
             SetInfo("선택된 SQL 이 없습니다");
             return Task.CompletedTask;
         }
-        return ExecuteStatementsAsync(StatementSplitter.Split(Editor.SelectedText), explain: false);
+        return ExecuteStatementsAsync(StatementSplitter.Split(Editor.SelectedText, IsOracleSession), explain: false);
     }
 
     /// <summary>커서 문장을 EXPLAIN (FORMAT JSON) 으로 실행해 플랜 트리로 표시.
@@ -1045,7 +1052,7 @@ public partial class QueryTabView : UserControl
     {
         if (_session is null) { SetInfo("Not connected"); return; }
         if (_executing) { SetInfo("Busy — statement still running. Cancel first."); return; }
-        var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
+        var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset, IsOracleSession);
         if (stmt is null) return;
         if (!_session.TryBeginRun(this))
         {
@@ -1248,12 +1255,12 @@ public partial class QueryTabView : UserControl
         List<SqlStatement> statements;
         if (!string.IsNullOrEmpty(Editor.SelectedText))
         {
-            statements = StatementSplitter.Split(Editor.SelectedText);
+            statements = StatementSplitter.Split(Editor.SelectedText, IsOracleSession);
         }
         else
         {
-            var all = StatementSplitter.Split(Editor.Text ?? "");
-            var at = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset);
+            var all = StatementSplitter.Split(Editor.Text ?? "", IsOracleSession);
+            var at = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset, IsOracleSession);
             var start = at is null ? 0 : all.FindIndex(s => s.Start == at.Start);
             statements = start <= 0 ? all : all.Skip(start).ToList();
         }
@@ -1368,6 +1375,8 @@ public partial class QueryTabView : UserControl
                     affectedTotal += Math.Max(0, query.RowsAffected);
                     _current = null;
                     AppendLog(stmt.Text, $"{Math.Max(0, query.RowsAffected)} row(s) affected, {ScriptTime()}");
+                    if (IsOracleSession)
+                        await ReportOracleCompileErrorsAsync(stmt, ct);
                 }
             }
             _scriptWatch.Stop();
@@ -1411,6 +1420,23 @@ public partial class QueryTabView : UserControl
             _runTimer.Stop();
             _session?.EndRun(this);
         }
+    }
+
+    /// <summary>PL/Edit 3단계 — CREATE OR REPLACE 실행 뒤 USER_ERRORS 를 밑줄+Messages 로.
+    /// 컴파일 대상 문장이 아니면(SELECT 등) 조용히 넘어간다.</summary>
+    private async Task ReportOracleCompileErrorsAsync(SqlStatement stmt, CancellationToken ct)
+    {
+        if (_session is null || OracleCompileErrorParser.ParseObjectHeader(stmt.Text) is not { } header)
+            return;
+        var errors = await _session.GetOracleCompileErrorsAsync(header.Name, header.ObjectType, ct);
+        if (errors.Count == 0)
+            return;
+
+        var issues = errors.Select(e => e.ToSqlIssue(stmt.Text, stmt.Start)).ToList();
+        _errorRenderer.Issues = [.. _errorRenderer.Issues, .. issues];
+        Editor.TextArea.TextView.InvalidateLayer(AvaloniaEdit.Rendering.KnownLayer.Selection);
+        foreach (var e in errors)
+            AppendMessage($"{header.ObjectType} {header.Name}: line {e.Line}, col {e.Position}: {e.Text.Trim()}");
     }
 
     // ---------- 결과 보기 전환 (Golden: Show DataGrid / Show Text / Show Log) ----------

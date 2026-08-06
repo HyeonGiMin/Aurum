@@ -7,15 +7,26 @@ public sealed record SqlStatement(string Text, int Start, int End);
 /// SQL 텍스트를 문장 단위로 분리한다 (Golden 의 "커서 위치 문장 실행"용).
 /// 작은따옴표(E-string 백슬래시 포함)·큰따옴표 식별자·주석(중첩 블록 포함)·
 /// 달러쿼팅($tag$…$tag$) 안의 세미콜론은 구분자로 보지 않는다.
+///
+/// <paramref name="oracleBlocks"/> 를 켜면(Oracle 접속) SQL*Plus 관례를 따른다 —
+/// <c>DECLARE</c>/<c>BEGIN</c>/<c>CREATE [OR REPLACE] PROCEDURE·FUNCTION·PACKAGE·
+/// TRIGGER·TYPE</c> 로 시작하는 문장은 안의 세미콜론(PL/SQL 문법일 뿐)을 구분자로
+/// 보지 않고, 줄 전체가 <c>/</c> 하나뿐인 곳에서 끝난다. 그 밖의 보통 SQL 은 그대로
+/// 세미콜론으로 끊는다. PG 의 달러쿼팅은 Oracle 에 없는 문법이라 이 모드에서는 시도하지
+/// 않는다(오탐 방지).
 /// </summary>
 public static class StatementSplitter
 {
-    public static List<SqlStatement> Split(string sql)
+    private static readonly string[] PlSqlBlockObjects =
+        ["PROCEDURE", "FUNCTION", "PACKAGE", "TRIGGER", "TYPE"];
+
+    public static List<SqlStatement> Split(string sql, bool oracleBlocks = false)
     {
         var result = new List<SqlStatement>();
         var i = 0;
         var n = sql.Length;
         var stmtStart = -1;   // 현재 문장의 첫 유효 문자 위치
+        var inBlock = false;  // PL/SQL 블록 안이라 세미콜론을 구분자로 안 본다
 
         while (i < n)
         {
@@ -32,13 +43,30 @@ public static class StatementSplitter
                 i = SkipBlockComment(sql, i);
                 continue;
             }
+            // SQL*Plus 종결자 — 줄에 '/' 하나만 있으면 지금까지 쌓인 문장을 통째로 낸다.
+            // 블록이 아니어도(이미 ';' 로 끝난 뒤라도) 남은 게 없으면 조용히 지나간다.
+            if (oracleBlocks && c == '/' && IsStandaloneSlashLine(sql, i))
+            {
+                var lineEnd = SkipToNextLine(sql, i);
+                if (stmtStart >= 0)
+                    AddStatement(result, sql, stmtStart, i, lineEnd);
+                stmtStart = -1;
+                inBlock = false;
+                i = lineEnd;
+                continue;
+            }
             if (char.IsWhiteSpace(c)) { i++; continue; }
 
-            if (stmtStart < 0) stmtStart = i;
+            if (stmtStart < 0)
+            {
+                stmtStart = i;
+                inBlock = oracleBlocks && IsPlSqlBlockStart(sql, i);
+            }
 
             switch (c)
             {
                 case ';':
+                    if (inBlock) { i++; break; }   // PL/SQL 문법일 뿐 — 구분자 아님
                     AddStatement(result, sql, stmtStart, i, i + 1);
                     stmtStart = -1;
                     i++;
@@ -49,7 +77,7 @@ public static class StatementSplitter
                 case '"':
                     i = SkipDoubleQuoted(sql, i);
                     break;
-                case '$':
+                case '$' when !oracleBlocks:
                     var after = SkipDollarQuote(sql, i);
                     i = after < 0 ? i + 1 : after;
                     break;
@@ -65,9 +93,9 @@ public static class StatementSplitter
     }
 
     /// <summary>커서 위치의 문장. 문장 사이 공백이면 앞 문장, 그마저 없으면 다음 문장.</summary>
-    public static SqlStatement? StatementAt(string sql, int caret)
+    public static SqlStatement? StatementAt(string sql, int caret, bool oracleBlocks = false)
     {
-        var stmts = Split(sql);
+        var stmts = Split(sql, oracleBlocks);
         if (stmts.Count == 0) return null;
         foreach (var s in stmts)
             if (caret >= s.Start && caret <= s.End)
@@ -79,6 +107,60 @@ public static class StatementSplitter
             else break;
         }
         return prev ?? stmts[0];
+    }
+
+    /// <summary>이 줄에서 '/' 앞뒤로 공백만 있는지 — SQL*Plus 종결자 판정.</summary>
+    private static bool IsStandaloneSlashLine(string s, int i)
+    {
+        var j = i - 1;
+        while (j >= 0 && s[j] != '\n')
+        {
+            if (!char.IsWhiteSpace(s[j])) return false;
+            j--;
+        }
+        var k = i + 1;
+        while (k < s.Length && s[k] != '\n')
+        {
+            if (!char.IsWhiteSpace(s[k])) return false;
+            k++;
+        }
+        return true;
+    }
+
+    private static int SkipToNextLine(string s, int i)
+    {
+        var nl = s.IndexOf('\n', i);
+        return nl < 0 ? s.Length : nl + 1;
+    }
+
+    /// <summary>
+    /// stmtStart 위치의 문장이 PL/SQL 블록(DECLARE/BEGIN/CREATE…PROCEDURE 등)으로
+    /// 시작하는지 — 이러면 안의 세미콜론을 문법으로만 보고 구분자로 안 쓴다.
+    /// </summary>
+    private static bool IsPlSqlBlockStart(string s, int start)
+    {
+        var (word1, next1) = ReadWord(s, start);
+        if (word1.Equals("DECLARE", StringComparison.OrdinalIgnoreCase) ||
+            word1.Equals("BEGIN", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!word1.Equals("CREATE", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var (word2, next2) = ReadWord(s, next1);
+        if (word2.Equals("OR", StringComparison.OrdinalIgnoreCase))
+        {
+            var (_, next3) = ReadWord(s, next2);   // REPLACE
+            (word2, next2) = ReadWord(s, next3);
+        }
+        return Array.Exists(PlSqlBlockObjects, k => k.Equals(word2, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static (string Word, int NextPos) ReadWord(string s, int pos)
+    {
+        while (pos < s.Length && char.IsWhiteSpace(s[pos])) pos++;
+        var start = pos;
+        while (pos < s.Length && (char.IsLetterOrDigit(s[pos]) || s[pos] == '_')) pos++;
+        return (s[start..pos], pos);
     }
 
     private static void AddStatement(List<SqlStatement> result, string sql, int start, int textEnd, int rangeEnd)

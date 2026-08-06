@@ -171,16 +171,20 @@ FK 제약 **prismone 185건**(+pgmq 2건) 존재. ERD 관계선이 그려지는 
 - Oracle ERD: 517테이블·293관계. 단독 테이블을 한 영역으로 묶어 주제영역
   340개 → 8개, 높이 11520 → 8838. 그래도 전체 보기는 못 읽으니 Focus 가 기본
 
-**남은 것**: Oracle 쿼리 실행 실검증 — **이 개발 머신에는 Oracle 접속이 저장돼 있지
-않다** (2026-08-04 확인, 저장된 접속은 PG 1건뿐). Oracle 서버가 보이는 환경에서
-로그온 한 번 저장한 뒤 검증할 것. 그 외: AS SYSDBA·Read Only(Oracle 은 접속 수준
-읽기전용이 없다), MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
+**Oracle 쿼리 실행 — 실서버 검증 완료 (2026-08-06)**: 테스트/개발 전용 Oracle 서버로
+SELECT·트랜잭션 상태 전이·PL/SQL 익명 블록 실행·DBMS_OUTPUT 회수·USER_ERRORS 조회를
+직접 확인. 남은 것: AS SYSDBA·Read Only(Oracle 은 접속 수준 읽기전용이 없다),
+MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
 
-**PL/Edit 파리티 (2026-08-04 사용자 방향 제시)**: Benthic 의 PL/SQL 에디터
-PL/Edit 몫까지 Oracle 지원에 포함한다 — PL/SQL 블록 실행(`/` 종결),
-DBMS_OUTPUT 수신, 프로시저/패키지 소스 편집·컴파일(USER_ERRORS 오류 목록),
-파라미터 입력 실행. 디버거는 비채택. 요구 분해는 `MULTI_DB_PLAN.md` §2.5 —
-전부 Oracle 실서버 확보가 선행 조건.
+**PL/Edit 파리티 (2026-08-04 사용자 방향 제시, 2026-08-06 완료)**: Benthic 의 PL/SQL
+에디터 PL/Edit 몫까지 Oracle 지원에 포함한다. 요구 분해는 `MULTI_DB_PLAN.md` §2.5:
+1) PL/SQL 블록 실행(`/` 종결) — **완료**(`StatementSplitter.oracleBlocks`),
+2) DBMS_OUTPUT → Messages 창 수신 — **완료**(`QuerySession.NoticeReceived`),
+3) 프로시저/패키지 컴파일·USER_ERRORS 오류 목록 표시 — **완료**
+(`OracleCompileErrorParser` + `QuerySession.GetOracleCompileErrorsAsync`, 밑줄은
+기존 `SqlErrorRenderer` 재사용). 남은 것: 저장 프로시저 소스 편집(Object Browser
+로드)·파라미터 입력 실행 창은 미착수 — 지금은 에디터에 직접 CREATE OR REPLACE 를
+타이핑해 실행하는 방식만 지원. 디버거는 비채택.
 
 ## 1.4 아이디어 — MCP 서버 (2026-08-04 검토, 미착수)
 
