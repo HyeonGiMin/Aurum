@@ -314,6 +314,26 @@ SQL 의 "Delete Selected Records…"(Submit Edits 로 나중에 커밋)와 달�
 Mongo 로 접속하면 **왼쪽 Database Explorer 가 자동으로 열립니다** — 스키마가 없어
 오른쪽 Object Browser보다 DB→컬렉션 트리가 실질적인 시작점이기 때문입니다.
 
+### Tree View (MongoDB, Studio3T 대응)
+
+**Results > View Documents as Tree** — 그리드(Table View)는 중첩 문서를
+`address.city` 점 경로로 펴서 보여주지만, 이 창은 문서의 **중첩 구조 그대로**
+접었다 펴며 봅니다. 문서마다 `(순번) { N field(s) } _id: …` 로 요약되고,
+중첩 문서·배열은 펼칠 때 로드됩니다(큰 문서에서도 안 굳음). 값 우클릭 →
+Copy Value. Edit Document 와 같은 조건 — **순수 find 결과**에서만 열립니다
+(aggregate·projection 결과는 원본 문서가 아닐 수 있어 제외).
+
+### explain · 세션 모니터 (MongoDB)
+
+- **Explain 버튼(⚡ᴱ/⚡ᴬ)이 Mongo 에서도 동작합니다** — ⚡ᴱ 는 `queryPlanner`
+  (실행 안 함), ⚡ᴬ 는 `executionStats`(실제 실행·실측). 결과는 SQL 과 같은
+  **플랜 트리 + self 시간 막대**로 나옵니다 — COLLSCAN 이 넓은 막대로 보이면
+  인덱스가 없다는 뜻입니다. mongosh 습관대로 문장에 `.explain()` 을 붙여 실행하면
+  원문 JSON 을 한 칸으로 보여줍니다(트리로 보려면 툴바 버튼).
+- **Tools > Session Monitor** 가 Mongo 에서도 열립니다 — `currentOp` 로 진행 중
+  연산(opid·상태·경과·네임스페이스·명령)을 보여주고, Cancel/Terminate 는 둘 다
+  `killOp` 입니다(Mongo 는 쿼리 취소와 세션 종료 구분이 없습니다).
+
 ### JSON Import/Export (MongoDB)
 
 **Tools > Import JSON… (Mongo)** — 파일을 컬렉션에 넣습니다. **Golden 에는 없던 기능**입니다.

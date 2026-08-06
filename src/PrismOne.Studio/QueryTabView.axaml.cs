@@ -536,6 +536,20 @@ public partial class QueryTabView : UserControl
         _session = null;
     }
 
+    /// <summary>
+    /// Results > View Documents as Tree — 로드된 행들의 원본 문서(순수 find 결과에만
+    /// 있다, Edit Document 와 같은 조건). 없으면 null.
+    /// </summary>
+    public IReadOnlyList<MongoTreeNode>? SnapshotMongoTree()
+    {
+        var nodes = _rows
+            .Select(r => r.MongoContext)
+            .OfType<MongoRowContext>()
+            .Select((context, i) => MongoTree.FromDocument(context.Document, i))
+            .ToList();
+        return nodes.Count == 0 ? null : nodes;
+    }
+
     /// <summary>Results > Pin — 현재 그리드의 스냅샷 (없으면 null). 편집 모드는 제외.</summary>
     public (IReadOnlyList<string> Columns, IReadOnlyList<RowItem> Rows, string? Sql)? SnapshotResult() =>
         _columns.Count == 0 || IsEditing ? null : (_columns, _rows.ToList(), LastGridSql);
@@ -1076,6 +1090,19 @@ public partial class QueryTabView : UserControl
             if (_current is not null) { await _current.AbortAsync(); _current = null; }
             await _session.EnsureAliveAsync(ct);
             SetInfo(analyze ? "Running EXPLAIN ANALYZE…" : "Running EXPLAIN…", "", null);
+
+            // Mongo — explain 커맨드가 따로 있다 (⚡ᴱ queryPlanner · ⚡ᴬ executionStats).
+            // 읽기 연산만 explain 되므로 롤백 처리도 필요 없다.
+            if (_session.Connection is MongoDbConnection mongo)
+            {
+                var mongoPlan = await mongo.ExplainAsync(stmt.Text, executionStats: analyze, ct);
+                _scriptWatch.Stop();
+                BindPlanTree(mongoPlan, analyze);
+                SetInfo("Explain complete — " + (mongoPlan.ExecutionMs is { } mongoMs
+                    ? $"Execution {mongoMs:0.###} ms"
+                    : "plan only (not executed)"), "", ScriptTime());
+                return;
+            }
 
             // ANALYZE 는 DML 을 실제 실행하므로 트랜잭션으로 감싸 되돌린다
             if (needRollback && !wasInTx)
