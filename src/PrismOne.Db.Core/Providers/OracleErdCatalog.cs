@@ -3,6 +3,10 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace PrismOne.Db.Core.Providers;
 
+/// <summary>Object Browser 에 표시할 프로시저/함수/패키지 한 개. PACKAGE 와 PACKAGE BODY 는
+/// all_objects 에 별도 행이라 따로 나온다.</summary>
+public sealed record OracleRoutine(string Owner, string Name, string ObjectType);
+
 /// <summary>
 /// Oracle ERD 카탈로그. 읽기 전용 (all_* 데이터 딕셔너리).
 ///
@@ -83,6 +87,55 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
         var known = tables.Select(t => t.Key).ToHashSet();
         relations = relations.Where(r => known.Contains(r.ChildKey) && known.Contains(r.ParentKey)).ToList();
         return new ErdGraph(tables, relations);
+    }
+
+    /// <summary>PL/Edit 4단계 — Object Browser 에 표시할 프로시저/함수/패키지 목록.
+    /// 트리거·타입은 소스 재구성 방식이 달라(ALL_SOURCE 밖) 뺐다.</summary>
+    public async Task<List<OracleRoutine>> GetRoutinesAsync(
+        IReadOnlyList<string> schemas, CancellationToken ct = default)
+    {
+        if (schemas.Count == 0) return [];
+        var owners = schemas.ToArray();
+        var sql = $"""
+            SELECT owner, object_name, object_type
+              FROM all_objects
+             WHERE object_type IN ('PROCEDURE', 'FUNCTION', 'PACKAGE', 'PACKAGE BODY')
+               AND owner IN ({Placeholders(owners.Length, "o")})
+             ORDER BY owner, object_name, object_type
+            """;
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = Command(conn, sql);
+        Bind(cmd, "o", owners);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var result = new List<OracleRoutine>();
+        while (await reader.ReadAsync(ct))
+            result.Add(new OracleRoutine(reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+        return result;
+    }
+
+    /// <summary>ALL_SOURCE 에서 오브젝트 소스를 읽어 CREATE OR REPLACE 문으로 되돌린다 —
+    /// Oracle 은 컴파일된 소스에 CREATE 헤더를 저장하지 않고 "PROCEDURE p IS…" 부터 담는다.
+    /// 오브젝트가 없으면 빈 문자열.</summary>
+    public async Task<string> GetSourceAsync(
+        string owner, string objectName, string objectType, CancellationToken ct = default)
+    {
+        const string sql = """
+            SELECT text FROM all_source
+             WHERE owner = :owner AND name = :name AND type = :type
+             ORDER BY line
+            """;
+        await using var conn = await OpenAsync(ct);
+        await using var cmd = Command(conn, sql);
+        // 따옴표 식별자가 아닌 이상 Oracle 오브젝트명은 항상 대문자로 저장된다 —
+        // 그대로 바인딩하면(예: 소문자 호출) 조용히 0행이 되어 빈 소스로 보인다.
+        cmd.Parameters.Add("owner", owner.ToUpperInvariant());
+        cmd.Parameters.Add("name", objectName.ToUpperInvariant());
+        cmd.Parameters.Add("type", objectType.ToUpperInvariant());
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var body = new StringBuilder();
+        while (await reader.ReadAsync(ct))
+            body.Append(reader.GetString(0));
+        return body.Length == 0 ? "" : $"CREATE OR REPLACE {body}";
     }
 
     // ---------- 조회 ----------

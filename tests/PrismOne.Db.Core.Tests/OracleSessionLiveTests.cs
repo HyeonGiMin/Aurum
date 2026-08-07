@@ -85,4 +85,58 @@ public class OracleSessionLiveTests
             await session.ExecuteAsync($"drop procedure {procName}");
         }
     }
+
+    [Fact]
+    public async Task GetRoutinesAsync_ListsCreatedProcedure()
+    {
+        if (Host is null) return;
+
+        await using var session = await QuerySession.CreateAsync(Profile);
+        var catalog = (OracleErdCatalog)Profile.Provider.CreateErdCatalog(Profile);
+        const string procName = "aurum_live_test_routine";
+        var owner = Environment.GetEnvironmentVariable("AURUM_ORACLE_TEST_USER")!.ToUpperInvariant();
+        try
+        {
+            await session.ExecuteAsync(
+                $"create or replace procedure {procName} as\nbegin\n  null;\nend;");
+
+            var routines = await catalog.GetRoutinesAsync([owner]);
+
+            Assert.Contains(routines, r =>
+                r.Name.Equals(procName, StringComparison.OrdinalIgnoreCase) && r.ObjectType == "PROCEDURE");
+        }
+        finally
+        {
+            await session.ExecuteAsync($"drop procedure {procName}");
+        }
+    }
+
+    [Fact]
+    public async Task GetSourceAsync_ReturnsExecutableCreateOrReplace()
+    {
+        if (Host is null) return;
+
+        await using var session = await QuerySession.CreateAsync(Profile);
+        var catalog = (OracleErdCatalog)Profile.Provider.CreateErdCatalog(Profile);
+        const string procName = "aurum_live_test_source";
+        var owner = Environment.GetEnvironmentVariable("AURUM_ORACLE_TEST_USER")!.ToUpperInvariant();
+        try
+        {
+            await session.ExecuteAsync(
+                $"create or replace procedure {procName} as\nbegin\n  dbms_output.put_line('x');\nend;");
+
+            // 소문자로 넘겨도(대소문자 정규화 없으면 조용히 빈 결과가 되던 버그의 회귀 테스트)
+            var source = await catalog.GetSourceAsync(owner.ToLowerInvariant(), procName.ToLowerInvariant(), "procedure");
+
+            Assert.StartsWith("CREATE OR REPLACE", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(procName, source, StringComparison.OrdinalIgnoreCase);
+
+            // 되돌아온 소스가 실제로 재컴파일 가능해야 진짜 쓸모가 있다
+            await session.ExecuteAsync(source);
+        }
+        finally
+        {
+            await session.ExecuteAsync($"drop procedure {procName}");
+        }
+    }
 }

@@ -176,15 +176,19 @@ SELECT·트랜잭션 상태 전이·PL/SQL 익명 블록 실행·DBMS_OUTPUT 회
 직접 확인. 남은 것: AS SYSDBA·Read Only(Oracle 은 접속 수준 읽기전용이 없다),
 MongoDB(3단계), Oracle 카탈로그 자동 테스트(서버 필요)
 
-**PL/Edit 파리티 (2026-08-04 사용자 방향 제시, 2026-08-06 완료)**: Benthic 의 PL/SQL
-에디터 PL/Edit 몫까지 Oracle 지원에 포함한다. 요구 분해는 `MULTI_DB_PLAN.md` §2.5:
+**PL/Edit 파리티 (2026-08-04 사용자 방향 제시, 2026-08-07 4/5 완료)**: Benthic 의
+PL/SQL 에디터 PL/Edit 몫까지 Oracle 지원에 포함한다. 요구 분해는 `MULTI_DB_PLAN.md`
+§2.5:
 1) PL/SQL 블록 실행(`/` 종결) — **완료**(`StatementSplitter.oracleBlocks`),
 2) DBMS_OUTPUT → Messages 창 수신 — **완료**(`QuerySession.NoticeReceived`),
 3) 프로시저/패키지 컴파일·USER_ERRORS 오류 목록 표시 — **완료**
 (`OracleCompileErrorParser` + `QuerySession.GetOracleCompileErrorsAsync`, 밑줄은
-기존 `SqlErrorRenderer` 재사용). 남은 것: 저장 프로시저 소스 편집(Object Browser
-로드)·파라미터 입력 실행 창은 미착수 — 지금은 에디터에 직접 CREATE OR REPLACE 를
-타이핑해 실행하는 방식만 지원. 디버거는 비채택.
+기존 `SqlErrorRenderer` 재사용),
+4) 저장 프로시저 소스 편집 — **완료**. Database Explorer(Alt+1) 가 Oracle 접속이면
+프로시저/함수/패키지를 스키마 밑에 보여주고(`OracleErdCatalog.GetRoutinesAsync`),
+더블클릭하면 `all_source` 를 `CREATE OR REPLACE …` 문으로 되돌려(`GetSourceAsync`)
+새 탭에 연다 — 실행하면 재컴파일된다.
+남은 것: 파라미터 입력 실행 창 하나. 디버거는 비채택.
 
 ## 1.4 아이디어 — MCP 서버 (2026-08-04 검토, 미착수)
 

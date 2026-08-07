@@ -120,7 +120,7 @@ Benthic 은 Golden(쿼리) 외에 **PL/Edit(PL/SQL 에디터)** 를 따로 판�
 |---|---|---|---|
 | PL/SQL 블록 실행 | `BEGIN…END;` + `/` 종결 — 문장 분리기가 블록을 통째로 보내야 한다 | StatementSplitter 확장 (핵심 선행) | **완료 (2026-08-06)** |
 | DBMS_OUTPUT 수신 | `DBMS_OUTPUT.ENABLE` 후 `GET_LINES` 폴링 → Messages pane | Capabilities.ServerMessages 이미 true, Messages pane 재사용 | **완료 (2026-08-06)** |
-| 저장 프로시저 편집 | Object Browser 에 Procedure/Function/Package 표시 → 소스 로드(`USER_SOURCE`) → 에디터 | 카탈로그 확장 | 미착수 |
+| 저장 프로시저 편집 | Object Browser 에 Procedure/Function/Package 표시 → 소스 로드(`USER_SOURCE`) → 에디터 | 카탈로그 확장 | **완료 (2026-08-07)** |
 | 컴파일 + 오류 목록 | `CREATE OR REPLACE …` 실행 후 `USER_ERRORS` 조회 → 줄 번호 클릭 이동 | SqlErrorRenderer(밑줄) 재사용 가능 | **완료 (2026-08-06)** |
 | 실행/테스트 | 프로시저 선택 → 파라미터 입력 창 → 호출 + 결과/OUT 값 | BindVariableDialog 확장 | 미착수 |
 | 디버거(브레이크포인트) | PL/Edit 의 DBMS_DEBUG 디버거 | **비채택** — 비용 대비 사용 빈도 낮음, 후순위 | 비채택 |
@@ -134,7 +134,14 @@ ParseObjectHeader` 로 오브젝트 이름/타입을 뽑아 `QuerySession.
 GetOracleCompileErrorsAsync` 로 USER_ERRORS 를 조회하고, (LINE, POSITION) 을
 `ToSqlIssue` 로 에디터 오프셋에 매핑해 기존 `SqlErrorRenderer` 밑줄에 얹고 Messages
 pane 에도 적는다 — USER_ERRORS.POSITION 은 1-based(실서버로 직접 검증해 확인).
-남은 건 저장 프로시저 소스 편집·파라미터 실행 2가지.
+
+**저장 프로시저 소스 편집 완료 (2026-08-07)** — Database Explorer(Alt+1) 가 Oracle
+접속이면 스키마 아래에 프로시저/함수/패키지도 보여준다(`OracleErdCatalog.
+GetRoutinesAsync`, `all_objects` 조회). 더블클릭하면 `GetSourceAsync` 가
+`all_source` 를 읽어 `CREATE OR REPLACE …` 문으로 되돌려 새 탭에 연다 — 그대로
+실행하면 재컴파일된다. 오브젝트명을 대문자로 정규화하지 않아 소문자로 조회하면
+조용히 빈 소스가 나오던 버그를 실서버 검증 중 발견해 고쳤다(대소문자 구분 없는
+호출을 회귀 테스트로 고정). 남은 건 파라미터 입력 실행 창 하나.
 
 ### 3단계 — MongoDB
 
