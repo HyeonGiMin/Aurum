@@ -11,6 +11,7 @@
   <!-- Golden 6 "Database Login" 재현:
        위 Login 그룹(동적 헤더 Login: user@host/db, Database 는 host[:port]/db 콤보) + 오른쪽 버튼,
        아래 Login List 그룹(그리드) + New/Edit/Delete/Filter/Import,Export -->
+  <Panel>
   <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,118" Margin="14">
 
     <!-- Login 그룹 -->
@@ -54,7 +55,6 @@
     <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8" Margin="0,16,0,0">
       <Button Name="ConnectButton" Content="Login" Classes="accent" IsDefault="True" MinHeight="34" FontSize="13.5"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnConnect"/>
-      <ProgressBar Name="ConnectProgress" IsIndeterminate="True" IsVisible="False" Height="4"/>
       <Button Content="Close" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnCancel" IsCancel="True"/>
       <Button Content="Help" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
       <Button Content="Options…" MinHeight="32" FontSize="13" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" IsEnabled="False"/>
@@ -166,4 +166,11 @@
     </Grid>
 
   </Grid>
+
+  <!-- 접속 진행 표시 — 다이얼로그 맨 아래 변에 전체 폭으로 붙는다.
+       레이아웃 흐름 밖(오버레이)이라 나타나도 다른 컨트롤이 밀리지 않는다.
+       Fluent 기본 MinWidth(200) 때문에 좁은 곳에선 넘치므로 0 으로 푼다 -->
+  <ProgressBar Name="ConnectProgress" IsIndeterminate="True" IsVisible="False"
+               MinWidth="0" Height="4" VerticalAlignment="Bottom"/>
+  </Panel>
 </Window>
