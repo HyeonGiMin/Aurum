@@ -37,6 +37,11 @@ public sealed class PostgresProvider : IDbProvider
     /// <summary>PG 는 ctid 로 행을 특정한다 (Golden 이 Oracle ROWID 를 쓰던 자리).</summary>
     public string? RowIdColumn => "ctid";
 
+    public string? RowIdSelect(string qualifier) => $"{qualifier}.ctid::text";
+
+    /// <summary>ctid 는 행이 갱신되면 바뀐다 — 영향 행이 1 이 아니면 호출부가 되돌려야 한다.</summary>
+    public string RowIdPredicate(int oneBasedIndex) => $"ctid = ${oneBasedIndex}::tid";
+
     public string? BeginTransactionSql => "BEGIN";
 
     /// <summary>기존 동작 그대로 — SET SESSION CHARACTERISTICS (다음 트랜잭션부터 적용).</summary>

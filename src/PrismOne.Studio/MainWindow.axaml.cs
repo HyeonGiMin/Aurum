@@ -19,7 +19,7 @@ namespace PrismOne.Studio;
 /// <summary>오른쪽 스키마 패널의 오브젝트 목록 한 행.</summary>
 public sealed record ObjectRow(string Name, string Type, TableInfo Info);
 
-public enum ExplorerNodeKind { Schema, Table }
+public enum ExplorerNodeKind { Schema, Table, Routine }
 
 /// <summary>
 /// Database Explorer 트리의 한 줄. (XAML 컴파일 바인딩 대상이라 public)
@@ -34,6 +34,10 @@ public sealed record ExplorerNode(
 {
     /// <summary>이 노드가 속한 스키마 (Mongo 는 데이터베이스 이름). 테이블 노드에만 채운다.</summary>
     public string Schema { get; init; } = "";
+
+    /// <summary>Routine 노드에서만 채움 — PROCEDURE/FUNCTION/PACKAGE/PACKAGE BODY
+    /// (ALL_SOURCE.TYPE 값과 그대로 맞춘다, 더블클릭 시 소스 조회에 그대로 쓴다).</summary>
+    public string ObjectType { get; init; } = "";
 
     /// <summary>트리 아이콘. 스키마=원통, 테이블=표, 뷰=칸 적은 표.</summary>
     public Geometry? Icon { get; init; }
@@ -53,6 +57,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<TabItem> _tabs = [];
     private int _tabCounter;
     private List<TableInfo> _allTables = [];
+    /// <summary>Oracle 전용 — 프로시저/함수/패키지 (PL/Edit 4단계, Object Browser 표시용).</summary>
+    private List<OracleRoutine> _allRoutines = [];
     /// <summary>접속당 하나 — 테이블·컬럼을 한 번만 읽는다 (DataGrip introspection 캐시).</summary>
     private SchemaCache? _schemaCache;
     private AppOptions _options = AppOptions.Load();
@@ -454,40 +460,63 @@ public partial class MainWindow : Window
 
         var needle = ExplorerSearch.Text?.Trim() ?? "";
         var tables = _allTables.AsEnumerable();
+        var routines = _allRoutines.AsEnumerable();
         if (needle.Length > 0)
+        {
             tables = tables.Where(t => t.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+            routines = routines.Where(r => r.Name.Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var tableGroups = tables.GroupBy(t => t.Schema).ToDictionary(g => g.Key, g => g.ToList());
+        // PL/Edit 4단계 — Oracle 이면 스키마 밑에 프로시저/함수/패키지도 같이 넣는다
+        var routineGroups = routines.GroupBy(r => r.Owner).ToDictionary(g => g.Key, g => g.ToList());
+        var schemaKeys = tableGroups.Keys.Union(routineGroups.Keys, StringComparer.OrdinalIgnoreCase).ToList();
 
         // 스키마가 하나뿐이거나 검색 중이면 펼쳐서 보여준다 — 한 번 더 클릭하게 만들 이유가 없다
-        var groups = tables.GroupBy(t => t.Schema).ToList();
-        var expand = groups.Count == 1 || needle.Length > 0;
+        var expand = schemaKeys.Count == 1 || needle.Length > 0;
 
-        var nodes = groups
-            .AsEnumerable()
-            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new ExplorerNode(
-                g.Key, $"({g.Count()})", ExplorerNodeKind.Schema, "",
-                [.. g.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-                     .Select(t => new ExplorerNode(
-                         t.Name,
-                         t.IsView ? "view" : "",
-                         ExplorerNodeKind.Table,
-                         t.QualifiedName,
-                         [])
-                     {
-                         Schema = t.Schema,
-                         Icon = Icon(t.IsView ? "IconViewGrid" : "IconTableGrid"),
-                         IconBrush = Brush(t.IsView ? "ViewPurpleBrush" : "TableBlueBrush"),
-                     })])
+        var nodes = schemaKeys
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .Select(schema =>
             {
-                Icon = Icon("IconDatabase"),
-                IconBrush = Brush("DbGreenBrush"),
-                IsExpanded = expand,
+                tableGroups.TryGetValue(schema, out var schemaTables);
+                routineGroups.TryGetValue(schema, out var schemaRoutines);
+                var tableNodes = (schemaTables ?? [])
+                    .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                    .Select(t => new ExplorerNode(
+                        t.Name, t.IsView ? "view" : "", ExplorerNodeKind.Table, t.QualifiedName, [])
+                    {
+                        Schema = t.Schema,
+                        Icon = Icon(t.IsView ? "IconViewGrid" : "IconTableGrid"),
+                        IconBrush = Brush(t.IsView ? "ViewPurpleBrush" : "TableBlueBrush"),
+                    });
+                var routineNodes = (schemaRoutines ?? [])
+                    .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(r => r.ObjectType, StringComparer.OrdinalIgnoreCase)
+                    .Select(r => new ExplorerNode(
+                        r.Name, r.ObjectType.ToLowerInvariant(), ExplorerNodeKind.Routine, $"{r.Owner}.{r.Name}", [])
+                    {
+                        Schema = r.Owner,
+                        ObjectType = r.ObjectType,
+                        Icon = Icon("IconCode"),
+                        IconBrush = Brush("RoutineOrangeBrush"),
+                    });
+                var count = (schemaTables?.Count ?? 0) + (schemaRoutines?.Count ?? 0);
+                return new ExplorerNode(schema, $"({count})", ExplorerNodeKind.Schema, "",
+                    [.. tableNodes, .. routineNodes])
+                {
+                    Icon = Icon("IconDatabase"),
+                    IconBrush = Brush("DbGreenBrush"),
+                    IsExpanded = expand,
+                };
             })
             .ToList();
 
         ExplorerTree.ItemsSource = nodes;
         ExplorerHint.Text = nodes.Count == 0
-            ? (_allTables.Count == 0 ? "접속하면 스키마가 표시됩니다." : "검색과 일치하는 것이 없습니다.")
+            ? (_allTables.Count == 0 && _allRoutines.Count == 0
+                ? "접속하면 스키마가 표시됩니다."
+                : "검색과 일치하는 것이 없습니다.")
             : "더블클릭하면 조회 문장이 에디터에 들어갑니다.";
     }
 
@@ -501,10 +530,18 @@ public partial class MainWindow : Window
     /// <summary>
     /// 테이블/컬렉션을 더블클릭하면 조회 문장을 에디터에 넣는다.
     /// Mongo 는 SQL 이 아니므로 셸 구문으로 만든다 (Studio3T 에서 컬렉션을 여는 감각).
+    /// 프로시저/함수/패키지(Oracle) 는 소스를 새 탭에 연다 (PL/Edit 4단계).
     /// </summary>
-    private void OnExplorerDoubleTapped(object? sender, TappedEventArgs e)
+    private async void OnExplorerDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (ExplorerTree.SelectedItem is not ExplorerNode { Kind: ExplorerNodeKind.Table } node) return;
+        if (ExplorerTree.SelectedItem is not ExplorerNode node) return;
+
+        if (node.Kind == ExplorerNodeKind.Routine)
+        {
+            await OpenRoutineSourceAsync(node);
+            return;
+        }
+        if (node.Kind != ExplorerNodeKind.Table) return;
         if (ActiveView is not { } view) return;
 
         if (_profile?.Kind == DbKind.MongoDb)
@@ -516,6 +553,31 @@ public partial class MainWindow : Window
             return;
         }
         view.InsertAtCaret($"select * from {node.Qualified}");
+    }
+
+    /// <summary>PL/Edit 4단계 — 프로시저/함수/패키지 소스를 ALL_SOURCE 에서 읽어
+    /// CREATE OR REPLACE 문으로 새 탭에 연다. 그대로 실행하면 재컴파일된다.</summary>
+    private async Task OpenRoutineSourceAsync(ExplorerNode node)
+    {
+        if (_profile is not { Kind: DbKind.Oracle } profile) return;
+        if (profile.Provider.CreateErdCatalog(profile) is not OracleErdCatalog catalog) return;
+
+        StatusLabel.Text = $"Loading source for {node.Name}…";
+        try
+        {
+            var source = await catalog.GetSourceAsync(node.Schema, node.Name, node.ObjectType);
+            if (source.Length == 0)
+            {
+                StatusLabel.Text = $"{node.Name}: source not found";
+                return;
+            }
+            await NewTabAsync(profile, $"{node.Name} ({node.ObjectType.ToLowerInvariant()})", source);
+            StatusLabel.Text = "";
+        }
+        catch (Exception ex)
+        {
+            StatusLabel.Text = $"Load source failed: {ex.Message}";
+        }
     }
 
     /// <summary>탭줄 오른쪽 ▾ — Golden 의 탭 목록 드롭다운.</summary>
@@ -590,6 +652,20 @@ public partial class MainWindow : Window
         RebuildExplorer();
 
         var schemas = _allTables.Select(t => t.Schema).Distinct().OrderBy(s => s).ToList();
+
+        // PL/Edit 4단계 — Oracle 이면 프로시저/함수/패키지도 읽어 Explorer 에 얹는다.
+        // 실패해도(권한 부족 등) 테이블 탐색은 그대로 되어야 하므로 조용히 넘어간다.
+        _allRoutines = [];
+        if (profile.Kind == DbKind.Oracle && profile.Provider.CreateErdCatalog(profile) is OracleErdCatalog oracleCatalog)
+        {
+            try
+            {
+                _allRoutines = await oracleCatalog.GetRoutinesAsync(schemas);
+            }
+            catch { /* Object Browser 는 테이블만으로도 쓸 수 있어야 한다 */ }
+            RebuildExplorer();
+        }
+
         SchemaCombo.ItemsSource = schemas;
         var preferred = schemas.FirstOrDefault(s => s == _profile?.Database) ?? schemas.FirstOrDefault();
         SchemaCombo.SelectedItem = preferred;

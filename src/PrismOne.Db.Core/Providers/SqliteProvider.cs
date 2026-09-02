@@ -35,6 +35,11 @@ public sealed class SqliteProvider : IDbProvider
 
     public string? RowIdColumn => "rowid";
 
+    /// <summary>WITHOUT ROWID 테이블·뷰에는 rowid 가 없다 — 그 경우 실행 시 오류로 드러난다.</summary>
+    public string? RowIdSelect(string qualifier) => $"CAST({qualifier}.rowid AS TEXT)";
+
+    public string RowIdPredicate(int oneBasedIndex) => $"rowid = @p{oneBasedIndex}";
+
     public string? BeginTransactionSql => "BEGIN";
 
     /// <summary>세션 격리 수준 개념이 없다.</summary>

@@ -80,12 +80,15 @@
       <SolidColorBrush x:Key="DbGreenBrush">#4E9A51</SolidColorBrush>
       <SolidColorBrush x:Key="TableBlueBrush">#3E7CB1</SolidColorBrush>
       <SolidColorBrush x:Key="ViewPurpleBrush">#8A63B8</SolidColorBrush>
+      <SolidColorBrush x:Key="RoutineOrangeBrush">#C97A2B</SolidColorBrush>
       <!-- 원통(데이터베이스): 위 타원 + 옆면 -->
       <StreamGeometry x:Key="IconDatabase">M4,6 a8,3 0 1 0 16,0 a8,3 0 1 0 -16,0 Z M4,6 L4,18 a8,3 0 0 0 16,0 L20,6</StreamGeometry>
       <!-- 표(컬렉션/테이블): 사각형 + 머리줄 + 세로 칸 -->
       <StreamGeometry x:Key="IconTableGrid">M3,5 L21,5 L21,19 L3,19 Z M3,9 L21,9 M9,9 L9,19 M15,9 L15,19</StreamGeometry>
       <!-- 뷰: 표와 같되 칸을 덜 나눠 "파생"을 나타낸다 -->
       <StreamGeometry x:Key="IconViewGrid">M3,5 L21,5 L21,19 L3,19 Z M3,9 L21,9 M12,9 L12,19</StreamGeometry>
+      <!-- 프로시저/함수/패키지: 코드 꺾쇠(<>) — Oracle PL/Edit 파리티 -->
+      <StreamGeometry x:Key="IconCode">M8,6 L3,12 L8,18 M16,6 L21,12 L16,18</StreamGeometry>
 
       <StreamGeometry x:Key="IconBolt">M13,2 L5,13 L10,13 L9,22 L18,9 L12.5,9 Z</StreamGeometry>
       <StreamGeometry x:Key="IconFolder">M3,6 L9,6 L11,8 L21,8 L21,19 L3,19 Z</StreamGeometry>

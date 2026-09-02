@@ -124,9 +124,11 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
    (xlsx 는 외부 라이브러리 없이 OOXML 직접 생성 — xls(구형 바이너리)는 xlsx 로 대체)
 8. ~~Output 창 (RAISE NOTICE)~~ ✅ 구현됨 (Messages pane)
 9. 워크스페이스 저장/복원 (P5)
-10. ~~EditMode(그리드 편집)~~ ✅ 구현됨 — Run and Edit(F11). Golden 이 Oracle ROWID 로 행을
-    특정하던 것을 PG 에선 `ctid` 로 대응. Submit(Ctrl+Shift+S) 시 한 트랜잭션,
-    영향 행 ≠ 1 이면 전체 롤백. 붙여넣기 다중 insert(Paste Rows)도 구현됨
+10. ~~EditMode(그리드 편집)~~ ✅ 구현됨 — Run and Edit(Ctrl+E/F11). 행 특정은 DB 별 의사
+    컬럼(Oracle `ROWID` — Golden 원조 방식, PG `ctid`, SQLite `rowid`)을 provider 가 정한다
+    (2026-09-02 Oracle/SQLite 확장). Submit(Ctrl+Shift+S) 시 한 트랜잭션,
+    영향 행 ≠ 1 이면 전체 롤백. 붙여넣기 다중 insert(Paste Rows)도 구현됨.
+    Oracle 은 날짜 셀을 문자열로 바인딩하므로 세션에 NLS 형식(YYYY-MM-DD HH24:MI:SS)을 건다
 
 **시작 시 로그온 창**: Golden 은 실행하면 메인 창 위로 로그온 창을 곧바로 띄운다
 (2026-08-03 실제 동작 확인 — 그전 기록이던 "메인 창만 먼저"는 정정). 우리도 동일하게

@@ -1,11 +1,12 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using PrismOne.Db.Core.Providers;
 
 namespace PrismOne.Db.Core;
 
 /// <summary>편집 모드로 다시 실행할 수 있는 쿼리 (Golden 의 Run and Edit).</summary>
 /// <param name="Table">UPDATE/DELETE/INSERT 대상 — 원문에 적힌 그대로 (스키마 포함 가능).</param>
-/// <param name="Sql">행 식별자(ctid)를 첫 컬럼으로 덧붙인 SELECT.</param>
+/// <param name="Sql">행 식별자(ctid/ROWID/rowid)를 첫 컬럼으로 덧붙인 SELECT.</param>
 public sealed record EditableQuery(string Table, string Sql);
 
 /// <summary>변경 한 건. Golden EditMode 의 update / delete / insert 에 대응.</summary>
@@ -22,20 +23,21 @@ public sealed record EditStatement(string Sql, IReadOnlyList<string?> Parameters
 /// <summary>
 /// Golden 의 Run and Edit — 결과 그리드를 직접 고쳐 UPDATE/DELETE/INSERT 를 만든다.
 ///
-/// 행 식별은 Golden(Oracle)이 ROWID 를 쓰던 것과 같은 방식으로 PG 의 <c>ctid</c> 를 쓴다.
+/// 행 식별은 Golden(Oracle)이 ROWID 를 쓰던 방식 그대로 — DB 별 의사 컬럼
+/// (Oracle ROWID, PG ctid, SQLite rowid)을 <see cref="IDbProvider"/> 가 정한다.
 /// ctid 는 행이 갱신되면 바뀌므로, 실행부는 영향 행 수가 1 이 아니면 되돌려야 한다.
 /// </summary>
 public static class GridEditor
 {
     /// <summary>편집 모드 SELECT 가 덧붙이는 행 식별자 컬럼 이름 (그리드에는 숨긴다).</summary>
-    public const string RowIdColumn = "__iap_ctid";
+    public const string RowIdColumn = "__iap_rowid";
 
     private static readonly Regex SelectHead = new(
         @"^\s*select\s+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>편집 불가 조건 — 집계·중복제거·조인·집합연산이 섞이면 원본 행을 특정할 수 없다.</summary>
+    /// <summary>편집 불가 조건 — 집계·중복제거·조인·집합연산·계층질의가 섞이면 원본 행을 특정할 수 없다.</summary>
     private static readonly Regex NotEditable = new(
-        @"\b(distinct|join|group\s+by|having|union|intersect|except|with)\b",
+        @"\b(distinct|join|group\s+by|having|union|intersect|except|minus|connect\s+by|with)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>FROM 절의 테이블 하나 + 뒤따르는 나머지.</summary>
@@ -53,10 +55,13 @@ public static class GridEditor
         "union", "intersect", "except", "join", "inner", "left", "right", "full", "cross", "on", "using",
     };
 
-    /// <summary>단일 테이블 SELECT 면 ctid 를 붙인 SELECT 를 돌려준다. 편집할 수 없으면 null.</summary>
-    public static EditableQuery? Prepare(string sql)
+    /// <summary>단일 테이블 SELECT 면 행 식별자를 붙인 SELECT 를 돌려준다. 편집할 수 없으면 null.</summary>
+    public static EditableQuery? Prepare(string sql, IDbProvider provider)
     {
-        var statements = StatementSplitter.Split(sql);
+        if (!provider.Capabilities.GridEditing)
+            return null;
+
+        var statements = StatementSplitter.Split(sql, provider.Kind == DbKind.Oracle);
         if (statements.Count != 1)
             return null;
 
@@ -82,11 +87,19 @@ public static class GridEditor
                 qualifier = name;
         }
 
+        if (provider.RowIdSelect(qualifier) is not { } rowId)
+            return null;
+
         var head = SelectHead.Match(text);
+        var tail = text[head.Length..];
+        // Oracle 은 다른 select 항목과 나란한 비한정 * 를 거부한다 (ORA-00936) —
+        // 한정한 별표(t.*)는 세 DB 모두 유효하므로 항상 한정해 준다
+        if (tail.StartsWith('*'))
+            tail = $"{qualifier}.{tail}";
         var edited = string.Concat(
             text[..head.Length],
-            $"{qualifier}.ctid::text as \"{RowIdColumn}\", ",
-            text[head.Length..]);
+            $"{rowId} as \"{RowIdColumn}\", ",
+            tail);
         return new EditableQuery(table, edited);
     }
 
@@ -135,20 +148,20 @@ public static class GridEditor
     }
 
     /// <summary>변경 목록을 실행 순서(수정 → 삭제 → 삽입)대로 문장으로 만든다.</summary>
-    public static List<EditStatement> Build(string table, IEnumerable<GridChange> changes)
+    public static List<EditStatement> Build(string table, IEnumerable<GridChange> changes, IDbProvider provider)
     {
         var ordered = changes.ToList();
         var statements = new List<EditStatement>();
         foreach (var change in ordered.OfType<GridChange.Update>())
-            statements.Add(BuildUpdate(table, change));
+            statements.Add(BuildUpdate(table, change, provider));
         foreach (var change in ordered.OfType<GridChange.Delete>())
-            statements.Add(BuildDelete(table, change));
+            statements.Add(BuildDelete(table, change, provider));
         foreach (var change in ordered.OfType<GridChange.Insert>())
-            statements.Add(BuildInsert(table, change));
+            statements.Add(BuildInsert(table, change, provider));
         return statements;
     }
 
-    private static EditStatement BuildUpdate(string table, GridChange.Update change)
+    private static EditStatement BuildUpdate(string table, GridChange.Update change, IDbProvider provider)
     {
         if (change.Cells.Count == 0)
             throw new ArgumentException("수정된 셀이 없습니다.", nameof(change));
@@ -158,24 +171,24 @@ public static class GridEditor
         for (var i = 0; i < change.Cells.Count; i++)
         {
             if (i > 0) sql.Append(", ");
-            sql.Append($"{Quote(change.Cells[i].Column)} = ${values.Count + 1}");
+            sql.Append($"{Quote(change.Cells[i].Column)} = {provider.ParameterPlaceholder(values.Count + 1)}");
             values.Add(change.Cells[i].Value);
         }
-        sql.Append($" WHERE ctid = ${values.Count + 1}::tid");
+        sql.Append($" WHERE {provider.RowIdPredicate(values.Count + 1)}");
         values.Add(change.RowId);
         return new EditStatement(sql.ToString(), values);
     }
 
-    private static EditStatement BuildDelete(string table, GridChange.Delete change) =>
-        new($"DELETE FROM {table} WHERE ctid = $1::tid", [change.RowId]);
+    private static EditStatement BuildDelete(string table, GridChange.Delete change, IDbProvider provider) =>
+        new($"DELETE FROM {table} WHERE {provider.RowIdPredicate(1)}", [change.RowId]);
 
-    private static EditStatement BuildInsert(string table, GridChange.Insert change)
+    private static EditStatement BuildInsert(string table, GridChange.Insert change, IDbProvider provider)
     {
         if (change.Cells.Count == 0)
             throw new ArgumentException("입력된 값이 없습니다.", nameof(change));
 
         var columns = string.Join(", ", change.Cells.Select(c => Quote(c.Column)));
-        var placeholders = string.Join(", ", change.Cells.Select((_, i) => $"${i + 1}"));
+        var placeholders = string.Join(", ", change.Cells.Select((_, i) => provider.ParameterPlaceholder(i + 1)));
         return new EditStatement(
             $"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
             change.Cells.Select(c => c.Value).ToList());

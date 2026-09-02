@@ -40,6 +40,11 @@ public sealed class OracleProvider : IDbProvider
 
     public string? RowIdColumn => "ROWID";
 
+    /// <summary>Golden 원조 방식 그대로 — ROWID 를 문자열로 내려받아 행을 특정한다.</summary>
+    public string? RowIdSelect(string qualifier) => $"ROWIDTOCHAR({qualifier}.ROWID)";
+
+    public string RowIdPredicate(int oneBasedIndex) => $"ROWID = CHARTOROWID(:p{oneBasedIndex})";
+
     /// <summary>Oracle 은 DML 이 암시적으로 트랜잭션을 연다. BEGIN 은 PL/SQL 블록이라 보내면 안 된다.</summary>
     public string? BeginTransactionSql => null;
 

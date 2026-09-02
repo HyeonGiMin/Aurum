@@ -142,6 +142,24 @@ public sealed class QuerySession : IAsyncDisposable
         var cmd = conn.CreateCommand();
         cmd.CommandText = "begin dbms_output.enable(1000000); end;";
         await cmd.ExecuteNonQueryAsync(ct);
+
+        // 그리드 편집(Run and Edit)은 날짜도 문자열로 바인딩해 서버가 암시 변환한다 —
+        // 표시 형식(yyyy-MM-dd HH:mm:ss.FFF)과 같은 NLS 형식을 걸어야 통한다
+        // (기본 DD-MON-RR 로는 ORA-01861). 뒤쪽 요소는 생략해도 Oracle 이 받아준다.
+        // DBMS_OUTPUT 과 별개 문장으로 보내고 실패는 삼킨다 — NLS 를 못 거는 환경에서
+        // 조회·실행·Output 까지 같이 죽이지 않기 위해서다 (날짜 셀 편집만 제약된다).
+        try
+        {
+            cmd.CommandText = """
+                begin
+                  execute immediate 'alter session set nls_date_format=''YYYY-MM-DD HH24:MI:SS''';
+                  execute immediate 'alter session set nls_timestamp_format=''YYYY-MM-DD HH24:MI:SS.FF3''';
+                  execute immediate 'alter session set nls_timestamp_tz_format=''YYYY-MM-DD HH24:MI:SS.FF3TZH:TZM''';
+                end;
+                """;
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        catch (OracleException) { /* 위 주석 참조 — 편집 외 경로는 정상 동작해야 한다 */ }
     }
 
     /// <summary>

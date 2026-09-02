@@ -32,6 +32,11 @@ public sealed class MongoProvider : IDbProvider
     /// <summary>행 특정용 의사 컬럼이 없다 (편집을 켜면 <c>_id</c> 를 써야 한다 — 아직 미지원).</summary>
     public string? RowIdColumn => null;
 
+    public string? RowIdSelect(string qualifier) => null;
+
+    public string RowIdPredicate(int oneBasedIndex) =>
+        throw new NotSupportedException("MongoDB 는 그리드 편집을 지원하지 않습니다.");
+
     public string? BeginTransactionSql => null;
 
     public string? SessionIsolationSql(TransactionIsolation level) => null;

@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -674,20 +675,26 @@ public partial class QueryTabView : UserControl
     public int SelectedRowCount => ResultGrid.SelectedItems.OfType<RowItem>().Count();
 
     /// <summary>
-    /// Golden 의 Run and Edit — 커서 문장(또는 선택 영역)을 ctid 를 붙여 다시 실행하고
-    /// 결과 그리드를 편집 가능한 상태로 만든다. 단일 테이블 SELECT 만 가능.
+    /// Golden 의 Run and Edit — 커서 문장(또는 선택 영역)을 행 식별자(ctid/ROWID/rowid)를
+    /// 붙여 다시 실행하고 결과 그리드를 편집 가능한 상태로 만든다. 단일 테이블 SELECT 만 가능.
     /// </summary>
     public async Task<bool> RunAndEditAsync()
     {
-        var sql = StatementForFavorite();
-        if (GridEditor.Prepare(sql) is not { } prepared)
-        {
-            SetInfo("Run and Edit: 단일 테이블 SELECT 만 편집할 수 있습니다 (조인·집계·DISTINCT 불가)");
-            return false;
-        }
         if (_session is null)
         {
             SetInfo("Not connected");
+            return false;
+        }
+        var provider = _session.Profile.Provider;
+        if (!provider.Capabilities.GridEditing)
+        {
+            SetInfo($"Run and Edit: {provider.DisplayName} 는 그리드 편집을 지원하지 않습니다");
+            return false;
+        }
+        var sql = StatementForFavorite();
+        if (GridEditor.Prepare(sql, provider) is not { } prepared)
+        {
+            SetInfo("Run and Edit: 단일 테이블 SELECT 만 편집할 수 있습니다 (조인·집계·DISTINCT 불가)");
             return false;
         }
         _editSource = prepared;
@@ -704,6 +711,7 @@ public partial class QueryTabView : UserControl
         _editSource = null;
         _deletedRows.Clear();
         ResultGrid.IsReadOnly = true;
+        EditBar.IsVisible = false;
     }
 
     /// <summary>선택한 행들을 삭제 표시하고 그리드에서 감춘다. 실제 DELETE 는 Submit 때.</summary>
@@ -783,8 +791,13 @@ public partial class QueryTabView : UserControl
     /// 변경분을 한 트랜잭션으로 반영한다. 영향 행이 1 이 아니면(다른 세션이 먼저 고쳤거나
     /// ctid 가 바뀐 경우) 전부 롤백한다.
     /// </summary>
-    public async Task SubmitEditsAsync()
+    public Task SubmitEditsAsync() => SubmitEditsAsync(forceCommit: false);
+
+    /// <param name="forceCommit">true 면 수동 커밋 모드여도 제출 직후 COMMIT (편집 바의 ✓).</param>
+    public async Task SubmitEditsAsync(bool forceCommit)
     {
+        // 셀 편집 중이던 값이 있으면 먼저 확정한다 — 편집 바 클릭은 포커스를 옮기지 않는다
+        ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
         if (_editSource is not { } source)
         {
             SetInfo("편집 모드가 아닙니다 (Run and Edit)");
@@ -805,12 +818,19 @@ public partial class QueryTabView : UserControl
         List<EditStatement> statements;
         try
         {
-            statements = GridEditor.Build(source.Table, changes);
+            statements = GridEditor.Build(source.Table, changes, _session.Profile.Provider);
         }
         catch (ArgumentException ex)
         {
             SetInfo($"EditMode: {ex.Message}");
             return;
+        }
+
+        // 점진 fetch 가 reader 를 물고 있으면 BEGIN/UPDATE 를 보낼 수 없다 — 먼저 닫는다
+        if (_current is { Completed: false })
+        {
+            await _current.AbortAsync();
+            _current = null;
         }
 
         var applied = 0;
@@ -837,13 +857,108 @@ public partial class QueryTabView : UserControl
             return;
         }
 
-        if (AutoCommit)
+        if (AutoCommit || forceCommit)
             await _session.CommitAsync();
 
-        var pending = AutoCommit ? "" : " — Commit 필요";
+        var pending = AutoCommit || forceCommit ? "" : " — Commit 필요";
         await RevertEditsAsync();   // ctid 가 바뀌었을 수 있으니 다시 읽는다
         SetInfo($"EditMode: {applied} change(s) submitted{pending}");
     }
+
+    /// <summary>
+    /// 편집 바의 ✓ — 변경분을 제출하고 즉시 COMMIT 한다. 그리드 변경은 없지만
+    /// 앞서 제출만 해 둔(커밋 대기) 트랜잭션이 있으면 그것만 확정한다.
+    /// </summary>
+    public async Task CommitEditsAsync()
+    {
+        if (_session is null)
+        {
+            SetInfo("Not connected");
+            return;
+        }
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        // 점진 fetch 가 reader 를 물고 있으면 COMMIT 을 보낼 수 없다 — 먼저 닫는다
+        if (_current is { Completed: false })
+        {
+            await _current.AbortAsync();
+            _current = null;
+        }
+        ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        if (CollectChanges().Count > 0)
+        {
+            await SubmitEditsAsync(forceCommit: true);
+            return;
+        }
+        if (_session.InTransaction)
+        {
+            try { await _session.CommitAsync(); }
+            catch (Exception ex) { SetInfo($"Commit 실패: {ex.Message}"); return; }
+            SetInfo("EditMode: committed");
+        }
+        else
+        {
+            SetInfo("EditMode: 변경된 내용이 없습니다");
+        }
+    }
+
+    /// <summary>
+    /// 편집 바의 ✗ — 미제출 변경은 버리고, 제출됐지만 커밋 전인 것은 ROLLBACK 한 뒤
+    /// 원래 쿼리를 다시 읽어 그리드를 되돌린다.
+    /// </summary>
+    public async Task RollbackEditsAsync()
+    {
+        if (_session is null)
+            return;
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        // 점진 fetch 가 reader 를 물고 있으면 ROLLBACK 을 보낼 수 없다 — 먼저 닫는다
+        if (_current is { Completed: false })
+        {
+            await _current.AbortAsync();
+            _current = null;
+        }
+        if (_session.InTransaction)
+        {
+            try { await _session.RollbackAsync(); }
+            catch (Exception ex) { SetInfo($"Rollback 실패: {ex.Message}"); return; }
+        }
+        await RevertEditsAsync();
+        SetInfo($"EditMode: rolled back — {EditTable}");
+    }
+
+    // ---------- EditBar (Golden 의 DBNavigator 줄) ----------
+
+    /// <summary>행 이동. int.MinValue = 처음, int.MaxValue = 끝.</summary>
+    private void NavigateRow(int delta)
+    {
+        if (_rows.Count == 0)
+            return;
+        var next = delta switch
+        {
+            int.MinValue => 0,
+            int.MaxValue => _rows.Count - 1,
+            _ => Math.Clamp(ResultGrid.SelectedIndex + delta, 0, _rows.Count - 1),
+        };
+        ResultGrid.SelectedIndex = next;
+        ResultGrid.ScrollIntoView(_rows[next], null);
+    }
+
+    private void OnEditNavFirst(object? sender, RoutedEventArgs e) => NavigateRow(int.MinValue);
+    private void OnEditNavPrev(object? sender, RoutedEventArgs e) => NavigateRow(-1);
+    private void OnEditNavNext(object? sender, RoutedEventArgs e) => NavigateRow(+1);
+    private void OnEditNavLast(object? sender, RoutedEventArgs e) => NavigateRow(int.MaxValue);
+    private void OnEditAddRow(object? sender, RoutedEventArgs e) => AddInsertRow();
+    private async void OnEditPasteRows(object? sender, RoutedEventArgs e) => await PasteRowsAsync();
+    private void OnEditDeleteRows(object? sender, RoutedEventArgs e) => MarkSelectedRowsDeleted();
+    private async void OnEditCommit(object? sender, RoutedEventArgs e) => await CommitEditsAsync();
+    private async void OnEditRollback(object? sender, RoutedEventArgs e) => await RollbackEditsAsync();
 
     /// <summary>그리드 상태에서 UPDATE/DELETE/INSERT 목록을 만든다. 빈 문자열은 NULL 로 본다.</summary>
     private List<GridChange> CollectChanges()
@@ -2063,6 +2178,10 @@ public partial class QueryTabView : UserControl
         // 전치 상태는 행/열이 뒤바뀌어 의미가 없고, 편집 모드는 행 순서가 흔들리면 혼란스럽다.
         ResultGrid.CanUserSortColumns = !_transposed && !IsEditing;
         ResultGrid.IsReadOnly = !IsEditing;
+        // Golden EditMode 상단 바 — 편집 중에만 보이고 대상 테이블을 알려준다
+        EditBar.IsVisible = IsEditing;
+        if (IsEditing)
+            EditBarLabel.Text = $"Editing: {EditTable}";
         SetGridSource(_rows);
         if (columns.Count > 0)
             Dispatcher.UIThread.Post(HookScrollBar, DispatcherPriority.Loaded);

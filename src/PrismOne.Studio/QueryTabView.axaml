@@ -17,7 +17,84 @@
 
     <GridSplitter Grid.Row="1" Background="{DynamicResource ChromeBorderBrush}" ResizeDirection="Rows"/>
 
-    <Panel Grid.Row="2">
+    <Grid Grid.Row="2" RowDefinitions="Auto,*">
+
+    <!-- Golden EditMode 상단 바 (DBNavigator) — Run and Edit(Ctrl+E) 중에만 보인다 -->
+    <Border Grid.Row="0" Name="EditBar" IsVisible="False" Padding="6,3"
+            Background="{DynamicResource ChromeBgBrush}"
+            BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Classes="tool" Click="OnEditNavFirst" ToolTip.Tip="First record">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M13,5 L6,12 L13,19 M20,5 L13,12 L20,19" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditNavPrev" ToolTip.Tip="Prior record">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconChevronLeft}" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditNavNext" ToolTip.Tip="Next record">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconChevronRight}" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditNavLast" ToolTip.Tip="Last record">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M4,5 L11,12 L4,19 M11,5 L18,12 L11,19" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.6" StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
+
+        <Button Classes="tool" Click="OnEditAddRow" ToolTip.Tip="Insert record — 새 행 추가 (Submit 때 INSERT)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M9.7,4 L14.3,4 L14.3,9.7 L20,9.7 L20,14.3 L14.3,14.3 L14.3,20 L9.7,20 L9.7,14.3 L4,14.3 L4,9.7 L9.7,9.7 Z"
+                  Fill="{DynamicResource ExportGreenBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditPasteRows" ToolTip.Tip="Paste records — 클립보드(탭 구분/엑셀) 행 삽입">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="{StaticResource IconPasteBoard}" Fill="{StaticResource PasteTanBrush}" Stroke="#8A6D3B" StrokeThickness="1"/>
+            <Path Data="{StaticResource IconPasteClip}" Fill="{DynamicResource IconGrayBrush}"/>
+            <Path Data="{StaticResource IconPastePaper}" Fill="White"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
+
+        <Button Classes="tool" Click="OnEditDeleteRows" ToolTip.Tip="Delete record(s) — 선택 행 삭제 표시 (Submit 때 DELETE)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M4,9.7 L20,9.7 L20,14.3 L4,14.3 Z" Fill="{DynamicResource CancelRedBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
+
+        <Button Classes="tool" Click="OnEditCommit" ToolTip.Tip="Commit — 변경분을 제출하고 확정 (수동 커밋 모드여도 COMMIT)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M4,13 L10,19 L20,5" Stroke="{DynamicResource ExportGreenBrush}" StrokeThickness="3.2"
+                  StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditRollback" ToolTip.Tip="Rollback — 변경 취소 (커밋 전 제출분은 ROLLBACK, 그리드는 다시 조회)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="3.2"
+                  StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+
+        <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
+
+        <TextBlock Name="EditBarLabel" VerticalAlignment="Center" FontSize="12" Margin="4,0,0,0"/>
+      </StackPanel>
+    </Border>
+
+    <Panel Grid.Row="1">
       <DataGrid Name="ResultGrid"
                 IsReadOnly="True"
                 SelectionMode="Extended"
@@ -65,6 +142,8 @@
                              Foreground="{DynamicResource ErrorRedBrush}"/>
       </ScrollViewer>
     </Panel>
+
+    </Grid>
 
     <!-- 서버 메시지 (RAISE NOTICE/WARNING — pgAdmin Messages 탭, Golden output 창 대응) -->
     <Border Grid.Row="3" Name="MessagesPane" IsVisible="False"
