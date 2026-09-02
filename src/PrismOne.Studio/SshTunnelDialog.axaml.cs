@@ -105,7 +105,7 @@ public partial class SshTunnelDialog : Window
         SavePasswordBox.IsVisible = mode is SshAuthMode.Password or SshAuthMode.PrivateKey;
 
         HostLabel.Text = fromConfig ? "Host alias:" : "SSH host:";
-        HostBox.Watermark = fromConfig ? "prod-db (~/.ssh/config 의 Host)" : "jump.example.com";
+        HostBox.PlaceholderText = fromConfig ? "prod-db (~/.ssh/config 의 Host)" : "jump.example.com";
         KeyLabel.Text = fromConfig ? "Key (덮어쓰기):" : "Private key:";
 
         UpdateAuthHint();
@@ -119,9 +119,9 @@ public partial class SshTunnelDialog : Window
     {
         string? hint = SelectedAuth switch
         {
-            SshAuthMode.Agent => SshAgent.IsAvailable
-                ? "ssh-agent 의 키로 인증합니다. 비밀은 저장하지 않습니다."
-                : "⚠ " + SshAgent.UnavailableReason,
+            SshAuthMode.Agent => AgentKeys.TryLoad() is { } agent
+                ? $"{agent.Describe} — 이 키들로 인증합니다. 비밀은 저장하지 않습니다."
+                : "⚠ 쓸 수 있는 키 에이전트가 없습니다 (ssh-agent / Pageant). ssh-add 로 키를 넣으세요.",
 
             SshAuthMode.OpenSshConfig when !SshConfig.Exists =>
                 $"⚠ {SshConfig.FilePath} 가 없습니다.",

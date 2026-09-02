@@ -302,16 +302,8 @@ internal sealed class SshTunnel : IDisposable
     }
 
     /// <summary>agent 가 든 신원 전부를 한 번에 올린다 — 서버가 받아주는 키로 붙는다.</summary>
-    private static AuthenticationMethod AgentMethod(string username)
-    {
-        var identities = SshAgent.LoadIdentities();
-        if (identities.Count == 0)
-            throw new SshTunnelException(
-                SshAgent.IsAvailable
-                    ? "ssh-agent 에 키가 들어 있지 않습니다. ssh-add 로 키를 넣으세요."
-                    : SshAgent.UnavailableReason);
-        return new PrivateKeyAuthenticationMethod(username, new AgentKeySource(identities));
-    }
+    private static AuthenticationMethod AgentMethod(string username) =>
+        new PrivateKeyAuthenticationMethod(username, [.. AgentKeys.Load().Keys]);
 
     /// <summary>OpenSSH config 모드 — 설정이 짚은 키와 agent 를 함께 시도한다.</summary>
     private static AuthenticationMethod[] ConfigMethods(string username, SshOptions ssh)
@@ -326,14 +318,13 @@ internal sealed class SshTunnel : IDisposable
             catch (SshTunnelException) { /* 아래 agent 로 넘어간다 */ }
         }
 
-        var identities = SshAgent.LoadIdentities();
-        if (identities.Count > 0)
-            methods.Add(new PrivateKeyAuthenticationMethod(username, new AgentKeySource(identities)));
+        if (AgentKeys.TryLoad() is { } agent)
+            methods.Add(new PrivateKeyAuthenticationMethod(username, [.. agent.Keys]));
 
         if (methods.Count == 0)
             throw new SshTunnelException(
                 $"{ssh.Host} 로 인증할 방법을 찾지 못했습니다 — ~/.ssh/config 의 IdentityFile 을 "
-                + $"읽을 수 없고 ssh-agent 에도 키가 없습니다. ({SshAgent.UnavailableReason})");
+                + "읽을 수 없고 키 에이전트도 쓸 수 없습니다.");
         return [.. methods];
     }
 

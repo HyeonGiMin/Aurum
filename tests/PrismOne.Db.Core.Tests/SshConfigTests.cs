@@ -328,3 +328,43 @@ public class SshHopsTests : IDisposable
         Assert.False((Base with { AuthMode = SshAuthMode.OpenSshConfig }).UsesStoredSecret);
     }
 }
+
+/// <summary>
+/// 키 에이전트 어댑터. agent 가 떠 있는지는 환경마다 달라서(CI 에는 없다) 동작 자체는
+/// 고정할 수 없다 — 대신 <b>어느 쪽으로 끝나든 호출부가 감당할 수 있는 형태</b>인지를 본다.
+/// </summary>
+public class AgentKeysTests
+{
+    /// <summary>
+    /// 실패하더라도 소켓·파이프 예외가 그대로 새어 나오면 안 된다 —
+    /// 호출부는 SshTunnelException 만 잡아 사용자에게 보여준다.
+    /// </summary>
+    [Fact]
+    public void Load_EitherReturnsIdentitiesOrThrowsATunnelException()
+    {
+        try
+        {
+            var identities = AgentKeys.Load();
+            // agent 가 있는 개발 장비 — 키가 있어야만 성공으로 돌아온다.
+            Assert.NotEmpty(identities.Keys);
+            Assert.False(string.IsNullOrWhiteSpace(identities.Transport));
+        }
+        catch (SshTunnelException ex)
+        {
+            // agent 가 없는 환경(CI) — 다음에 뭘 하라는 안내가 들어 있어야 한다.
+            Assert.Contains("ssh-add", ex.Message);
+        }
+    }
+
+    /// <summary>TryLoad 는 던지지 않는다 (설정 창이 매 입력마다 부른다).</summary>
+    [Fact]
+    public void TryLoad_NeverThrows()
+    {
+        var identities = AgentKeys.TryLoad();
+        if (identities is not null) Assert.NotEmpty(identities.Keys);
+    }
+
+    [Fact]
+    public void Describe_NamesTheTransportAndCount() =>
+        Assert.Equal("ssh-agent — 키 0개", new AgentIdentities([], "ssh-agent").Describe);
+}

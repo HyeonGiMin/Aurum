@@ -20,7 +20,7 @@
       </Grid.Styles>
 
       <TextBlock Grid.Row="0" Grid.Column="0" Name="HostLabel" Text="SSH host:"/>
-      <AutoCompleteBox Grid.Row="0" Grid.Column="1" Name="HostBox" Watermark="jump.example.com"
+      <AutoCompleteBox Grid.Row="0" Grid.Column="1" Name="HostBox" PlaceholderText="jump.example.com"
                        MinHeight="30" FontSize="13" Margin="0,4"
                        FilterMode="ContainsOrdinal" MinimumPrefixLength="0"/>
 
