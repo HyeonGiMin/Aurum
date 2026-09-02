@@ -36,6 +36,10 @@ public partial class App : Application
             ? "Dark"
             : PrismOne.Db.Core.AppOptions.Load().Theme);
 
+        // SSH 호스트 키 물음을 GUI 에 연결한다. 이걸 안 걸면 코어는 처음 보는 키를
+        // **거부**한다 (조용히 신뢰하지 않는다) — 물어볼 창이 여기 있다는 걸 알려주는 것.
+        PrismOne.Db.Core.Ssh.SshTunnelPool.HostKeyPrompt = HostKeyDialog.Prompt;
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow();

@@ -154,7 +154,7 @@ public static class ConnectionStore
             prior?.Category,
             prior?.Comment,
             profile.Kind,
-            savePassword ? profile.Ssh : profile.Ssh?.WithoutSecrets()));
+            profile.Ssh));
         if (list.Count > MaxEntries)
             list.RemoveRange(MaxEntries, list.Count - MaxEntries);
         Save(list);
@@ -186,12 +186,21 @@ public static class ConnectionStore
         return list;
     }
 
-    /// <summary>SSH 비밀번호·passphrase 도 DB 비밀번호와 똑같이 암호화해서 남긴다.</summary>
-    private static SshOptions? ProtectSsh(SshOptions? ssh) => ssh is null ? null : ssh with
+    /// <summary>
+    /// SSH 비밀번호·passphrase 도 DB 비밀번호와 똑같이 암호화해서 남긴다.
+    /// 단 <see cref="SshOptions.SavePassword"/> 를 껐으면 <b>암호화해서도 남기지 않는다</b> —
+    /// 그 선택의 뜻은 "디스크에 두지 마라" 이지 "잘 숨겨라" 가 아니다.
+    /// </summary>
+    private static SshOptions? ProtectSsh(SshOptions? ssh)
     {
-        Password = ssh.Password is null ? null : PasswordCipher.Protect(ssh.Password),
-        Passphrase = ssh.Passphrase is null ? null : PasswordCipher.Protect(ssh.Passphrase),
-    };
+        if (ssh is null) return null;
+        if (!ssh.SavePassword) return ssh.WithoutSecrets();
+        return ssh with
+        {
+            Password = ssh.Password is null ? null : PasswordCipher.Protect(ssh.Password),
+            Passphrase = ssh.Passphrase is null ? null : PasswordCipher.Protect(ssh.Passphrase),
+        };
+    }
 
     private static SshOptions? UnprotectSsh(SshOptions? ssh) => ssh is null ? null : ssh with
     {

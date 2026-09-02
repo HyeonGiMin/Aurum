@@ -63,14 +63,25 @@ internal sealed class SshTunnel : IDisposable
     /// </summary>
     public static async Task<SshTunnel> ConnectAsync(
         SshOptions ssh, string remoteHost, int remotePort,
-        TimeSpan timeout, CancellationToken ct = default)
+        TimeSpan timeout, HostKeyPromptHandler? hostKeyPrompt, CancellationToken ct = default)
     {
         if (ssh.Validate() is { } invalid)
             throw new SshTunnelException(invalid);
 
         var client = new SshClient(BuildConnectionInfo(ssh, timeout));
+        // 키를 거부한 이유. SSH.NET 은 CanTrust=false 를 "Key exchange negotiation failed"
+        // 라는 엉뚱한 메시지로만 알려주므로, 진짜 이유를 여기 담아 두고 아래에서 바꿔 던진다.
+        string? rejection = null;
         try
         {
+            // **호스트 키 검증.** SSH.NET 은 이 이벤트를 구독하지 않으면 어떤 키든 그냥
+            // 신뢰한다 — 그러면 중간자가 bastion 인 척하고 DB 비밀번호를 그대로 받아간다.
+            client.HostKeyReceived += (_, e) =>
+            {
+                e.CanTrust = Approve(ssh, e, hostKeyPrompt, out var reason);
+                if (reason is not null) rejection = reason;
+            };
+
             // NAT·방화벽이 유휴 SSH 세션을 조용히 끊는 걸 막는다 (탭을 열어만 둔 상태가 흔하다).
             client.KeepAliveInterval = TimeSpan.FromSeconds(30);
             await client.ConnectAsync(ct);
@@ -82,8 +93,63 @@ internal sealed class SshTunnel : IDisposable
             client.Dispose();
             // 취소는 그대로 올려보낸다 — 호출부가 "실패" 와 "그만둠" 을 구분해야 한다.
             if (ex is OperationCanceledException) throw;
+            if (rejection is { } reason) throw new SshTunnelException(reason, ex);
             throw Wrap(ex, ssh);
         }
+    }
+
+    /// <summary>
+    /// 서버가 내민 키를 받아들일지 정한다 (pgAdmin 과 같은 규칙).
+    /// 아는 키면 조용히 통과, 취소된 키면 무조건 거부, 처음 보거나 다르면 사용자에게 묻는다.
+    /// 승인하면 그 키를 기억해 다음부터는 안 묻는다.
+    /// </summary>
+    private static bool Approve(
+        SshOptions ssh, HostKeyEventArgs e, HostKeyPromptHandler? prompt, out string? rejection)
+    {
+        rejection = null;
+        var info = new HostKeyInfo(ssh.Host, ssh.Port, e.HostKeyName, Convert.ToBase64String(e.HostKey));
+        var verdict = KnownHosts.Verify(info);
+
+        switch (verdict.Trust)
+        {
+            case HostKeyTrust.Trusted:
+                return true;
+
+            case HostKeyTrust.Revoked:
+                rejection = $"{ssh.Describe} 의 호스트 키가 known_hosts 에서 취소(@revoked)된 키입니다. "
+                            + $"접속을 중단했습니다 ({info.Fingerprint}).";
+                return false;
+        }
+
+        if (prompt is null)
+        {
+            // 물어볼 UI 가 없다 — 조용히 믿는 대신 막는다.
+            rejection = verdict.Trust == HostKeyTrust.Mismatch
+                ? $"{ssh.Describe} 의 호스트 키가 알려진 것과 다릅니다 ({info.Fingerprint})."
+                : $"{ssh.Describe} 는 처음 보는 호스트입니다 ({info.Fingerprint}). "
+                  + "known_hosts 에 등록한 뒤 다시 시도하세요.";
+            return false;
+        }
+
+        if (!prompt(new HostKeyRequest(info, verdict)))
+        {
+            rejection = $"{ssh.Describe} 의 호스트 키를 거부해 접속을 중단했습니다 ({info.Fingerprint}).";
+            return false;
+        }
+
+        // 기억은 승인한 뒤에만. 불일치는 옛 항목을 밀어내야 다음에 또 안 묻는다.
+        try
+        {
+            if (verdict.Trust == HostKeyTrust.Mismatch) KnownHosts.Replace(info);
+            else KnownHosts.Trust(info);
+        }
+        catch (Exception ex)
+        {
+            // 기록에 실패해도 이번 접속은 사용자가 승인한 것이라 그대로 진행한다
+            // (다음에 또 물어볼 뿐이다). 조용히 넘기지는 않는다.
+            System.Diagnostics.Debug.WriteLine($"known_hosts 기록 실패: {ex.Message}");
+        }
+        return true;
     }
 
     /// <summary>

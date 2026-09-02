@@ -50,6 +50,7 @@ public partial class SshTunnelDialog : Window
         PasswordBox.Text = ssh.Password ?? "";
         KeyPathBox.Text = ssh.PrivateKeyPath ?? "";
         PassphraseBox.Text = ssh.Passphrase ?? "";
+        SavePasswordBox.IsChecked = ssh.SavePassword;
 
         TargetHint.Text = $"DB 주소 {dbHost}:{dbPort} 는 이 서버에서 본 주소로 해석됩니다.";
         ClearButton.IsEnabled = initial is not null;
@@ -128,7 +129,8 @@ public partial class SshTunnelDialog : Window
             SelectedAuth,
             SelectedAuth == SshAuthMode.Password ? PasswordBox.Text ?? "" : null,
             SelectedAuth == SshAuthMode.PrivateKey ? (KeyPathBox.Text ?? "").Trim() : null,
-            SelectedAuth == SshAuthMode.PrivateKey ? PassphraseBox.Text ?? "" : null);
+            SelectedAuth == SshAuthMode.PrivateKey ? PassphraseBox.Text ?? "" : null,
+            SavePasswordBox.IsChecked == true);
 
         if (options.Validate() is { } problem)
         {
@@ -189,6 +191,16 @@ public partial class SshTunnelDialog : Window
     }
 
     private void OnCancel(object? sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// 저장을 꺼 둔 접속으로 로그인할 때 — "비밀번호만 채워 주세요" 상태로 연다.
+    /// 로그온 창의 DB 비밀번호 재입력과 같은 흐름이다.
+    /// </summary>
+    public void AskForPassword()
+    {
+        ShowStatus("이 접속은 SSH 비밀번호를 저장하지 않습니다. 비밀번호를 입력하세요.", error: false);
+        PasswordBox.Focus();
+    }
 
     private void ShowStatus(string message, bool error)
     {

@@ -47,6 +47,10 @@
       <TextBox   Grid.Row="6" Grid.Column="1" Name="PassphraseBox" PasswordChar="●"/>
     </Grid>
 
+    <CheckBox Name="SavePasswordBox" Content="비밀번호·passphrase 저장" FontSize="12.5"
+              Margin="110,6,0,0" IsChecked="True"
+              ToolTip.Tip="끄면 디스크에 남기지 않고 접속할 때마다 물어봅니다"/>
+
     <TextBlock Name="StatusText" TextWrapping="Wrap" FontSize="12.5"
                Margin="0,8,0,0" IsVisible="False"/>
 

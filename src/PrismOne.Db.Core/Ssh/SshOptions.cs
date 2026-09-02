@@ -19,7 +19,8 @@ public enum SshAuthMode
 /// 흔히 <c>localhost:5432</c> 처럼 점프 호스트 자신을 가리킨다.
 ///
 /// <see cref="Password"/>·<see cref="Passphrase"/> 는 DB 비밀번호와 똑같이
-/// <see cref="PasswordCipher"/> 로 암호화되어 저장된다.
+/// <see cref="PasswordCipher"/> 로 암호화되어 저장되지만, <see cref="SavePassword"/> 를 끄면
+/// 아예 디스크에 남지 않고 접속할 때마다 물어본다 (pgAdmin 의 "Prompt for password?" 대응).
 /// </summary>
 public sealed record SshOptions(
     string Host,
@@ -28,7 +29,8 @@ public sealed record SshOptions(
     SshAuthMode AuthMode = SshAuthMode.Password,
     string? Password = null,
     string? PrivateKeyPath = null,
-    string? Passphrase = null)
+    string? Passphrase = null,
+    bool SavePassword = true)
 {
     public const int DefaultPort = 22;
 
@@ -65,7 +67,17 @@ public sealed record SshOptions(
         return null;
     }
 
-    /// <summary>비밀을 뺀 복사본 — 로그·오류 메시지에 실어도 되는 형태.</summary>
+    /// <summary>비밀을 뺀 복사본 — 로그·오류 메시지에 실어도 되는 형태이자, 저장할 때
+    /// <see cref="SavePassword"/> 가 꺼져 있으면 디스크에 남기는 형태.</summary>
     public SshOptions WithoutSecrets() =>
         this with { Password = null, Passphrase = null };
+
+    /// <summary>
+    /// 이 방식이 요구하는 비밀이 지금 채워져 있는지. 저장을 껐다면 접속할 때 비어 있고,
+    /// 그때는 물어봐야 한다.
+    ///
+    /// 개인키는 passphrase 가 없는 키가 정상이므로 <b>비어 있어도 부족한 게 아니다</b> —
+    /// 그건 키를 실제로 읽어 봐야 알 수 있고, 실패하면 드라이버가 알려준다.
+    /// </summary>
+    public bool NeedsPassword => AuthMode == SshAuthMode.Password && string.IsNullOrEmpty(Password);
 }

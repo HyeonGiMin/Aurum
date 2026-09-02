@@ -33,6 +33,14 @@ public static class SshTunnelPool
     public static int ActiveTunnelCount { get { lock (Gate) return Entries.Count; } }
 
     /// <summary>
+    /// 처음 보는(또는 바뀐) 호스트 키를 사용자에게 물을 방법. Studio 가 시작할 때 건다.
+    ///
+    /// **비워 두면 그런 키는 거부된다** — 물어볼 사람이 없을 때 조용히 신뢰하면
+    /// 호스트 키 검증을 하는 의미가 없다. 콘솔·테스트 경로가 여기 해당한다.
+    /// </summary>
+    public static HostKeyPromptHandler? HostKeyPrompt { get; set; }
+
+    /// <summary>
     /// 터널 하나를 특정하는 값. DB 대상까지 넣는 이유는 포워딩이 목적지 하나에 고정되기
     /// 때문이다 — 같은 점프 호스트라도 DB 가 다르면 포워딩이 따로 필요하다.
     /// </summary>
@@ -137,9 +145,13 @@ public static class SshTunnelPool
                 }
                 // 락 안에서 시작만 하고 기다리지는 않는다 — 핸드셰이크(수 초) 동안
                 // 락을 쥐고 있으면 같은 시각의 다른 접속이 전부 멈춘다.
+                // **반드시 스레드 풀에서 돌린다.** 호스트 키 물음은 핸드셰이크 도중 동기로
+                // 오는데, 그게 UI 스레드에서 일어나면 다이얼로그를 띄우는 순간 교착한다.
+                var prompt = HostKeyPrompt;
                 entry = new Entry
                 {
-                    Connecting = SshTunnel.ConnectAsync(ssh, dbHost, dbPort, ConnectTimeout, ct),
+                    Connecting = Task.Run(
+                        () => SshTunnel.ConnectAsync(ssh, dbHost, dbPort, ConnectTimeout, prompt, ct), ct),
                 };
                 Entries[key] = entry;
             }

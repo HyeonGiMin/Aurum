@@ -235,3 +235,189 @@ public class MongoTunnelConnectionStringTests
             MongoSession.BuildConnectionString(profile));
     }
 }
+
+/// <summary>
+/// known_hosts 대조. 파일을 실제로 만들어 검사하되, <see cref="KnownHosts.HomeOverride"/> 로
+/// 임시 폴더를 보게 해 <b>사용자의 ~/.ssh 와 홈 디렉터리는 건드리지 않는다</b>.
+/// </summary>
+public class KnownHostsTests : IDisposable
+{
+    private readonly string _home;
+
+    /// <summary>ed25519 키 blob 흉내 — 형식만 맞으면 대조 로직을 검사하기에 충분하다.</summary>
+    private const string KeyA = "AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    private const string KeyB = "AAAAC3NzaC1lZDI1NTE5AAAAIBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+    private const string Type = "ssh-ed25519";
+
+    public KnownHostsTests()
+    {
+        _home = Path.Combine(Path.GetTempPath(), $"aurum-kh-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_home);
+        KnownHosts.HomeOverride = _home;
+    }
+
+    public void Dispose()
+    {
+        KnownHosts.HomeOverride = null;
+        try { Directory.Delete(_home, recursive: true); } catch { /* 임시 폴더 */ }
+        GC.SuppressFinalize(this);
+    }
+
+    private static HostKeyInfo Key(string host = "jump.example.com", int port = 22, string key = KeyA) =>
+        new(host, port, Type, key);
+
+    private void WriteOurs(params string[] lines)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(KnownHosts.OurPath)!);
+        File.WriteAllLines(KnownHosts.OurPath, lines);
+    }
+
+    private void WriteOpenSsh(params string[] lines)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(KnownHosts.OpenSshPath)!);
+        File.WriteAllLines(KnownHosts.OpenSshPath, lines);
+    }
+
+    /// <summary>아무것도 모르면 Unknown — 조용히 신뢰하지 않는다.</summary>
+    [Fact]
+    public void EmptyStore_IsUnknown() =>
+        Assert.Equal(HostKeyTrust.Unknown, KnownHosts.Verify(Key()).Trust);
+
+    [Fact]
+    public void MatchingEntry_IsTrusted()
+    {
+        WriteOurs($"jump.example.com {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key()).Trust);
+    }
+
+    /// <summary>터미널에서 이미 붙어 본 사람은 아무것도 안 물어봐야 한다.</summary>
+    [Fact]
+    public void OpenSshFile_IsAlsoTrusted()
+    {
+        WriteOpenSsh($"jump.example.com {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key()).Trust);
+    }
+
+    /// <summary>키가 다르면 불일치 — 그리고 알던 지문을 같이 돌려줘야 경고에 나란히 보인다.</summary>
+    [Fact]
+    public void DifferentKeyForKnownHost_IsMismatch()
+    {
+        WriteOurs($"jump.example.com {Type} {KeyA}");
+        var verdict = KnownHosts.Verify(Key(key: KeyB));
+        Assert.Equal(HostKeyTrust.Mismatch, verdict.Trust);
+        Assert.Equal(new[] { HostKeyInfo.FingerprintOf(KeyA) }, verdict.KnownFingerprints);
+    }
+
+    /// <summary>@revoked 는 다른 줄이 허용해도 이긴다.</summary>
+    [Fact]
+    public void RevokedKey_IsRejectedEvenIfAlsoListed()
+    {
+        WriteOurs(
+            $"jump.example.com {Type} {KeyA}",
+            $"@revoked jump.example.com {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Revoked, KnownHosts.Verify(Key()).Trust);
+    }
+
+    /// <summary>기본 포트가 아니면 OpenSSH 는 [host]:port 로 적는다.</summary>
+    [Fact]
+    public void NonDefaultPort_MatchesBracketedForm()
+    {
+        WriteOurs($"[jump.example.com]:2222 {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key(port: 2222)).Trust);
+        // 22번으로 붙을 때는 그 항목이 잡히면 안 된다
+        Assert.Equal(HostKeyTrust.Unknown, KnownHosts.Verify(Key(port: 22)).Trust);
+    }
+
+    /// <summary>ssh-keyscan -H · HashKnownHosts yes 로 만든 해시 항목도 대조해야 한다.</summary>
+    [Fact]
+    public void HashedEntry_Matches()
+    {
+        var salt = new byte[20];
+        for (var i = 0; i < salt.Length; i++) salt[i] = (byte)i;
+        var hash = System.Security.Cryptography.HMACSHA1.HashData(
+            salt, System.Text.Encoding.UTF8.GetBytes("jump.example.com"));
+        var pattern = $"|1|{Convert.ToBase64String(salt)}|{Convert.ToBase64String(hash)}";
+
+        WriteOurs($"{pattern} {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key()).Trust);
+        Assert.Equal(HostKeyTrust.Unknown, KnownHosts.Verify(Key(host: "other.example.com")).Trust);
+    }
+
+    [Fact]
+    public void Wildcards_AndComments_AreHandled()
+    {
+        WriteOurs(
+            "# 주석은 건너뛴다",
+            "",
+            $"*.example.com {Type} {KeyA}");
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key()).Trust);
+        Assert.Equal(HostKeyTrust.Unknown, KnownHosts.Verify(Key(host: "jump.other.net")).Trust);
+    }
+
+    /// <summary>승인하면 다음부터는 안 물어야 한다. 기록은 우리 파일에만 남는다.</summary>
+    [Fact]
+    public void Trust_PersistsToOurFileOnly()
+    {
+        WriteOpenSsh($"unrelated.example.com {Type} {KeyB}");
+        var before = File.ReadAllText(KnownHosts.OpenSshPath);
+
+        KnownHosts.Trust(Key());
+
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key()).Trust);
+        Assert.Equal(before, File.ReadAllText(KnownHosts.OpenSshPath));   // 남의 파일은 안 건드린다
+    }
+
+    /// <summary>불일치를 받아들이면 우리 파일의 옛 항목이 새 키로 갈린다.</summary>
+    [Fact]
+    public void Replace_SwapsTheOldKey()
+    {
+        WriteOurs($"jump.example.com {Type} {KeyA}");
+        KnownHosts.Replace(Key(key: KeyB));
+
+        Assert.Equal(HostKeyTrust.Trusted, KnownHosts.Verify(Key(key: KeyB)).Trust);
+        Assert.Equal(HostKeyTrust.Mismatch, KnownHosts.Verify(Key(key: KeyA)).Trust);
+    }
+
+    [Fact]
+    public void Fingerprint_MatchesSshCommandFormat()
+    {
+        var fingerprint = HostKeyInfo.FingerprintOf(KeyA);
+        Assert.StartsWith("SHA256:", fingerprint);
+        Assert.DoesNotContain("=", fingerprint);            // ssh 와 같이 패딩을 뗀다
+        Assert.Equal(fingerprint, Key().Fingerprint);
+    }
+}
+
+public class SshSavePasswordTests
+{
+    private static SshOptions Jump(bool save) =>
+        new("jump.example.com", 22, "ops", SshAuthMode.Password, "pw", SavePassword: save);
+
+    [Fact]
+    public void SavePassword_DefaultsToOn() =>
+        Assert.True(new SshOptions("h", 22, "u").SavePassword);
+
+    /// <summary>저장을 껐으면 접속할 때 비어 있으므로 물어봐야 한다.</summary>
+    [Fact]
+    public void NeedsPassword_OnlyForPasswordAuthWithNoSecret()
+    {
+        Assert.False(Jump(save: true).NeedsPassword);
+        Assert.True((Jump(save: true) with { Password = "" }).NeedsPassword);
+        Assert.True((Jump(save: true) with { Password = null }).NeedsPassword);
+
+        // 개인키는 passphrase 없는 키가 정상이라 "부족" 이 아니다
+        var key = new SshOptions("h", 22, "u", SshAuthMode.PrivateKey, PrivateKeyPath: "/k");
+        Assert.False(key.NeedsPassword);
+    }
+
+    /// <summary>저장을 끈 항목은 암호문으로도 디스크에 남으면 안 된다.</summary>
+    [Fact]
+    public void WithoutSecrets_ClearsBothSecretsButKeepsTheTarget()
+    {
+        var stripped = (Jump(save: false) with { Passphrase = "phrase" }).WithoutSecrets();
+        Assert.Null(stripped.Password);
+        Assert.Null(stripped.Passphrase);
+        Assert.Equal("ops@jump.example.com", stripped.Describe);
+        Assert.False(stripped.SavePassword);
+    }
+}

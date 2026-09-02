@@ -298,7 +298,7 @@ public partial class ConnectDialog : Window
 
     private async void OnConfigureSsh(object? sender, RoutedEventArgs e) => await ConfigureSshAsync();
 
-    private async Task ConfigureSshAsync()
+    private async Task ConfigureSshAsync(bool askPassword = false)
     {
         // 설정 창의 "Test tunnel" 이 실제로 붙어 볼 DB 주소 — 지금 입력된 값을 그대로 쓴다.
         // 아직 안 적었거나 형식이 틀렸으면 기본값으로 두고, 판정은 로그인 때 한다.
@@ -306,6 +306,7 @@ public partial class ConnectDialog : Window
         var parsed = ParseDatabase(DatabaseCombo.Text, kind);
         var dialog = new SshTunnelDialog(
             _ssh, parsed?.Host ?? "localhost", parsed?.Port ?? SavedConnection.DefaultPort(kind));
+        if (askPassword) dialog.AskForPassword();
         await dialog.ShowDialog(this);
         if (!dialog.Confirmed) return;      // Cancel — 아무것도 바꾸지 않는다
 
@@ -317,7 +318,9 @@ public partial class ConnectDialog : Window
 
     private void UpdateSshSummary()
     {
-        SshSummary.Text = EffectiveSsh is { } ssh ? $"via {ssh.Describe}" : "";
+        SshSummary.Text = EffectiveSsh is { } ssh
+            ? $"via {ssh.Describe}" + (ssh.NeedsPassword ? " (비밀번호 필요)" : "")
+            : "";
         SshConfigButton.Content = _ssh is null ? "Configure…" : "Edit…";
     }
 
@@ -337,6 +340,19 @@ public partial class ConnectDialog : Window
         ErrorText.IsVisible = false;
 
         var kind = SelectedKind;
+
+        // 비밀번호를 저장하지 않기로 한 터널이면 지금 채워야 한다 — DB 비밀번호를
+        // 다시 묻는 것과 같은 흐름이다(저장된 항목을 고르면 비어 있는 채로 온다).
+        if (EffectiveSsh is { NeedsPassword: true })
+        {
+            await ConfigureSshAsync(askPassword: true);
+            if (EffectiveSsh is not { NeedsPassword: false })
+            {
+                ShowError("SSH 비밀번호를 입력해야 접속할 수 있습니다.");
+                return;
+            }
+        }
+
         ConnectionProfile profile;
 
         if (kind == DbKind.Sqlite)
