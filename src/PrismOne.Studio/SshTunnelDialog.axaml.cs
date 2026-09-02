@@ -180,20 +180,34 @@ public partial class SshTunnelDialog : Window
     /// <summary>"이 접속에만" 항목. 이름을 안 붙인 설정을 뜻한다.</summary>
     private const string AdHocLabel = "(이 접속에만)";
 
+    /// <summary>
+    /// 드롭다운을 코드로 채우는 중. 그때도 SelectionChanged 가 도는데, 창을 여는 순간
+    /// "설정을 불러왔습니다" 가 뜨면 사용자가 하지도 않은 일을 했다고 알리는 꼴이다.
+    /// </summary>
+    private bool _fillingProfiles;
+
     /// <summary>드롭다운을 다시 채우고 <paramref name="select"/> 를 고른다 (null 이면 이 접속 전용).</summary>
     private void RefreshProfiles(string? select)
     {
-        var names = SshProfileStore.Names();
-        ProfileCombo.ItemsSource = new List<string> { AdHocLabel }.Concat(names).ToList();
-        ProfileCombo.SelectedIndex = 0;
-        if (!string.IsNullOrWhiteSpace(select))
+        _fillingProfiles = true;
+        try
         {
-            // 가리키던 설정이 지워졌을 수도 있다 — 그때는 이름을 글자로만 남겨 둔다.
-            var index = names.ToList().FindIndex(n => n == select);
-            if (index >= 0) ProfileCombo.SelectedIndex = index + 1;
-            else ProfileCombo.Text = select;
+            var names = SshProfileStore.Names();
+            ProfileCombo.ItemsSource = new List<string> { AdHocLabel }.Concat(names).ToList();
+            ProfileCombo.SelectedIndex = 0;
+            if (!string.IsNullOrWhiteSpace(select))
+            {
+                // 가리키던 설정이 지워졌을 수도 있다 — 그때는 이름을 글자로만 남겨 둔다.
+                var index = names.ToList().FindIndex(n => n == select);
+                if (index >= 0) ProfileCombo.SelectedIndex = index + 1;
+                else ProfileCombo.Text = select;
+            }
+            DeleteProfileButton.IsEnabled = names.Count > 0;
         }
-        DeleteProfileButton.IsEnabled = names.Count > 0;
+        finally
+        {
+            _fillingProfiles = false;
+        }
     }
 
     /// <summary>지금 고른 설정 이름. "(이 접속에만)" 이거나 비어 있으면 null.</summary>
@@ -209,7 +223,7 @@ public partial class SshTunnelDialog : Window
     /// <summary>저장된 설정을 고르면 칸들을 그 값으로 채운다.</summary>
     private void OnProfileSelected(object? sender, SelectionChangedEventArgs e)
     {
-        if (HostBox is null) return;                       // InitializeComponent 중
+        if (HostBox is null || _fillingProfiles) return;   // InitializeComponent·목록 채우는 중
         if (SelectedProfileName is not { } name) return;   // "(이 접속에만)" 로 되돌린 것
         if (SshProfileStore.Find(name) is not { } profile) return;
 
