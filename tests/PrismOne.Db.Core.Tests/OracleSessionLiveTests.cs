@@ -111,6 +111,58 @@ public class OracleSessionLiveTests
         }
     }
 
+    /// <summary>
+    /// Run and Edit(Ctrl+E) 전체 왕복 — ROWID 를 붙여 조회하고, 그 ROWID 로 UPDATE 가
+    /// 정확히 1행에 맞는지. 날짜 셀은 문자열(yyyy-MM-dd HH:mm:ss)로 바인딩되므로
+    /// 세션 NLS 형식(QuerySession 초기화)이 걸려 있어야 통과한다.
+    /// </summary>
+    [Fact]
+    public async Task RunAndEdit_UpdateByRowid_PersistsChange()
+    {
+        if (Host is null) return;
+
+        await using var session = await QuerySession.CreateAsync(Profile);
+        const string table = "aurum_live_test_edit";
+        try
+        {
+            await session.ExecuteAsync($"create table {table} (id number, name varchar2(30), created date)");
+            await session.ExecuteAsync(
+                $"insert into {table} values (1, 'before', " +
+                "to_date('2026-09-02 10:30:45', 'YYYY-MM-DD HH24:MI:SS'))");
+            await session.CommitAsync();
+
+            var provider = Profile.Provider;
+            var prepared = GridEditor.Prepare($"select * from {table}", provider);
+            Assert.NotNull(prepared);
+
+            await using var query = await session.ExecuteAsync(prepared!.Sql);
+            var row = Assert.Single(await query.FetchAsync(10));
+            var rowId = row.Cells[0];
+            Assert.False(string.IsNullOrEmpty(rowId));
+            // fetch 경로(ValueFormatter)가 만든 표시 문자열이 NLS 형식과 맞아야
+            // "화면에 보인 값을 그대로 되쓰는" 실제 편집 경로가 성립한다
+            var createdDisplay = row.Cells[3];
+            Assert.Equal("2026-09-02 10:30:45", createdDisplay);
+
+            var statements = GridEditor.Build(prepared.Table,
+                [new GridChange.Update(rowId!, [("NAME", "after"), ("CREATED", createdDisplay)])],
+                provider);
+            foreach (var statement in statements)
+                Assert.Equal(1, await session.ExecuteEditAsync(statement));
+            await session.CommitAsync();
+
+            await using var verify = await session.ExecuteAsync(
+                $"select name, to_char(created, 'YYYY-MM-DD HH24:MI:SS') from {table} where id = 1");
+            var cells = (await verify.FetchAsync(1))[0].Cells;
+            Assert.Equal("after", cells[0]);
+            Assert.Equal("2026-09-02 10:30:45", cells[1]);
+        }
+        finally
+        {
+            await session.ExecuteAsync($"drop table {table}");
+        }
+    }
+
     [Fact]
     public async Task GetSourceAsync_ReturnsExecutableCreateOrReplace()
     {

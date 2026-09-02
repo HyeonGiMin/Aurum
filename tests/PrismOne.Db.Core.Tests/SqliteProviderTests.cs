@@ -240,6 +240,36 @@ public sealed class SqliteProviderTests : IDisposable
         Assert.Equal("P0001", rows[0].Cells[0]);
     }
 
+    /// <summary>
+    /// Run and Edit(Ctrl+E) 전체 왕복 — @pN 자리표시자와 ExecuteEditAsync 의 파라미터
+    /// 이름(pN)이 실제 드라이버에서 맞물리는지, 값이 있는 UPDATE 로 끝까지 확인한다.
+    /// </summary>
+    [Fact]
+    public async Task RunAndEdit_UpdateByRowid_PersistsChange()
+    {
+        await using var session = await QuerySession.CreateAsync(Profile);
+        await session.ExecuteEditAsync(
+            new EditStatement("insert into patient (patient_key, patient_id) values (7, 'P0007')", []));
+
+        var provider = DbProviders.For(DbKind.Sqlite);
+        var prepared = GridEditor.Prepare("select * from patient", provider);
+        Assert.NotNull(prepared);
+
+        await using var query = await session.ExecuteAsync(prepared!.Sql);
+        var row = Assert.Single(await query.FetchAsync(10));
+        var rowId = row.Cells[0];
+        Assert.False(string.IsNullOrEmpty(rowId));
+
+        var statements = GridEditor.Build(prepared.Table,
+            [new GridChange.Update(rowId!, [("patient_id", "P0007-EDIT")])], provider);
+        foreach (var statement in statements)
+            Assert.Equal(1, await session.ExecuteEditAsync(statement));
+
+        await using var verify = await session.ExecuteAsync(
+            "select patient_id from patient where patient_key = 7");
+        Assert.Equal("P0007-EDIT", (await verify.FetchAsync(1))[0].Cells[0]);
+    }
+
     [Fact]
     public async Task IsolationIsSkippedWhereUnsupported()
     {

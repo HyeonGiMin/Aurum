@@ -55,6 +55,19 @@ public interface IDbProvider
     string? RowIdColumn { get; }
 
     /// <summary>
+    /// 편집 모드(Run and Edit) SELECT 에 덧붙일 행 식별자 식 — 문자열로 떨어져야 한다
+    /// (PG <c>ctid::text</c>, Oracle <c>ROWIDTOCHAR(ROWID)</c>, SQLite <c>CAST(rowid AS TEXT)</c>).
+    /// Capabilities.GridEditing 이 false 면 null.
+    /// </summary>
+    string? RowIdSelect(string qualifier);
+
+    /// <summary>
+    /// UPDATE/DELETE 가 행을 특정하는 WHERE 조건. n번째(1부터) 파라미터에
+    /// <see cref="RowIdSelect"/> 로 읽어 둔 식별자 문자열을 바인딩한다.
+    /// </summary>
+    string RowIdPredicate(int oneBasedIndex);
+
+    /// <summary>
     /// 명시적으로 트랜잭션을 여는 문장. Oracle 은 DML 이 암시적으로 열고 BEGIN 은
     /// PL/SQL 블록 시작이라 보내면 안 되므로 null 이다.
     /// </summary>
