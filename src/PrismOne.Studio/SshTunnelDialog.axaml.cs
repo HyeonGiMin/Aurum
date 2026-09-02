@@ -54,6 +54,7 @@ public partial class SshTunnelDialog : Window
         PassphraseBox.Text = ssh.Passphrase ?? "";
         SavePasswordBox.IsChecked = ssh.SavePassword;
         ProxyJumpBox.Text = ssh.ProxyJump ?? "";
+        RefreshProfiles(ssh.Name);
         // OpenSSH config 모드에서 Host 칸에 별칭을 자동완성해 준다 (~/.ssh/config 의 Host 들).
         HostBox.ItemsSource = SshConfig.Exists ? SshConfig.Aliases() : null;
 
@@ -174,6 +175,89 @@ public partial class SshTunnelDialog : Window
         }
     }
 
+    // ---------- 저장된 설정 (여러 접속이 공유) ----------
+
+    /// <summary>"이 접속에만" 항목. 이름을 안 붙인 설정을 뜻한다.</summary>
+    private const string AdHocLabel = "(이 접속에만)";
+
+    /// <summary>드롭다운을 다시 채우고 <paramref name="select"/> 를 고른다 (null 이면 이 접속 전용).</summary>
+    private void RefreshProfiles(string? select)
+    {
+        var names = SshProfileStore.Names();
+        ProfileCombo.ItemsSource = new List<string> { AdHocLabel }.Concat(names).ToList();
+        ProfileCombo.SelectedIndex = 0;
+        if (!string.IsNullOrWhiteSpace(select))
+        {
+            // 가리키던 설정이 지워졌을 수도 있다 — 그때는 이름을 글자로만 남겨 둔다.
+            var index = names.ToList().FindIndex(n => n == select);
+            if (index >= 0) ProfileCombo.SelectedIndex = index + 1;
+            else ProfileCombo.Text = select;
+        }
+        DeleteProfileButton.IsEnabled = names.Count > 0;
+    }
+
+    /// <summary>지금 고른 설정 이름. "(이 접속에만)" 이거나 비어 있으면 null.</summary>
+    private string? SelectedProfileName
+    {
+        get
+        {
+            var text = (ProfileCombo.Text ?? "").Trim();
+            return text.Length == 0 || text == AdHocLabel ? null : text;
+        }
+    }
+
+    /// <summary>저장된 설정을 고르면 칸들을 그 값으로 채운다.</summary>
+    private void OnProfileSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (HostBox is null) return;                       // InitializeComponent 중
+        if (SelectedProfileName is not { } name) return;   // "(이 접속에만)" 로 되돌린 것
+        if (SshProfileStore.Find(name) is not { } profile) return;
+
+        HostBox.Text = profile.Host;
+        PortBox.Text = profile.Port.ToString();
+        UserBox.Text = profile.Username;
+        AuthCombo.SelectedIndex = (int)profile.AuthMode;
+        PasswordBox.Text = profile.Password ?? "";
+        KeyPathBox.Text = profile.PrivateKeyPath ?? "";
+        PassphraseBox.Text = profile.Passphrase ?? "";
+        SavePasswordBox.IsChecked = profile.SavePassword;
+        ProxyJumpBox.Text = profile.ProxyJump ?? "";
+        ApplyAuthMode();
+        ShowStatus($"저장된 설정 '{name}' 을 불러왔습니다.", error: false);
+    }
+
+    /// <summary>지금 화면의 값을 콤보에 적힌 이름으로 저장한다 (같은 이름이면 덮어쓴다).</summary>
+    private void OnSaveProfile(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedProfileName is not { } name)
+        {
+            ShowStatus("저장할 이름을 입력하세요 (예: prod-bastion).", error: true);
+            ProfileCombo.Focus();
+            return;
+        }
+        if (ReadOptions() is not { } options) return;
+
+        SshProfileStore.Upsert(options with { Name = name });
+        RefreshProfiles(name);
+        ShowStatus($"'{name}' 으로 저장했습니다. 다른 접속에서도 이 설정을 고를 수 있습니다.", error: false);
+    }
+
+    /// <summary>
+    /// 저장된 설정을 지운다. 이 설정을 가리키던 다른 접속들은 로그인할 때
+    /// "찾을 수 없습니다" 로 분명히 실패한다 — 조용히 직접 접속으로 바뀌지 않는다.
+    /// </summary>
+    private void OnDeleteProfile(object? sender, RoutedEventArgs e)
+    {
+        if (SelectedProfileName is not { } name || SshProfileStore.Find(name) is null)
+        {
+            ShowStatus("지울 저장된 설정을 고르세요.", error: true);
+            return;
+        }
+        SshProfileStore.Remove(name);
+        RefreshProfiles(null);
+        ShowStatus($"'{name}' 을 지웠습니다. 이 설정을 쓰던 접속은 다시 지정해야 합니다.", error: false);
+    }
+
     /// <summary>입력을 읽어 옵션으로 만든다. 형식이 틀리면 이유를 띄우고 null.</summary>
     private SshOptions? ReadOptions()
     {
@@ -198,7 +282,8 @@ public partial class SshTunnelDialog : Window
             string.IsNullOrEmpty(keyPath) ? null : keyPath,
             usesKey ? PassphraseBox.Text ?? "" : null,
             SavePasswordBox.IsChecked == true,
-            proxyJump.Length == 0 ? null : proxyJump);
+            proxyJump.Length == 0 ? null : proxyJump,
+            SelectedProfileName);
 
         if (options.Validate() is { } problem)
         {

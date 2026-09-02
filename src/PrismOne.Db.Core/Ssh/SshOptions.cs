@@ -28,6 +28,10 @@ public enum SshAuthMode
 /// (<see cref="SshTunnelPool"/>). DB 쪽 host/port 는 <b>SSH 서버에서 본</b> 주소다 —
 /// 흔히 <c>localhost:5432</c> 처럼 점프 호스트 자신을 가리킨다.
 ///
+/// <see cref="Name"/> 이 있으면 <see cref="SshProfileStore"/> 에 한 벌만 저장되고, 접속 항목은
+/// 이름만 들고 있다 — 같은 bastion 을 쓰는 접속이 여럿일 때 한 곳만 고치면 된다.
+/// 이름이 없으면 "이 접속에만" 쓰는 설정이라 접속 항목 안에 그대로 남는다.
+///
 /// <see cref="Password"/>·<see cref="Passphrase"/> 는 DB 비밀번호와 똑같이
 /// <see cref="PasswordCipher"/> 로 암호화되어 저장되지만, <see cref="SavePassword"/> 를 끄면
 /// 아예 디스크에 남지 않고 접속할 때마다 물어본다 (pgAdmin 의 "Prompt for password?" 대응).
@@ -41,7 +45,8 @@ public sealed record SshOptions(
     string? PrivateKeyPath = null,
     string? Passphrase = null,
     bool SavePassword = true,
-    string? ProxyJump = null)
+    string? ProxyJump = null,
+    string? Name = null)
 {
     public const int DefaultPort = 22;
 
@@ -68,6 +73,11 @@ public sealed record SshOptions(
     /// </summary>
     public string? Validate()
     {
+        // 이름만 남고 내용이 비었다면, 접속 항목이 가리키던 저장된 설정이 지워진 것이다.
+        // "호스트를 입력하세요" 로 뭉뚱그리면 사용자가 원인을 찾지 못한다.
+        if (Name is { Length: > 0 } name && string.IsNullOrWhiteSpace(Host))
+            return $"저장된 SSH 설정 '{name}' 을 찾을 수 없습니다 — 지워졌거나 이름이 바뀌었습니다.";
+
         if (string.IsNullOrWhiteSpace(Host))
             return AuthMode == SshAuthMode.OpenSshConfig
                 ? "~/.ssh/config 의 Host 별칭을 입력하세요."
@@ -121,6 +131,15 @@ public sealed record SshOptions(
 
     /// <summary>비밀을 아예 안 다루는 방식인지 — 설정 창이 저장 체크를 숨기는 데 쓴다.</summary>
     public bool UsesStoredSecret => AuthMode is SshAuthMode.Password or SshAuthMode.PrivateKey;
+
+    /// <summary>이름 붙은(공유) 설정인지 — 저장 방식이 갈린다.</summary>
+    public bool IsNamed => !string.IsNullOrWhiteSpace(Name);
+
+    /// <summary>
+    /// 짧은 표기. 이름을 붙였으면 이름이 낫다 — 사용자가 고른 것이 그 이름이고,
+    /// 같은 이름을 쓰는 접속들이 한 덩어리로 보인다.
+    /// </summary>
+    public string Label => IsNamed ? Name! : Describe;
 
     /// <summary>표기용 인증 방식 이름.</summary>
     public string AuthLabel => AuthMode switch

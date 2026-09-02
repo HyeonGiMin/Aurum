@@ -319,7 +319,7 @@ public partial class ConnectDialog : Window
     private void UpdateSshSummary()
     {
         SshSummary.Text = EffectiveSsh is { } ssh
-            ? $"via {ssh.Describe} [{ssh.AuthLabel}]" + (ssh.NeedsPassword ? " · 비밀번호 필요" : "")
+            ? $"via {ssh.Label} [{ssh.AuthLabel}]" + (ssh.NeedsPassword ? " · 비밀번호 필요" : "")
             : "";
         SshConfigButton.Content = _ssh is null ? "Configure…" : "Edit…";
     }

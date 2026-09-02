@@ -64,9 +64,10 @@ DB 포트가 밖으로 열려 있지 않고 **점프(bastion) 호스트를 거�
     - **Private key** — `~/.ssh/id_ed25519` 같은 키 파일(+ passphrase). `…` 버튼으로 고를 수 있습니다.
     - **ssh-agent** — 에이전트에 넣어 둔 키로 인증합니다. **개인키가 이 앱에 들어오지 않고**
       저장할 비밀도 없습니다. Linux·macOS 는 `SSH_AUTH_SOCK`, Windows 는 OpenSSH 인증
-      에이전트 서비스(`\\.\pipe\openssh-ssh-agent`)를 씁니다. `ssh-add -l` 로 키가 들어
-      있는지 먼저 확인하세요. PuTTY **Pageant** 는 OpenSSH 명명 파이프 노출을 켠 경우
-      (PuTTY 0.77+)에만 인식합니다 — 고유의 WM_COPYDATA 방식은 지원하지 않습니다.
+      에이전트 서비스를 먼저 보고, 없으면 **PuTTY Pageant** 도 찾습니다(명명 파이프와
+      옛 WM_COPYDATA 방식 모두). **FIDO 보안키**(`sk-*`)와 **OpenSSH 인증서**,
+      PKCS#11 스마트카드 키도 그대로 쓰입니다. 창 아래에 어느 에이전트에서 키를 몇 개
+      찾았는지 바로 보입니다 — 안 보이면 `ssh-add -l` 로 확인하세요.
     - **OpenSSH config (~/.ssh/config)** — Host 칸에 **별칭**을 적으면 설정 파일에서
       `HostName · User · Port · IdentityFile · ProxyJump` 를 읽어옵니다. 별칭은 자동완성되고,
       무엇이 채워졌는지 창 아래에 바로 보입니다(예: `prod-db → 10.0.0.9 · user deploy · via bastion`).
@@ -114,6 +115,20 @@ DB 포트가 밖으로 열려 있지 않고 **점프(bastion) 호스트를 거�
 - 터널을 세우지 못하면 **"SSH tunnel failed"** 로 따로 알립니다 — 손볼 곳이 DB 설정이
   아니라 SSH 설정이기 때문입니다.
 - **SQLite 는 지원하지 않습니다** (파일 DB라 터널이 의미가 없습니다 — DataGrip 도 같습니다).
+#### 설정을 여러 접속이 나눠 쓰기
+
+같은 bastion 을 거치는 접속이 여러 개면 설정을 한 벌만 두고 나눠 쓸 수 있습니다
+(DataGrip 의 SSH configuration).
+
+- 설정 창 맨 위 **Saved profile** 에 이름을 적고 **Save** 를 누르면 그 이름으로 저장됩니다
+  (`~/.prismone-studio/ssh-profiles.json`). 다른 접속에서는 드롭다운에서 고르기만 하면 됩니다.
+- 점프 호스트의 포트가 바뀌거나 키를 갈면 **한 곳만 고치면** 그 설정을 쓰는 접속이 전부 따라옵니다.
+- **(이 접속에만)** 을 고르면 이름 없이 그 접속 안에만 저장됩니다 — 한 번 쓰고 말 bastion 때문에
+  목록이 지저분해지지 않게.
+- 저장된 설정을 **Delete** 하면, 그걸 쓰던 접속은 로그인할 때
+  `저장된 SSH 설정 'prod-bastion' 을 찾을 수 없습니다` 로 **분명히 실패**합니다 —
+  조용히 직접 접속으로 바뀌어 엉뚱한 곳에 붙는 일이 없게 한 것입니다.
+
 - **읽기만 하는 파일**: `~/.ssh/config` 와 `~/.ssh/known_hosts` 는 읽기만 합니다.
   Aurum 이 사용자의 SSH 설정을 고치는 일은 없습니다.
 - 알려진 제약:

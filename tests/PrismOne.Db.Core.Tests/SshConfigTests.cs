@@ -368,3 +368,110 @@ public class AgentKeysTests
     public void Describe_NamesTheTransportAndCount() =>
         Assert.Equal("ssh-agent — 키 0개", new AgentIdentities([], "ssh-agent").Describe);
 }
+
+/// <summary>
+/// 이름 붙인 SSH 설정 — 같은 bastion 을 쓰는 접속들이 설정을 한 벌만 공유하게 하는 부분.
+/// </summary>
+public class SshProfileStoreTests : IDisposable
+{
+    private readonly string _home;
+
+    public SshProfileStoreTests()
+    {
+        _home = Path.Combine(Path.GetTempPath(), $"aurum-prof-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_home);
+        SshProfileStore.HomeOverride = _home;
+    }
+
+    public void Dispose()
+    {
+        SshProfileStore.HomeOverride = null;
+        try { Directory.Delete(_home, recursive: true); } catch { /* 임시 폴더 */ }
+        GC.SuppressFinalize(this);
+    }
+
+    private static SshOptions Named(string name, string host = "bastion.example.com") =>
+        new(host, 22, "ops", SshAuthMode.Password, "pw", Name: name);
+
+    [Fact]
+    public void EmptyStore_HasNoProfiles()
+    {
+        Assert.Empty(SshProfileStore.Load());
+        Assert.Null(SshProfileStore.Find("prod"));
+    }
+
+    [Fact]
+    public void Upsert_RoundTripsAndKeepsSecrets()
+    {
+        SshProfileStore.Upsert(Named("prod"));
+
+        var loaded = Assert.Single(SshProfileStore.Load());
+        Assert.Equal("prod", loaded.Name);
+        Assert.Equal("bastion.example.com", loaded.Host);
+        Assert.Equal("pw", loaded.Password);   // 암호화해서 넣고 풀어서 돌려준다
+    }
+
+    /// <summary>비밀은 디스크에 평문으로 남으면 안 된다.</summary>
+    [Fact]
+    public void Upsert_EncryptsSecretsOnDisk()
+    {
+        SshProfileStore.Upsert(Named("prod"));
+        var raw = File.ReadAllText(SshProfileStore.FilePath);
+        Assert.DoesNotContain("\"pw\"", raw);
+        Assert.Contains("enc:v1:", raw);
+    }
+
+    /// <summary>저장을 껐으면 암호문으로도 남기지 않는다.</summary>
+    [Fact]
+    public void Upsert_HonoursSavePassword()
+    {
+        SshProfileStore.Upsert(Named("prod") with { SavePassword = false });
+
+        var raw = File.ReadAllText(SshProfileStore.FilePath);
+        Assert.DoesNotContain("enc:v1:", raw);
+        Assert.Null(SshProfileStore.Find("prod")!.Password);
+    }
+
+    [Fact]
+    public void Upsert_OverwritesSameNameAndSortsByName()
+    {
+        SshProfileStore.Upsert(Named("staging", "b2.example.com"));
+        SshProfileStore.Upsert(Named("prod", "b1.example.com"));
+        SshProfileStore.Upsert(Named("prod", "b1-new.example.com"));
+
+        Assert.Equal(new[] { "prod", "staging" }, SshProfileStore.Names());
+        Assert.Equal("b1-new.example.com", SshProfileStore.Find("prod")!.Host);
+    }
+
+    [Fact]
+    public void Remove_DropsTheProfile()
+    {
+        SshProfileStore.Upsert(Named("prod"));
+        SshProfileStore.Remove("prod");
+        Assert.Empty(SshProfileStore.Load());
+    }
+
+    [Fact]
+    public void Upsert_RefusesAnUnnamedProfile() =>
+        Assert.Throws<ArgumentException>(() => SshProfileStore.Upsert(Named("") with { Name = null }));
+
+    /// <summary>
+    /// 가리키던 설정이 지워지면 <b>조용히 직접 접속으로 바뀌면 안 된다</b> —
+    /// 이름만 남은 상태로 두고 접속할 때 분명히 실패해야 엉뚱한 데 안 붙는다.
+    /// </summary>
+    [Fact]
+    public void MissingProfile_FailsValidationWithItsName()
+    {
+        var stub = SshOptions.Empty with { Name = "prod" };
+        var problem = stub.Validate();
+        Assert.NotNull(problem);
+        Assert.Contains("prod", problem);
+    }
+
+    [Fact]
+    public void Label_PrefersTheProfileName()
+    {
+        Assert.Equal("prod", Named("prod").Label);
+        Assert.Equal("ops@bastion.example.com", (Named("prod") with { Name = null }).Label);
+    }
+}

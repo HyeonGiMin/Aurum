@@ -210,9 +210,25 @@ Pageant 고유의 WM_COPYDATA 공유메모리 방식은 넣지 않았다 — Pag
 되어 검증이 통째로 무의미해진다. 그래서 "TCP 를 여는 주소" 와 "신원" 을 분리해 넘긴다.
 순환(`a → b → a`)은 깊이로 끊는다 — 홉은 재귀가 풀릴 때 담기므로 목록 길이만 봐서는 못 잡는다.
 
-**안 넣은 것:** SSH 설정을 여러 접속이 공유하는 구조(DataGrip 의 이름 붙인 SSH
-configuration). 지금은 접속마다 따로 들고 있다.
+**설정 공유 (DataGrip 의 이름 붙인 SSH configuration):** 같은 bastion 을 쓰는 접속이 열 개면
+설정도 열 벌이었다 — 포트가 바뀌면 열 군데를 고쳐야 했다. 이제 이름을 붙이면
+`~/.prismone-studio/ssh-profiles.json` 에 한 벌만 남고 접속 항목은 이름만 들고 있다
+(`SshOptions.Name`). 이름이 없으면 예전처럼 접속 항목 안에 통째로 남는다 — 한 번 쓰고 말
+bastion 때문에 공유 목록이 지저분해지지 않게.
 
-테스트 51개 (설정 검증 · 프로필 전파 · 저장 신원 · Mongo 접속 문자열 · known_hosts 대조 12 ·
-비밀 저장 3 · ~/.ssh/config 파싱 10 · 홉 확장 9). 실제 포워딩 · 호스트 키 물음 · agent 서명은
-sshd 와 agent 가 있어야 해서 자동 테스트로 두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.
+여기서 중요한 판단 하나: **가리키던 설정이 지워졌을 때 조용히 직접 접속으로 되돌리지 않는다.**
+이름만 남은 채로 두고 `Validate()` 가 "저장된 SSH 설정 'prod-bastion' 을 찾을 수 없습니다" 로
+분명히 실패시킨다. 조용히 되돌리면 bastion 을 거치라고 적어 둔 접속이 DB 주소(흔히
+localhost)로 직접 나가 엉뚱한 곳에 붙는다.
+
+**ssh-agent 는 직접 짜다가 패키지로 갈아탔다.** 손으로 쓴 판(304줄)은 FIDO 보안키(`sk-*`)와
+OpenSSH 인증서를 키 종류로 알아보지 못해 **조용히 건너뛰었다** — "agent 에 키가 있는데
+Aurum 만 못 본다" 는 진단하기 아주 나쁜 증상이다. `SshNet.Agent`(MIT, SSH.NET 에 버전 고정)로
+바꾸면서 Pageant 의 WM_COPYDATA 경로까지 함께 얻었다.
+
+테스트 63개. 실제 포워딩 · 호스트 키 물음 · agent 서명은 sshd 와 agent 가 있어야 해서 자동
+테스트로 두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.
+
+**검증:** 이 저장소에는 CI 가 없어서 그동안 컴파일 여부조차 확인할 수 없었다.
+`.github/workflows/build.yml` 을 넣어 push 마다 `dotnet build`(Release) + `dotnet test` 가
+돌게 했다.

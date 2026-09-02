@@ -16,9 +16,10 @@
 - **F9** 커서 문장 실행 · **F5/Shift+Enter** 스크립트(커서부터 끝까지) · Cancel
 - 공유 세션 모델 + 전용 세션 탭(Ctrl+Shift+T), 수동 커밋 기본(Ctrl+F5/F6),
   Tx Isolation 툴바
-- **SSH 터널** — 점프(bastion) 호스트를 거쳐 접속. 비밀번호 · 개인키 · **ssh-agent** ·
+- **SSH 터널** — 점프(bastion) 호스트를 거쳐 접속. 비밀번호 · 개인키 · **ssh-agent/Pageant** ·
   **`~/.ssh/config`** 인증, **ProxyJump 다단 경유**, **호스트 키 확인**(known_hosts 대조 +
-  지문 확인 창), 접속 대상마다 터널 하나를 재사용 (PG · Oracle · MongoDB)
+  지문 확인 창), 여러 접속이 나눠 쓰는 **이름 붙인 설정**, 대상마다 터널 하나를 재사용
+  (PG · Oracle · MongoDB)
 - 실행 즉시 전체 fetch(5만 행 안전 상한) 또는 점진 fetch — 결과는
   DataGrid / Text / Log 3종 보기(F12), 결과 스냅샷을 새 창에 고정(Pin)
 - **Run and Edit(F11)** — 그리드에서 셀 수정·행 추가·삭제 → 한 트랜잭션 Submit

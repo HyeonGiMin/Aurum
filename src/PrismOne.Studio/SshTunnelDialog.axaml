@@ -13,6 +13,20 @@
                FontSize="12.5" Opacity="0.65" TextWrapping="Wrap"/>
     <TextBlock Name="TargetHint" FontSize="12.5" Opacity="0.65" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
+    <!-- 이름을 붙여 두면 다른 접속에서도 이 설정을 그대로 쓴다 (DataGrip 의 SSH configuration).
+         콤보는 편집형이다 — 새 이름을 타이핑하고 Save 를 누르면 그 이름으로 저장된다 -->
+    <Grid ColumnDefinitions="110,*,Auto,Auto" Margin="0,0,0,10">
+      <TextBlock Grid.Column="0" Text="Saved profile:" VerticalAlignment="Center" FontSize="13"/>
+      <ComboBox Grid.Column="1" Name="ProfileCombo" IsEditable="True"
+                MinHeight="30" FontSize="13" HorizontalAlignment="Stretch"
+                SelectionChanged="OnProfileSelected"
+                ToolTip.Tip="여러 접속이 같은 점프 호스트를 쓸 때, 한 곳만 고치면 되게 합니다"/>
+      <Button Grid.Column="2" Name="SaveProfileButton" Content="Save" MinHeight="30"
+              Margin="6,0,0,0" Click="OnSaveProfile"/>
+      <Button Grid.Column="3" Name="DeleteProfileButton" Content="Delete" MinHeight="30"
+              Margin="6,0,0,0" Click="OnDeleteProfile"/>
+    </Grid>
+
     <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
       <Grid.Styles>
         <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>

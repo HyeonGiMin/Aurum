@@ -43,7 +43,7 @@ public sealed record SavedConnection(
     /// </summary>
     public string DisplayName => (IsFileDb
         ? Database
-        : $"{Username}@{Host}:{Port}{DbSuffix}") + (Ssh is null ? "" : $" (ssh {Ssh.Describe})");
+        : $"{Username}@{Host}:{Port}{DbSuffix}") + (Ssh is null ? "" : $" (ssh {Ssh.Label})");
 
     /// <summary>Golden 의 Database 표기: host[:port]/db (기본 포트는 생략).</summary>
     public string DisplayDatabase => IsFileDb
@@ -56,7 +56,7 @@ public sealed record SavedConnection(
 
     /// <summary>터널 표식의 툴팁. SSH 를 안 쓰면 null.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public string? SshLabel => Ssh is null ? null : $"SSH 터널: {Ssh.Describe}";
+    public string? SshLabel => Ssh is null ? null : $"SSH 터널: {Ssh.Label}";
 
     /// <summary>
     /// 종류가 다르면 같은 호스트·DB 라도 별개 항목이다.
@@ -111,11 +111,14 @@ public static class ConnectionStore
         {
             if (!File.Exists(FilePath)) return [];
             var list = JsonSerializer.Deserialize<List<SavedConnection>>(File.ReadAllText(FilePath)) ?? [];
+            // 이름 붙은 SSH 설정을 채워 넣으려면 프로필 모음이 필요하다. 항목마다 파일을
+            // 다시 읽지 않도록 한 번만 읽어 넘긴다.
+            var profiles = SshProfileStore.Load();
             // 디스크에는 암호화되어 있다 (예전 평문 저장분은 그대로 통과 → 다음 저장 때 암호화)
             return list.Select(c => c with
             {
                 Password = PasswordCipher.Unprotect(c.Password),
-                Ssh = UnprotectSsh(c.Ssh),
+                Ssh = UnprotectSsh(c.Ssh, profiles),
             }).ToList();
         }
         catch
@@ -189,24 +192,27 @@ public static class ConnectionStore
     }
 
     /// <summary>
-    /// SSH 비밀번호·passphrase 도 DB 비밀번호와 똑같이 암호화해서 남긴다.
-    /// 단 <see cref="SshOptions.SavePassword"/> 를 껐으면 <b>암호화해서도 남기지 않는다</b> —
-    /// 그 선택의 뜻은 "디스크에 두지 마라" 이지 "잘 숨겨라" 가 아니다.
+    /// 이름 붙은 설정은 <b>이름만</b> 남긴다 — 실제 값은 <see cref="SshProfileStore"/> 에 한 벌만
+    /// 있고, 그래야 점프 호스트를 한 곳에서 고칠 수 있다. 이름이 없는(이 접속 전용) 설정만
+    /// 여기 통째로 들어간다.
     /// </summary>
-    private static SshOptions? ProtectSsh(SshOptions? ssh)
+    private static SshOptions? ProtectSsh(SshOptions? ssh) => ssh switch
     {
-        if (ssh is null) return null;
-        if (!ssh.SavePassword) return ssh.WithoutSecrets();
-        return ssh with
-        {
-            Password = ssh.Password is null ? null : PasswordCipher.Protect(ssh.Password),
-            Passphrase = ssh.Passphrase is null ? null : PasswordCipher.Protect(ssh.Passphrase),
-        };
-    }
+        null => null,
+        { IsNamed: true } => SshOptions.Empty with { Name = ssh.Name },
+        _ => SshSecrets.Protect(ssh),
+    };
 
-    private static SshOptions? UnprotectSsh(SshOptions? ssh) => ssh is null ? null : ssh with
+    /// <summary>
+    /// 이름만 저장된 항목은 프로필 모음에서 실제 값을 채워 넣는다. 그 이름이 지워졌으면
+    /// 이름만 남은 채로 둔다 — <see cref="SshOptions.Validate"/> 가 그 상황을 정확히 알린다
+    /// (조용히 직접 접속으로 바꿔 버리면 엉뚱한 곳에 붙는다).
+    /// </summary>
+    private static SshOptions? UnprotectSsh(SshOptions? ssh, List<SshOptions> profiles) => ssh switch
     {
-        Password = PasswordCipher.Unprotect(ssh.Password),
-        Passphrase = PasswordCipher.Unprotect(ssh.Passphrase),
+        null => null,
+        { IsNamed: true } => profiles.Find(
+            p => string.Equals(p.Name, ssh.Name, StringComparison.OrdinalIgnoreCase)) ?? ssh,
+        _ => SshSecrets.Unprotect(ssh),
     };
 }
