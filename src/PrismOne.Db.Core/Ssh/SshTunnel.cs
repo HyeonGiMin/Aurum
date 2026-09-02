@@ -13,10 +13,10 @@ public sealed class SshTunnelException(string message, Exception? inner = null)
     : Exception(message, inner);
 
 /// <summary>
-/// SSH 접속 하나 + 그 위의 로컬 포트 포워딩 하나.
+/// SSH 세션 사슬 + 그 끝의 로컬 포트 포워딩. 경유가 없으면 사슬 길이는 1 이다.
 ///
-/// 127.0.0.1 의 임의 포트로만 listen 한다 — 다른 장비에서 이 포트로 들어와
-/// 우리 터널을 타고 DB 에 붙는 일이 없게 하기 위해서다(ssh -L 의 기본 동작과 같다).
+/// 포워딩은 언제나 127.0.0.1 의 임의 포트로만 listen 한다 — 다른 장비에서 이 포트로
+/// 들어와 우리 터널을 타고 DB 에 붙는 일이 없게 하기 위해서다(ssh -L 의 기본과 같다).
 ///
 /// 수명은 <see cref="SshTunnelPool"/> 이 관리한다. 직접 만들지 말 것.
 /// </summary>
@@ -27,15 +27,19 @@ internal sealed class SshTunnel : IDisposable
     /// <summary>로컬 포트를 못 잡았을 때 다시 시도할 횟수 (고른 포트를 남이 먼저 채갈 수 있다).</summary>
     private const int BindAttempts = 5;
 
-    private readonly SshClient _client;
-    private readonly ForwardedPortLocal _forward;
+    /// <summary>거쳐 가는 SSH 세션들. <c>[0]</c> 이 첫 점프 호스트, 마지막이 최종 SSH 서버다.</summary>
+    private readonly List<SshClient> _clients;
+
+    /// <summary>홉마다 하나씩. 마지막이 DB 로 가는 포워딩이고, 앞의 것들은 다음 홉으로 가는 통로다.</summary>
+    private readonly List<ForwardedPortLocal> _forwards;
+
     private bool _disposed;
 
-    private SshTunnel(SshClient client, ForwardedPortLocal forward)
+    private SshTunnel(List<SshClient> clients, List<ForwardedPortLocal> forwards)
     {
-        _client = client;
-        _forward = forward;
-        LocalPort = (int)forward.BoundPort;
+        _clients = clients;
+        _forwards = forwards;
+        LocalPort = (int)forwards[^1].BoundPort;
     }
 
     public string LocalHost => LoopbackHost;
@@ -52,23 +56,76 @@ internal sealed class SshTunnel : IDisposable
         get
         {
             if (_disposed) return false;
-            try { return _client.IsConnected && _forward.IsStarted; }
+            try { return _clients.All(c => c.IsConnected) && _forwards.All(f => f.IsStarted); }
             catch { return false; }
         }
     }
 
     /// <summary>
-    /// SSH 로 붙고 <paramref name="remoteHost"/>:<paramref name="remotePort"/> 로 가는
+    /// 홉들을 차례로 거쳐 <paramref name="remoteHost"/>:<paramref name="remotePort"/> 로 가는
     /// 로컬 포워딩을 연다. 실패는 전부 <see cref="SshTunnelException"/> 으로 감싼다.
+    ///
+    /// 다단 경유(ProxyJump)는 <b>포워딩을 사슬로 잇는</b> 방식이다: 첫 홉에 붙어 두 번째
+    /// 홉의 22번으로 가는 로컬 포워딩을 열고, 그 로컬 포트에 두 번째 SSH 세션을 붙인다.
+    /// 이렇게 반복하다 마지막 홉에서 DB 로 포워딩한다.
+    ///
+    /// 중간 홉은 <c>127.0.0.1:임의포트</c> 로 붙지만 <b>호스트 키는 진짜 이름으로 확인한다</b> —
+    /// 127.0.0.1 로 대조하면 모든 점프 호스트가 같은 이름이 되어 검증이 무의미해진다.
     /// </summary>
     public static async Task<SshTunnel> ConnectAsync(
-        SshOptions ssh, string remoteHost, int remotePort,
+        IReadOnlyList<SshOptions> hops, string remoteHost, int remotePort,
         TimeSpan timeout, HostKeyPromptHandler? hostKeyPrompt, CancellationToken ct = default)
     {
-        if (ssh.Validate() is { } invalid)
-            throw new SshTunnelException(invalid);
+        if (hops.Count == 0) throw new SshTunnelException("SSH 홉이 하나도 없습니다.");
+        foreach (var hop in hops)
+            if (hop.Validate() is { } invalid)
+                throw new SshTunnelException(invalid);
 
-        var client = new SshClient(BuildConnectionInfo(ssh, timeout));
+        var clients = new List<SshClient>(hops.Count);
+        var forwards = new List<ForwardedPortLocal>(hops.Count);
+        try
+        {
+            // 첫 홉은 진짜 주소로 붙고, 그 다음부터는 앞 홉이 열어 준 로컬 포트로 붙는다.
+            var dialHost = hops[0].Host;
+            var dialPort = hops[0].Port;
+
+            for (var i = 0; i < hops.Count; i++)
+            {
+                var client = await ConnectClientAsync(hops[i], dialHost, dialPort, timeout, hostKeyPrompt, ct);
+                clients.Add(client);
+
+                // 이 홉에서 갈 곳: 다음 홉의 SSH 포트, 마지막이면 DB.
+                var (nextHost, nextPort) = i + 1 < hops.Count
+                    ? (hops[i + 1].Host, hops[i + 1].Port)
+                    : (remoteHost, remotePort);
+
+                var forward = StartForward(client, nextHost, nextPort);
+                forwards.Add(forward);
+
+                dialHost = LoopbackHost;
+                dialPort = (int)forward.BoundPort;
+            }
+
+            return new SshTunnel(clients, forwards);
+        }
+        catch
+        {
+            // 반쯤 세운 사슬은 역순으로 정리한다 — 안쪽 세션부터 닫아야 깔끔하다.
+            CloseChain(clients, forwards);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 홉 하나에 붙는다. <paramref name="dialHost"/>/<paramref name="dialPort"/> 는 실제로
+    /// TCP 를 여는 주소이고(중간 홉이면 루프백), 호스트 키 대조와 오류 메시지는
+    /// <paramref name="hop"/> 의 진짜 이름으로 한다.
+    /// </summary>
+    private static async Task<SshClient> ConnectClientAsync(
+        SshOptions hop, string dialHost, int dialPort,
+        TimeSpan timeout, HostKeyPromptHandler? hostKeyPrompt, CancellationToken ct)
+    {
+        var client = new SshClient(BuildConnectionInfo(hop, dialHost, dialPort, timeout));
         // 키를 거부한 이유. SSH.NET 은 CanTrust=false 를 "Key exchange negotiation failed"
         // 라는 엉뚱한 메시지로만 알려주므로, 진짜 이유를 여기 담아 두고 아래에서 바꿔 던진다.
         string? rejection = null;
@@ -78,15 +135,14 @@ internal sealed class SshTunnel : IDisposable
             // 신뢰한다 — 그러면 중간자가 bastion 인 척하고 DB 비밀번호를 그대로 받아간다.
             client.HostKeyReceived += (_, e) =>
             {
-                e.CanTrust = Approve(ssh, e, hostKeyPrompt, out var reason);
+                e.CanTrust = Approve(hop, e, hostKeyPrompt, out var reason);
                 if (reason is not null) rejection = reason;
             };
 
             // NAT·방화벽이 유휴 SSH 세션을 조용히 끊는 걸 막는다 (탭을 열어만 둔 상태가 흔하다).
             client.KeepAliveInterval = TimeSpan.FromSeconds(30);
             await client.ConnectAsync(ct);
-            var forward = StartForward(client, remoteHost, remotePort);
-            return new SshTunnel(client, forward);
+            return client;
         }
         catch (Exception ex)
         {
@@ -94,7 +150,7 @@ internal sealed class SshTunnel : IDisposable
             // 취소는 그대로 올려보낸다 — 호출부가 "실패" 와 "그만둠" 을 구분해야 한다.
             if (ex is OperationCanceledException) throw;
             if (rejection is { } reason) throw new SshTunnelException(reason, ex);
-            throw Wrap(ex, ssh);
+            throw Wrap(ex, hop);
         }
     }
 
@@ -190,46 +246,95 @@ internal sealed class SshTunnel : IDisposable
         finally { listener.Stop(); }
     }
 
-    private static ConnectionInfo BuildConnectionInfo(SshOptions ssh, TimeSpan timeout)
+    /// <summary>
+    /// 인증 방법을 조립한다. <paramref name="dialHost"/>/<paramref name="dialPort"/> 는
+    /// 실제 TCP 대상이라 중간 홉에서는 루프백이다 — <c>ssh.Host</c> 와 다를 수 있다.
+    /// </summary>
+    private static ConnectionInfo BuildConnectionInfo(
+        SshOptions ssh, string dialHost, int dialPort, TimeSpan timeout)
     {
-        AuthenticationMethod[] methods;
-        if (ssh.AuthMode == SshAuthMode.PrivateKey)
+        var username = string.IsNullOrWhiteSpace(ssh.Username) ? Environment.UserName : ssh.Username;
+        // 배열로 타입을 못박는다 — 컬렉션 식([...])은 대상 타입이 있어야 한다.
+        AuthenticationMethod[] methods = ssh.AuthMode switch
         {
-            PrivateKeyFile key;
-            try
-            {
-                key = string.IsNullOrEmpty(ssh.Passphrase)
-                    ? new PrivateKeyFile(ssh.PrivateKeyPath!)
-                    : new PrivateKeyFile(ssh.PrivateKeyPath!, ssh.Passphrase);
-            }
-            catch (SshPassPhraseNullOrEmptyException ex)
-            {
-                throw new SshTunnelException("개인키에 passphrase 가 걸려 있습니다. passphrase 를 입력하세요.", ex);
-            }
-            catch (Exception ex)
-            {
-                throw new SshTunnelException($"개인키를 읽지 못했습니다: {ex.Message}", ex);
-            }
-            methods = [new PrivateKeyAuthenticationMethod(ssh.Username, key)];
+            SshAuthMode.PrivateKey => [KeyMethod(username, ssh.PrivateKeyPath!, ssh.Passphrase)],
+            SshAuthMode.Agent => [AgentMethod(username)],
+            // OpenSSH config 는 설정이 짚어 준 키가 있으면 그걸 먼저, 없으면 agent 로.
+            // 둘 다 올려 두면 서버가 받아주는 쪽으로 붙는다 (ssh 의 동작과 같다).
+            SshAuthMode.OpenSshConfig => ConfigMethods(username, ssh),
+            _ => PasswordMethods(username, ssh.Password ?? ""),
+        };
+
+        return new ConnectionInfo(dialHost, dialPort, username, methods) { Timeout = timeout };
+    }
+
+    private static AuthenticationMethod[] PasswordMethods(string username, string password)
+    {
+        // 서버가 password 를 끄고 keyboard-interactive 만 켠 경우가 흔하다.
+        // 둘 다 등록해 두면 서버가 받아주는 쪽으로 붙는다 (DataGrip 도 같은 방식).
+        var interactive = new KeyboardInteractiveAuthenticationMethod(username);
+        interactive.AuthenticationPrompt += (_, e) =>
+        {
+            foreach (var prompt in e.Prompts)
+                prompt.Response = password;
+        };
+        return [new PasswordAuthenticationMethod(username, password), interactive];
+    }
+
+    private static AuthenticationMethod KeyMethod(string username, string path, string? passphrase)
+    {
+        PrivateKeyFile key;
+        try
+        {
+            key = string.IsNullOrEmpty(passphrase)
+                ? new PrivateKeyFile(path)
+                : new PrivateKeyFile(path, passphrase);
         }
-        else
+        catch (SshPassPhraseNullOrEmptyException ex)
         {
-            // 서버가 password 를 끄고 keyboard-interactive 만 켠 경우가 흔하다.
-            // 둘 다 등록해 두면 서버가 받아주는 쪽으로 붙는다 (DataGrip 도 같은 방식).
-            var interactive = new KeyboardInteractiveAuthenticationMethod(ssh.Username);
-            interactive.AuthenticationPrompt += (_, e) =>
-            {
-                foreach (var prompt in e.Prompts)
-                    prompt.Response = ssh.Password ?? "";
-            };
-            methods =
-            [
-                new PasswordAuthenticationMethod(ssh.Username, ssh.Password ?? ""),
-                interactive,
-            ];
+            throw new SshTunnelException("개인키에 passphrase 가 걸려 있습니다. passphrase 를 입력하세요.", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new SshTunnelException($"개인키를 읽지 못했습니다 ({path}): {ex.Message}", ex);
+        }
+        return new PrivateKeyAuthenticationMethod(username, key);
+    }
+
+    /// <summary>agent 가 든 신원 전부를 한 번에 올린다 — 서버가 받아주는 키로 붙는다.</summary>
+    private static AuthenticationMethod AgentMethod(string username)
+    {
+        var identities = SshAgent.LoadIdentities();
+        if (identities.Count == 0)
+            throw new SshTunnelException(
+                SshAgent.IsAvailable
+                    ? "ssh-agent 에 키가 들어 있지 않습니다. ssh-add 로 키를 넣으세요."
+                    : SshAgent.UnavailableReason);
+        return new PrivateKeyAuthenticationMethod(username, new AgentKeySource(identities));
+    }
+
+    /// <summary>OpenSSH config 모드 — 설정이 짚은 키와 agent 를 함께 시도한다.</summary>
+    private static AuthenticationMethod[] ConfigMethods(string username, SshOptions ssh)
+    {
+        var methods = new List<AuthenticationMethod>();
+
+        if (!string.IsNullOrWhiteSpace(ssh.PrivateKeyPath) && File.Exists(ssh.PrivateKeyPath))
+        {
+            // 키가 passphrase 로 잠겨 있고 우리가 그걸 모르면, 이 키는 건너뛰고 agent 에 맡긴다
+            // (agent 에 이미 풀어서 넣어 둔 경우가 대부분이다).
+            try { methods.Add(KeyMethod(username, ssh.PrivateKeyPath, ssh.Passphrase)); }
+            catch (SshTunnelException) { /* 아래 agent 로 넘어간다 */ }
         }
 
-        return new ConnectionInfo(ssh.Host, ssh.Port, ssh.Username, methods) { Timeout = timeout };
+        var identities = SshAgent.LoadIdentities();
+        if (identities.Count > 0)
+            methods.Add(new PrivateKeyAuthenticationMethod(username, new AgentKeySource(identities)));
+
+        if (methods.Count == 0)
+            throw new SshTunnelException(
+                $"{ssh.Host} 로 인증할 방법을 찾지 못했습니다 — ~/.ssh/config 의 IdentityFile 을 "
+                + $"읽을 수 없고 ssh-agent 에도 키가 없습니다. ({SshAgent.UnavailableReason})");
+        return [.. methods];
     }
 
     /// <summary>드라이버 예외를 사람이 읽을 이유로 바꾼다. 비밀번호는 절대 싣지 않는다.</summary>
@@ -253,10 +358,29 @@ internal sealed class SshTunnel : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        try { if (_forward.IsStarted) _forward.Stop(); } catch { /* 이미 끊긴 터널 */ }
-        try { _client.RemoveForwardedPort(_forward); } catch { /* 위와 같음 */ }
-        try { _forward.Dispose(); } catch { /* 위와 같음 */ }
-        try { _client.Disconnect(); } catch { /* 위와 같음 */ }
-        try { _client.Dispose(); } catch { /* 위와 같음 */ }
+        CloseChain(_clients, _forwards);
+    }
+
+    /// <summary>
+    /// 포워딩·세션을 <b>역순으로</b> 닫는다 — 안쪽(최종 서버) 세션이 바깥 홉의 포워딩 위에
+    /// 얹혀 있으므로, 바깥부터 닫으면 안쪽이 먼저 끊기며 예외가 쏟아진다.
+    /// </summary>
+    private static void CloseChain(List<SshClient> clients, List<ForwardedPortLocal> forwards)
+    {
+        for (var i = forwards.Count - 1; i >= 0; i--)
+        {
+            var forward = forwards[i];
+            try { if (forward.IsStarted) forward.Stop(); } catch { /* 이미 끊긴 터널 */ }
+            if (i < clients.Count)
+                try { clients[i].RemoveForwardedPort(forward); } catch { /* 위와 같음 */ }
+            try { forward.Dispose(); } catch { /* 위와 같음 */ }
+        }
+        for (var i = clients.Count - 1; i >= 0; i--)
+        {
+            try { clients[i].Disconnect(); } catch { /* 위와 같음 */ }
+            try { clients[i].Dispose(); } catch { /* 위와 같음 */ }
+        }
+        forwards.Clear();
+        clients.Clear();
     }
 }

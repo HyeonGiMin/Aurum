@@ -22,6 +22,7 @@ Golden 파리티는 끝났다(GOLDEN_BEHAVIOR.md). 이 문서는 **Golden 에는
 | 6 | 결과 탭 여러 개 / 고정(pin) | 탭당 1개 | 가끔 | 중간 | ✅ 완료 (2026-08-04, 새 창 고정) |
 | 7 | Find usages / Go to declaration | 없음 | 가끔 | 높음 | 파서 필요 |
 | 9 | **SSH 터널** (점프 호스트 경유 접속) | 없음 | 상시(운영망) | 중간 | ✅ 완료 (2026-09-02) |
+| 10 | ssh-agent · ~/.ssh/config · ProxyJump | 없음 | 자주(운영망) | 중간 | ✅ 완료 (2026-09-02) |
 | 8 | 커스텀 추출기(스크립트) | 고정 4종 | 드묾 | 중간 | 보안상 비채택 |
 | — | ~~동기화 DDL 생성~~ | 없음 | — | — | **Aurum 제외 → `iapdb`** |
 
@@ -183,10 +184,35 @@ QueryTabView 의 0.6초 디바운스 타이머·호버 툴팁. FROM/JOIN/INTO/UP
 서버의 접속이 로그인 목록에서 하나로 뭉개져 서로를 덮어쓴다. 단 `DisplayDatabase` 는
 건드리지 않았다(로그온 창이 그 문자열을 되파싱한다).
 
-**안 넣은 것 (DataGrip 에만 있음):** `~/.ssh/config` 파싱(Host 별칭·IdentityFile 자동 인식),
-ssh-agent/Pageant, ProxyJump 다단 경유, SSH 설정을 여러 접속이 공유하는 구조.
-실제로 써 본 뒤 필요하면 붙인다.
+**ssh-agent (DataGrip 의 "authentication agent"):** SSH.NET 에는 agent 지원이 없다.
+대신 `HostAlgorithm` 이 정확히 맞는 훅이었다 — 공개키 blob(`Data`)과 서명(`Sign`)만 내주면
+되고, agent 가 하는 일이 정확히 그 둘이다. 그래서 OpenSSH agent 프로토콜을 직접 구현하고
+(`Ssh/SshAgent.cs`) `AgentHostAlgorithm : HostAlgorithm` 으로 끼웠다. **개인키는 우리
+프로세스에 들어오지 않는다** — 그게 agent 를 쓰는 이유다. RSA 키는 요즘 서버가 SHA-1 서명을
+거부하므로 rsa-sha2-512 · rsa-sha2-256 · ssh-rsa 를 선호도 순으로 셋 다 올린다.
+전송은 Linux·macOS 가 `$SSH_AUTH_SOCK` 유닉스 소켓, Windows 가 OpenSSH 명명 파이프다.
+Pageant 고유의 WM_COPYDATA 공유메모리 방식은 넣지 않았다 — Pageant 를 OpenSSH 파이프로
+노출하면(PuTTY 0.77+) 그대로 붙는다.
 
-테스트 32개 (설정 검증 · 프로필 전파 · 저장 신원 · Mongo 접속 문자열 · known_hosts 대조
-12개 · 비밀 저장 3개). 실제 포워딩과 호스트 키 물음은 sshd 가 있어야 해서 자동 테스트로
-두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.
+**`~/.ssh/config` (DataGrip 의 "OpenSSH config"):** `Ssh/SshConfig.cs`. OpenSSH 규칙 그대로
+**먼저 나온 값이 이긴다** — 그래야 사람들이 파일 맨 아래에 `Host *` 를 두는 관례가 통한다.
+`Host` 패턴(와일드카드·부정), `Include`(글로브), `Key=Value` 표기, `~` 확장을 다룬다.
+`Match` 블록은 **통째로 건너뛴다**: 조건이 실행 환경에 달려 있어 우리가 판정할 수 없고,
+잘못 적용하면 엉뚱한 호스트에 설정이 새기 때문이다.
+
+**ProxyJump 다단 경유 (DataGrip 도 못 하는 것 — ProxyCommand 로 우회해야 한다):**
+`Ssh/SshHops.cs` 가 설정을 홉 목록으로 편다. 터널은 **포워딩을 사슬로 잇는다** — 첫 홉에
+붙어 두 번째 홉의 22번으로 가는 로컬 포워딩을 열고, 그 로컬 포트에 두 번째 SSH 세션을
+붙이고, 이를 반복하다 마지막 홉에서 DB 로 포워딩한다. SSH.NET 의 공개 API 만으로 된다.
+
+여기서 놓치기 쉬운 함정 하나: 중간 홉은 `127.0.0.1:임의포트` 로 붙지만 **호스트 키는 그
+홉의 진짜 이름으로 대조해야 한다.** 루프백 주소로 대조하면 모든 점프 호스트가 같은 이름이
+되어 검증이 통째로 무의미해진다. 그래서 "TCP 를 여는 주소" 와 "신원" 을 분리해 넘긴다.
+순환(`a → b → a`)은 깊이로 끊는다 — 홉은 재귀가 풀릴 때 담기므로 목록 길이만 봐서는 못 잡는다.
+
+**안 넣은 것:** SSH 설정을 여러 접속이 공유하는 구조(DataGrip 의 이름 붙인 SSH
+configuration). 지금은 접속마다 따로 들고 있다.
+
+테스트 51개 (설정 검증 · 프로필 전파 · 저장 신원 · Mongo 접속 문자열 · known_hosts 대조 12 ·
+비밀 저장 3 · ~/.ssh/config 파싱 10 · 홉 확장 9). 실제 포워딩 · 호스트 키 물음 · agent 서명은
+sshd 와 agent 가 있어야 해서 자동 테스트로 두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.

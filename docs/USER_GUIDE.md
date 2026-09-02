@@ -59,9 +59,22 @@ DB 포트가 밖으로 열려 있지 않고 **점프(bastion) 호스트를 거�
 
 - 로그온 창의 **SSH Tunnel** 체크 → **Configure…** 로 점프 호스트를 지정합니다.
   - **SSH host / Port(기본 22) / Username**
-  - **Auth** — `Password` 또는 `Private key`
-    - Password: 서버가 비밀번호 인증을 껐어도 keyboard-interactive 만 켜져 있으면 그쪽으로 붙습니다.
-    - Private key: `~/.ssh/id_ed25519` 같은 키 파일(+ passphrase). `…` 버튼으로 고를 수 있습니다.
+  - **Auth** — 네 가지
+    - **Password** — 서버가 비밀번호 인증을 껐어도 keyboard-interactive 만 켜져 있으면 그쪽으로 붙습니다.
+    - **Private key** — `~/.ssh/id_ed25519` 같은 키 파일(+ passphrase). `…` 버튼으로 고를 수 있습니다.
+    - **ssh-agent** — 에이전트에 넣어 둔 키로 인증합니다. **개인키가 이 앱에 들어오지 않고**
+      저장할 비밀도 없습니다. Linux·macOS 는 `SSH_AUTH_SOCK`, Windows 는 OpenSSH 인증
+      에이전트 서비스(`\\.\pipe\openssh-ssh-agent`)를 씁니다. `ssh-add -l` 로 키가 들어
+      있는지 먼저 확인하세요. PuTTY **Pageant** 는 OpenSSH 명명 파이프 노출을 켠 경우
+      (PuTTY 0.77+)에만 인식합니다 — 고유의 WM_COPYDATA 방식은 지원하지 않습니다.
+    - **OpenSSH config (~/.ssh/config)** — Host 칸에 **별칭**을 적으면 설정 파일에서
+      `HostName · User · Port · IdentityFile · ProxyJump` 를 읽어옵니다. 별칭은 자동완성되고,
+      무엇이 채워졌는지 창 아래에 바로 보입니다(예: `prod-db → 10.0.0.9 · user deploy · via bastion`).
+      인증은 설정이 짚은 키와 ssh-agent 를 함께 시도합니다.
+  - **Proxy jump** — 거쳐 갈 호스트를 `ssh -J` 표기 그대로 적습니다
+    (`user@bastion1, user@bastion2:2222`). `~/.ssh/config` 의 `ProxyJump` 를 쓰면 비워 둬도 됩니다.
+    여러 단도 됩니다 — 첫 홉에 붙어 다음 홉으로 가는 포워딩을 열고, 그 위에 다음 세션을
+    얹는 식으로 사슬을 만듭니다. **중간 홉의 호스트 키도 각자의 진짜 이름으로 확인**합니다.
   - **Test tunnel** — DB 는 건드리지 않고 **SSH 접속과 포워딩만** 확인합니다.
     "SSH 가 안 되는 건지 DB 가 안 되는 건지" 를 먼저 갈라 줍니다.
   - **Don't use SSH** — 터널 설정을 지우고 직접 접속으로 되돌립니다.
@@ -101,7 +114,13 @@ DB 포트가 밖으로 열려 있지 않고 **점프(bastion) 호스트를 거�
 - 터널을 세우지 못하면 **"SSH tunnel failed"** 로 따로 알립니다 — 손볼 곳이 DB 설정이
   아니라 SSH 설정이기 때문입니다.
 - **SQLite 는 지원하지 않습니다** (파일 DB라 터널이 의미가 없습니다 — DataGrip 도 같습니다).
+- **읽기만 하는 파일**: `~/.ssh/config` 와 `~/.ssh/known_hosts` 는 읽기만 합니다.
+  Aurum 이 사용자의 SSH 설정을 고치는 일은 없습니다.
 - 알려진 제약:
+  - `~/.ssh/config` 의 **`Match` 블록은 건너뜁니다** — 조건(`exec` 등)이 실행 환경에
+    달려 있어 잘못 적용하느니 안 하는 편이 낫습니다. `Host` 블록만 봅니다.
+  - 경유 호스트의 인증은 원래 설정을 물려받습니다(한 계정·한 키로 전 구간을 지나는 게
+    보통이라). OpenSSH config 모드에서는 각 호스트의 `User`·`Port`·`IdentityFile` 이 우선합니다.
   - **Oracle** — 리스너가 다른 포트로 재접속을 지시하는 구성(SCAN·공유 서버 리다이렉트)에서는
     재접속이 터널 밖으로 나갑니다. 서비스 이름 직접 접속이면 문제 없습니다.
   - **MongoDB** — replica set 이면 드라이버가 서버가 알려준 호스트로 다시 붙으려 하므로

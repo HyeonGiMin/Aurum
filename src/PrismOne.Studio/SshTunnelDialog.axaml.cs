@@ -31,7 +31,9 @@ public partial class SshTunnelDialog : Window
     private readonly string _dbHost;
     private readonly int _dbPort;
 
-    private static readonly List<string> AuthLabels = ["Password", "Private key"];
+    /// <summary>순서가 <see cref="SshAuthMode"/> 값 순서와 같아야 한다 (인덱스로 변환한다).</summary>
+    private static readonly List<string> AuthLabels =
+        ["Password", "Private key", "ssh-agent", "OpenSSH config (~/.ssh/config)"];
 
     public SshTunnelDialog() : this(null, "localhost", 5432) { }
 
@@ -46,21 +48,32 @@ public partial class SshTunnelDialog : Window
         HostBox.Text = ssh.Host;
         PortBox.Text = ssh.Port > 0 ? ssh.Port.ToString() : SshOptions.DefaultPort.ToString();
         UserBox.Text = ssh.Username;
-        AuthCombo.SelectedIndex = ssh.AuthMode == SshAuthMode.PrivateKey ? 1 : 0;
+        AuthCombo.SelectedIndex = (int)ssh.AuthMode;
         PasswordBox.Text = ssh.Password ?? "";
         KeyPathBox.Text = ssh.PrivateKeyPath ?? "";
         PassphraseBox.Text = ssh.Passphrase ?? "";
         SavePasswordBox.IsChecked = ssh.SavePassword;
+        ProxyJumpBox.Text = ssh.ProxyJump ?? "";
+        // OpenSSH config 모드에서 Host 칸에 별칭을 자동완성해 준다 (~/.ssh/config 의 Host 들).
+        HostBox.ItemsSource = SshConfig.Exists ? SshConfig.Aliases() : null;
 
         TargetHint.Text = $"DB 주소 {dbHost}:{dbPort} 는 이 서버에서 본 주소로 해석됩니다.";
         ClearButton.IsEnabled = initial is not null;
 
         ApplyAuthMode();
+        // Host 칸을 고치면 config 요약을 다시 계산한다. AutoCompleteBox 의 TextChanged 는
+        // 버전마다 시그니처가 달라, ConnectDialog 처럼 PropertyChanged 로 붙인다.
+        HostBox.PropertyChanged += (_, e) =>
+        {
+            if (e.Property.Name == "Text") UpdateAuthHint();
+        };
         HostBox.Focus();
     }
 
     private SshAuthMode SelectedAuth =>
-        AuthCombo.SelectedIndex == 1 ? SshAuthMode.PrivateKey : SshAuthMode.Password;
+        AuthCombo.SelectedIndex >= 0 && AuthCombo.SelectedIndex < AuthLabels.Count
+            ? (SshAuthMode)AuthCombo.SelectedIndex
+            : SshAuthMode.Password;
 
     private void OnAuthModeChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -68,19 +81,69 @@ public partial class SshTunnelDialog : Window
         ApplyAuthMode();
     }
 
+
+
     /// <summary>안 쓰는 칸은 비활성 — "적었는데 무시되는" 상태를 만들지 않는다.</summary>
     private void ApplyAuthMode()
     {
-        var key = SelectedAuth == SshAuthMode.PrivateKey;
+        var mode = SelectedAuth;
+        var usesPassword = mode == SshAuthMode.Password;
+        // OpenSSH config 는 설정이 짚어 준 키를 쓰지만, 사용자가 직접 덮어쓸 수도 있게 열어 둔다.
+        var usesKey = mode is SshAuthMode.PrivateKey or SshAuthMode.OpenSshConfig;
+        var fromConfig = mode == SshAuthMode.OpenSshConfig;
 
-        PasswordBox.IsEnabled = !key;
-        PasswordLabel.Opacity = key ? 0.4 : 1;
+        PasswordBox.IsEnabled = usesPassword;
+        PasswordLabel.Opacity = usesPassword ? 1 : 0.4;
 
-        KeyPathBox.IsEnabled = key;
-        BrowseButton.IsEnabled = key;
-        PassphraseBox.IsEnabled = key;
-        KeyLabel.Opacity = key ? 1 : 0.4;
-        PassphraseLabel.Opacity = key ? 1 : 0.4;
+        KeyPathBox.IsEnabled = usesKey;
+        BrowseButton.IsEnabled = usesKey;
+        PassphraseBox.IsEnabled = usesKey;
+        KeyLabel.Opacity = usesKey ? 1 : 0.4;
+        PassphraseLabel.Opacity = usesKey ? 1 : 0.4;
+
+        // 비밀을 안 다루는 방식이면 저장 체크가 의미 없다.
+        SavePasswordBox.IsVisible = mode is SshAuthMode.Password or SshAuthMode.PrivateKey;
+
+        HostLabel.Text = fromConfig ? "Host alias:" : "SSH host:";
+        HostBox.Watermark = fromConfig ? "prod-db (~/.ssh/config 의 Host)" : "jump.example.com";
+        KeyLabel.Text = fromConfig ? "Key (덮어쓰기):" : "Private key:";
+
+        UpdateAuthHint();
+    }
+
+    /// <summary>
+    /// 고른 방식이 실제로 될 상태인지 미리 알려준다 — agent 가 안 떠 있거나 config 에
+    /// 그 별칭이 없으면 Login 을 눌러 봐야 알게 되는 게 최악이다.
+    /// </summary>
+    private void UpdateAuthHint()
+    {
+        string? hint = SelectedAuth switch
+        {
+            SshAuthMode.Agent => SshAgent.IsAvailable
+                ? "ssh-agent 의 키로 인증합니다. 비밀은 저장하지 않습니다."
+                : "⚠ " + SshAgent.UnavailableReason,
+
+            SshAuthMode.OpenSshConfig when !SshConfig.Exists =>
+                $"⚠ {SshConfig.FilePath} 가 없습니다.",
+
+            SshAuthMode.OpenSshConfig => DescribeConfig(),
+
+            _ => null,
+        };
+
+        AuthHint.Text = hint ?? "";
+        AuthHint.IsVisible = hint is not null;
+    }
+
+    /// <summary>별칭을 실제로 풀어 보여준다 — 무엇이 자동으로 채워지는지 눈에 보이게.</summary>
+    private string DescribeConfig()
+    {
+        var alias = (HostBox.Text ?? "").Trim();
+        if (alias.Length == 0) return "~/.ssh/config 의 Host 별칭을 입력하세요.";
+        var resolved = SshConfig.Resolve(alias);
+        return resolved.HasSettings
+            ? $"{alias} → {resolved.Summary}"
+            : $"⚠ ~/.ssh/config 에 '{alias}' 항목이 없습니다 — 호스트 이름으로 그대로 붙습니다.";
     }
 
     private async void OnBrowseKey(object? sender, RoutedEventArgs e)
@@ -122,15 +185,20 @@ public partial class SshTunnelDialog : Window
             return null;
         }
 
+        var usesKey = SelectedAuth is SshAuthMode.PrivateKey or SshAuthMode.OpenSshConfig;
+        var keyPath = usesKey ? (KeyPathBox.Text ?? "").Trim() : null;
+        var proxyJump = (ProxyJumpBox.Text ?? "").Trim();
+
         var options = new SshOptions(
             (HostBox.Text ?? "").Trim(),
             port,
             (UserBox.Text ?? "").Trim(),
             SelectedAuth,
             SelectedAuth == SshAuthMode.Password ? PasswordBox.Text ?? "" : null,
-            SelectedAuth == SshAuthMode.PrivateKey ? (KeyPathBox.Text ?? "").Trim() : null,
-            SelectedAuth == SshAuthMode.PrivateKey ? PassphraseBox.Text ?? "" : null,
-            SavePasswordBox.IsChecked == true);
+            string.IsNullOrEmpty(keyPath) ? null : keyPath,
+            usesKey ? PassphraseBox.Text ?? "" : null,
+            SavePasswordBox.IsChecked == true,
+            proxyJump.Length == 0 ? null : proxyJump);
 
         if (options.Validate() is { } problem)
         {

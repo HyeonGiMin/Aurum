@@ -13,14 +13,16 @@
                FontSize="12.5" Opacity="0.65" TextWrapping="Wrap"/>
     <TextBlock Name="TargetHint" FontSize="12.5" Opacity="0.65" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
       <Grid.Styles>
         <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>
         <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="30"/><Setter Property="FontSize" Value="13"/></Style>
       </Grid.Styles>
 
-      <TextBlock Grid.Row="0" Grid.Column="0" Text="SSH host:"/>
-      <TextBox   Grid.Row="0" Grid.Column="1" Name="HostBox" PlaceholderText="jump.example.com"/>
+      <TextBlock Grid.Row="0" Grid.Column="0" Name="HostLabel" Text="SSH host:"/>
+      <AutoCompleteBox Grid.Row="0" Grid.Column="1" Name="HostBox" Watermark="jump.example.com"
+                       MinHeight="30" FontSize="13" Margin="0,4"
+                       FilterMode="ContainsOrdinal" MinimumPrefixLength="0"/>
 
       <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:"/>
       <TextBox   Grid.Row="1" Grid.Column="1" Name="PortBox" PlaceholderText="22"/>
@@ -45,6 +47,15 @@
 
       <TextBlock Grid.Row="6" Grid.Column="0" Name="PassphraseLabel" Text="Passphrase:"/>
       <TextBox   Grid.Row="6" Grid.Column="1" Name="PassphraseBox" PasswordChar="●"/>
+
+      <!-- OpenSSH -J 표기. ~/.ssh/config 의 ProxyJump 가 있으면 비워 둬도 된다 -->
+      <TextBlock Grid.Row="7" Grid.Column="0" Text="Proxy jump:"/>
+      <TextBox   Grid.Row="7" Grid.Column="1" Name="ProxyJumpBox"
+                 PlaceholderText="(선택) user@bastion1, user@bastion2"
+                 ToolTip.Tip="거쳐 갈 호스트를 순서대로. ssh -J 와 같은 표기입니다."/>
+
+      <TextBlock Grid.Row="8" Grid.Column="1" Name="AuthHint" FontSize="12" Opacity="0.65"
+                 TextWrapping="Wrap" Margin="0,2,0,0" IsVisible="False"/>
     </Grid>
 
     <CheckBox Name="SavePasswordBox" Content="비밀번호·passphrase 저장" FontSize="12.5"

@@ -147,11 +147,13 @@ public static class SshTunnelPool
                 // 락을 쥐고 있으면 같은 시각의 다른 접속이 전부 멈춘다.
                 // **반드시 스레드 풀에서 돌린다.** 호스트 키 물음은 핸드셰이크 도중 동기로
                 // 오는데, 그게 UI 스레드에서 일어나면 다이얼로그를 띄우는 순간 교착한다.
+                // ~/.ssh/config 읽기와 ProxyJump 펼치기도 파일 I/O 라 여기서 함께 한다.
                 var prompt = HostKeyPrompt;
                 entry = new Entry
                 {
                     Connecting = Task.Run(
-                        () => SshTunnel.ConnectAsync(ssh, dbHost, dbPort, ConnectTimeout, prompt, ct), ct),
+                        () => SshTunnel.ConnectAsync(
+                            SshHops.Expand(ssh), dbHost, dbPort, ConnectTimeout, prompt, ct), ct),
                 };
                 Entries[key] = entry;
             }

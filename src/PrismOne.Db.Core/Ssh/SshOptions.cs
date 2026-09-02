@@ -8,6 +8,16 @@ public enum SshAuthMode
 {
     Password = 0,
     PrivateKey = 1,
+
+    /// <summary>ssh-agent · OpenSSH Authentication Agent 가 든 키로 인증. 비밀을 저장하지 않는다.</summary>
+    Agent = 2,
+
+    /// <summary>
+    /// <c>~/.ssh/config</c> 의 <c>Host</c> 별칭을 그대로 쓴다 — HostName·User·Port·IdentityFile·
+    /// ProxyJump 를 설정에서 읽고, 인증은 그 IdentityFile 과 agent 로 한다.
+    /// DataGrip 의 "OpenSSH config and authentication agent" 에 해당한다.
+    /// </summary>
+    OpenSshConfig = 3,
 }
 
 /// <summary>
@@ -30,14 +40,27 @@ public sealed record SshOptions(
     string? Password = null,
     string? PrivateKeyPath = null,
     string? Passphrase = null,
-    bool SavePassword = true)
+    bool SavePassword = true,
+    string? ProxyJump = null)
 {
     public const int DefaultPort = 22;
 
     public static SshOptions Empty { get; } = new("", DefaultPort, "");
 
-    /// <summary>상태바·Login List 표기. 비밀 정보는 담지 않는다.</summary>
-    public string Describe => Port == DefaultPort ? $"{Username}@{Host}" : $"{Username}@{Host}:{Port}";
+    /// <summary>
+    /// 상태바·Login List 표기. 비밀 정보는 담지 않는다.
+    /// OpenSSH config 모드는 사용자 이름을 설정에서 가져오므로 비어 있을 수 있다.
+    /// </summary>
+    public string Describe
+    {
+        get
+        {
+            var target = Port == DefaultPort ? Host : $"{Host}:{Port}";
+            var withUser = string.IsNullOrWhiteSpace(Username) ? target : $"{Username}@{target}";
+            // 경유가 있으면 그것까지 보여야 한다 — 최종 주소만으로는 경로를 알 수 없다.
+            return string.IsNullOrWhiteSpace(ProxyJump) ? withUser : $"{withUser} via {ProxyJump}";
+        }
+    }
 
     /// <summary>
     /// 쓸 수 있는 설정인지 확인한다. 문제가 없으면 null, 있으면 사람이 읽을 이유를 돌려준다
@@ -46,22 +69,37 @@ public sealed record SshOptions(
     public string? Validate()
     {
         if (string.IsNullOrWhiteSpace(Host))
-            return "SSH 호스트를 입력하세요.";
+            return AuthMode == SshAuthMode.OpenSshConfig
+                ? "~/.ssh/config 의 Host 별칭을 입력하세요."
+                : "SSH 호스트를 입력하세요.";
         if (Port is <= 0 or > 65535)
             return "SSH 포트는 1~65535 사이여야 합니다.";
-        if (string.IsNullOrWhiteSpace(Username))
+
+        // OpenSSH config 모드는 User 를 설정에서 가져올 수 있어 비어 있어도 된다.
+        // 정말 없으면 접속 직전(홉 확장 뒤)에 걸린다.
+        if (AuthMode != SshAuthMode.OpenSshConfig && string.IsNullOrWhiteSpace(Username))
             return "SSH 사용자 이름을 입력하세요.";
 
-        if (AuthMode == SshAuthMode.PrivateKey)
+        switch (AuthMode)
         {
-            if (string.IsNullOrWhiteSpace(PrivateKeyPath))
-                return "개인키 파일 경로를 입력하세요.";
-            if (!File.Exists(PrivateKeyPath))
-                return $"개인키 파일을 찾을 수 없습니다: {PrivateKeyPath}";
-        }
-        else if (string.IsNullOrEmpty(Password))
-        {
-            return "SSH 비밀번호를 입력하세요.";
+            case SshAuthMode.PrivateKey:
+                if (string.IsNullOrWhiteSpace(PrivateKeyPath))
+                    return "개인키 파일 경로를 입력하세요.";
+                if (!File.Exists(PrivateKeyPath))
+                    return $"개인키 파일을 찾을 수 없습니다: {PrivateKeyPath}";
+                break;
+
+            case SshAuthMode.Password:
+                if (string.IsNullOrEmpty(Password))
+                    return "SSH 비밀번호를 입력하세요.";
+                break;
+
+            case SshAuthMode.OpenSshConfig:
+                if (!SshConfig.Exists)
+                    return $"{SshConfig.FilePath} 가 없습니다.";
+                break;
+
+            // Agent 는 확인할 입력이 없다 — agent 가 실제로 붙는지는 접속할 때 알 수 있다.
         }
 
         return null;
@@ -80,4 +118,16 @@ public sealed record SshOptions(
     /// 그건 키를 실제로 읽어 봐야 알 수 있고, 실패하면 드라이버가 알려준다.
     /// </summary>
     public bool NeedsPassword => AuthMode == SshAuthMode.Password && string.IsNullOrEmpty(Password);
+
+    /// <summary>비밀을 아예 안 다루는 방식인지 — 설정 창이 저장 체크를 숨기는 데 쓴다.</summary>
+    public bool UsesStoredSecret => AuthMode is SshAuthMode.Password or SshAuthMode.PrivateKey;
+
+    /// <summary>표기용 인증 방식 이름.</summary>
+    public string AuthLabel => AuthMode switch
+    {
+        SshAuthMode.PrivateKey => "개인키",
+        SshAuthMode.Agent => "ssh-agent",
+        SshAuthMode.OpenSshConfig => "OpenSSH config",
+        _ => "비밀번호",
+    };
 }

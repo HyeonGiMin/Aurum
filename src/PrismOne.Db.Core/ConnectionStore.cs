@@ -76,7 +76,9 @@ public sealed record SavedConnection(
     private bool SameSshTarget(SshOptions? other)
     {
         if (Ssh is null || other is null) return Ssh is null && other is null;
-        return Ssh.Host == other.Host && Ssh.Port == other.Port && Ssh.Username == other.Username;
+        // 경유 경로도 대상의 일부다 — 같은 bastion 이라도 그 앞을 다르게 거치면 다른 접속이다.
+        return Ssh.Host == other.Host && Ssh.Port == other.Port && Ssh.Username == other.Username
+               && Ssh.ProxyJump == other.ProxyJump;
     }
 
     public static int DefaultPort(DbKind kind) => kind switch
