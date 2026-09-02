@@ -1,0 +1,59 @@
+# 빌드·테스트 검증. 이 저장소는 그동안 CI 가 없어서 "컴파일은 되는가" 조차
+# 사람이 손으로 확인해야 했다 — 특히 GUI 없이 작업할 때 이게 유일한 안전망이다.
+#
+# 실접속 테스트(Oracle·MongoDB)는 서버 환경변수(AURUM_*_TEST_HOST 등)가 없으면
+# 스스로 조기 반환하므로 여기서는 자동으로 건너뛴다.
+name: build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # 같은 브랜치에 연달아 밀면 앞의 실행은 취소한다 — 마지막 커밋 결과만 의미가 있다.
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 복원 결과를 캐시해 매번 NuGet 을 새로 받지 않게 한다.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore Aurum.sln
+
+      # 배포와 같은 구성으로 짓는다 (Debug 에만 들어가는 진단 패키지를 빼기 위해서도).
+      - name: Build
+        run: dotnet build Aurum.sln --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test tests/PrismOne.Db.Core.Tests
+          --configuration Release --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()   # 실패했을 때가 결과를 가장 보고 싶은 때다
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
