@@ -7,10 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ThroughTunnel 처럼 앱에는 안 열어 두지만 테스트로는 고정해야 하는 경계용 -->
+    <InternalsVisibleTo Include="PrismOne.Db.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.10" />
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.300" />
+    <!-- SSH 터널(DataGrip 의 SSH tunnel 대응). 순수 .NET 구현이라 OS 의 ssh 클라이언트가
+         없어도 되고 비밀번호 인증도 자동화된다 — 외부 ssh 프로세스로는 둘 다 안 된다. -->
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
   </ItemGroup>
 

@@ -69,8 +69,10 @@ public static class MongoSessionMonitor
         return result.TryGetValue("ok", out var ok) && ok.ToDouble() >= 1;
     }
 
-    private static MongoClient CreateClient(ConnectionProfile profile)
+    /// <summary>SSH 를 쓰는 프로필이면 터널을 통과한 주소로 붙는다 (MongoSession.Open 과 같은 이유).</summary>
+    private static MongoClient CreateClient(ConnectionProfile rawProfile)
     {
+        var profile = PrismOne.Db.Core.Ssh.SshTunnelPool.Resolve(rawProfile);
         var settings = MongoClientSettings.FromConnectionString(MongoSession.BuildConnectionString(profile));
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
         settings.ConnectTimeout = TimeSpan.FromSeconds(5);

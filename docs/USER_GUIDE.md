@@ -25,6 +25,8 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
   | Oracle | `host[:1521]/service` | **서비스 이름**입니다 |
   | SQLite | `C:\path\to\file.db` | 파일 경로. Username/Password 사용 안 함 |
 
+  SQLite 를 뺀 나머지는 **SSH 터널**로도 붙을 수 있습니다 (아래 *SSH 터널*).
+
 - **Database 는 `host[:port]/database` 한 칸**입니다. 예: `<dev-host>/prismone`,
   포트를 생략하면 종류별 기본 포트, `prismone` 만 쓰면 localhost.
 - 아래 **Login List** 에서 클릭=필드 채움, **더블클릭=바로 로그인**. New/Delete 로 관리.
@@ -51,6 +53,35 @@ Golden 을 쓰던 손버릇 그대로 쓰이도록 만들었습니다.
   `schema_version` 에 기록된 마지막 적용 패치(예: `Schema: 20260718_01`, 기록이 없으면
   `Schema: baseline`)이고, 툴팁에 적용 시각·건수가 보입니다. **조회 전용**입니다 —
   패치 적용은 `iapdb` CLI 로 합니다 (schema_version 테이블이 없는 DB 에선 숨겨집니다).
+### SSH 터널 (DataGrip 의 SSH tunnel)
+
+DB 포트가 밖으로 열려 있지 않고 **점프(bastion) 호스트를 거쳐야** 하는 환경용입니다.
+
+- 로그온 창의 **SSH Tunnel** 체크 → **Configure…** 로 점프 호스트를 지정합니다.
+  - **SSH host / Port(기본 22) / Username**
+  - **Auth** — `Password` 또는 `Private key`
+    - Password: 서버가 비밀번호 인증을 껐어도 keyboard-interactive 만 켜져 있으면 그쪽으로 붙습니다.
+    - Private key: `~/.ssh/id_ed25519` 같은 키 파일(+ passphrase). `…` 버튼으로 고를 수 있습니다.
+  - **Test tunnel** — DB 는 건드리지 않고 **SSH 접속과 포워딩만** 확인합니다.
+    "SSH 가 안 되는 건지 DB 가 안 되는 건지" 를 먼저 갈라 줍니다.
+  - **Don't use SSH** — 터널 설정을 지우고 직접 접속으로 되돌립니다.
+- **Database 칸의 주소는 점프 호스트에서 본 주소**입니다. DB 서버에 SSH 로 들어간 뒤
+  거기서 접속하는 것과 같으므로, 보통 `localhost/prismone` 처럼 씁니다.
+- SSH 비밀번호와 키 passphrase 도 DB 비밀번호와 **똑같이 AES-256 으로 암호화**되어
+  저장되고, Login List 항목에 함께 딸려 옵니다.
+- 터널을 쓰는 항목은 Login List 의 Database 칸에 **`⇄` 표식**이 붙고, 툴팁에 점프
+  호스트가 보입니다. 접속 후에는 창 제목·상태바에 `… [ssh ops@jump]` 로 표시됩니다.
+- 터널은 **접속 대상마다 하나만 세워 재사용**합니다. 자동완성 캐시·ERD·Session Monitor 가
+  여는 짧은 접속들도 같은 터널을 탑니다. 쿼리 탭이 하나라도 열려 있으면 유지되고,
+  아무도 안 쓰면 5분 뒤 닫힙니다. 앱을 끄면 모두 닫힙니다.
+- 터널을 세우지 못하면 **"SSH tunnel failed"** 로 따로 알립니다 — 손볼 곳이 DB 설정이
+  아니라 SSH 설정이기 때문입니다.
+- **SQLite 는 지원하지 않습니다** (파일 DB라 터널이 의미가 없습니다 — DataGrip 도 같습니다).
+- 알려진 제약:
+  - **Oracle** — 리스너가 다른 포트로 재접속을 지시하는 구성(SCAN·공유 서버 리다이렉트)에서는
+    재접속이 터널 밖으로 나갑니다. 서비스 이름 직접 접속이면 문제 없습니다.
+  - **MongoDB** — replica set 이면 드라이버가 서버가 알려준 호스트로 다시 붙으려 하므로
+    터널 접속은 `directConnection=true` 로 고정됩니다(단일 노드 조회).
 
 ## 3. 쿼리 실행
 

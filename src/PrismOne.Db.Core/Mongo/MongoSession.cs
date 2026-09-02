@@ -45,8 +45,14 @@ public sealed class MongoSession : IDisposable
         _databaseName = databaseName;
     }
 
-    public static MongoSession Open(ConnectionProfile profile)
+    /// <summary>
+    /// SSH 를 쓰는 프로필이면 터널을 먼저 세우고 그 로컬 주소로 붙는다. 동기 메서드인 이유는
+    /// <see cref="MongoDbConnection.Open"/>(ADO.NET 규약)이 동기라서다 — 풀이 스레드 풀에서
+    /// 기다려 주므로 UI 스레드에서 불려도 교착하지 않는다.
+    /// </summary>
+    public static MongoSession Open(ConnectionProfile rawProfile)
     {
+        var profile = PrismOne.Db.Core.Ssh.SshTunnelPool.Resolve(rawProfile);
         var settings = MongoClientSettings.FromConnectionString(BuildConnectionString(profile));
         // 서버가 없을 때 몇 분씩 매달리지 않게 한다 (기본은 30초).
         settings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
@@ -80,6 +86,10 @@ public sealed class MongoSession : IDisposable
     /// <summary>
     /// 접속 문자열. 비밀번호가 들어가므로 <b>로그·오류 메시지에 실으면 안 된다</b>.
     /// 사용자/비밀번호에 특수문자가 있어도 깨지지 않게 URI 인코딩한다.
+    ///
+    /// SSH 터널을 통과한 프로필이면 <c>directConnection=true</c> 를 붙인다 — 안 붙이면
+    /// 드라이버가 replica set 토폴로지를 탐색해 <b>서버가 알려준 실제 호스트</b>로 다시
+    /// 붙으려 하고, 그 주소는 터널 밖이라 접속이 조용히 실패한다.
     /// </summary>
     public static string BuildConnectionString(ConnectionProfile profile)
     {
@@ -88,7 +98,8 @@ public sealed class MongoSession : IDisposable
         var credentials = string.IsNullOrEmpty(profile.Username)
             ? ""
             : $"{Uri.EscapeDataString(profile.Username)}:{Uri.EscapeDataString(profile.Password)}@";
-        return $"mongodb://{credentials}{host}:{port}";
+        var options = profile.ViaTunnel ? "/?directConnection=true" : "";
+        return $"mongodb://{credentials}{host}:{port}{options}";
     }
 
     /// <summary>

@@ -119,15 +119,38 @@ public sealed class QuerySession : IAsyncDisposable
     /// </summary>
     private bool _oracleOutputEnabled;
 
-    private QuerySession(ConnectionProfile profile, DbConnection conn)
+    /// <summary>
+    /// SSH 터널 참조. 탭이 살아 있는 동안 터널이 닫히지 않게 붙잡는다 — 유휴 회수기가
+    /// 탭을 열어만 둔 세션의 터널을 걷어가면 다음 F9 가 죽는다.
+    /// SSH 를 안 쓰는 접속이면 아무 일도 하지 않는 참조다.
+    /// </summary>
+    private readonly IDisposable _tunnelLease;
+
+    private QuerySession(ConnectionProfile profile, DbConnection conn, IDisposable tunnelLease)
     {
         Profile = profile;
         Connection = conn;
+        _tunnelLease = tunnelLease;
         HookNotices(conn);
     }
 
+    /// <summary>
+    /// 터널 참조를 <b>접속보다 먼저</b> 잡는다 — 순서가 반대면 그 사이에 터널이 회수될 수 있다.
+    /// 접속에 실패하면 참조를 도로 놓는다.
+    /// </summary>
     public static async Task<QuerySession> CreateAsync(ConnectionProfile profile, CancellationToken ct = default)
-        => new(profile, await profile.OpenDbAsync(ct));
+    {
+        var (_, lease) = await PrismOne.Db.Core.Ssh.SshTunnelPool.LeaseAsync(profile, ct);
+        try
+        {
+            return new QuerySession(profile, await profile.OpenDbAsync(ct), lease);
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
 
     /// <summary>서버 메시지는 PG 고유 기능 — 다른 드라이버는 그냥 넘어간다.</summary>
     private void HookNotices(DbConnection conn)
@@ -457,6 +480,8 @@ public sealed class QuerySession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         try { await Connection.DisposeAsync(); } catch { /* shutdown */ }
+        // 접속을 닫은 뒤에 놓는다 — 참조가 먼저 풀리면 아직 쓰는 중에 터널이 닫힐 수 있다.
+        try { _tunnelLease.Dispose(); } catch { /* shutdown */ }
     }
 }
 

@@ -21,6 +21,7 @@ Golden 파리티는 끝났다(GOLDEN_BEHAVIOR.md). 이 문서는 **Golden 에는
 | 5 | CSV/TSV **import** (파일 → 테이블) | export 만 | 가끔 | 중간 | ✅ 완료 (2026-08-04) |
 | 6 | 결과 탭 여러 개 / 고정(pin) | 탭당 1개 | 가끔 | 중간 | ✅ 완료 (2026-08-04, 새 창 고정) |
 | 7 | Find usages / Go to declaration | 없음 | 가끔 | 높음 | 파서 필요 |
+| 9 | **SSH 터널** (점프 호스트 경유 접속) | 없음 | 상시(운영망) | 중간 | ✅ 완료 (2026-09-02) |
 | 8 | 커스텀 추출기(스크립트) | 고정 4종 | 드묾 | 중간 | 보안상 비채택 |
 | — | ~~동기화 DDL 생성~~ | 없음 | — | — | **Aurum 제외 → `iapdb`** |
 
@@ -123,3 +124,43 @@ QueryTabView 의 0.6초 디바운스 타이머·호버 툴팁. FROM/JOIN/INTO/UP
   "두 결과를 나란히 비교"라는 실제 용도는 그대로 충족한다.
 - **Find usages**: SQL 파서가 있어야 제대로 된다. 비용 대비 후순위
 - **커스텀 추출기**: 스크립트 실행 = 보안 검토 필요. 후순위
+
+## 9. SSH 터널 — ✅ 구현됨 (2026-09-02)
+
+**왜 필요했나:** 운영 DB 는 포트가 밖으로 안 열려 있고 bastion 을 거친다. 그동안은
+사용자가 손으로 `ssh -L` 을 띄우고 로그온 창에 `localhost:<임의포트>` 를 적어야 했다 —
+포트를 외우고, 터널이 죽으면 왜 안 되는지 알 수 없었다.
+
+**어디에 끼웠나:** 접속 경로가 이미 한 곳으로 모여 있어(`ConnectionProfile` →
+`IDbProvider.BuildConnectionString`/`OpenAsync`) 그 경계에서 host/port 만 로컬 포워딩
+끝점으로 바꾸는 것으로 끝났다. `SchemaCache`·`ErdCatalog`·`SessionMonitor`·`CopyExporter`
+같은 호출부는 한 줄도 고치지 않았다.
+
+- `Ssh/SshOptions` — 점프 호스트 + 인증(비밀번호 / 개인키+passphrase). `ConnectionProfile`
+  과 `SavedConnection` 의 **맨 뒤 기본값 필드**라 기존 `connections.json` 이 그대로 읽힌다.
+- `Ssh/SshTunnel` — SSH.NET 기반. **127.0.0.1 의 임의 포트로만** listen 한다(`ssh -L` 기본과
+  동일 — 남이 우리 터널을 타고 DB 에 붙지 못하게). 포트는 미리 잡아 두고 그 번호로 연다.
+- `Ssh/SshTunnelPool` — **(SSH 대상 + DB 대상)마다 터널 하나**를 재사용한다. 이게 핵심이다:
+  자동완성 캐시·ERD·Session Monitor 가 접속을 열고 바로 닫는데, 그때마다 SSH 핸드셰이크를
+  하면(1~2초) 도구를 못 쓴다. 쿼리 탭은 `LeaseAsync` 로 참조를 걸어 붙잡고, 참조가 없는
+  터널은 5분 뒤 닫힌다.
+
+**DB 별로 따로 손댄 곳:**
+
+- **Oracle** — `OracleErdCatalog` 는 provider 를 안 거치고 직접 접속 문자열을 만들어서
+  거기서도 한 번 더 풀어 준다. 드라이버 풀링(MaxPoolSize=5)이 켜져 있어 터널이 풀보다
+  오래 살아야 하는데, 탭이 참조를 잡고 있으므로 만족한다.
+  *남은 제약*: 리스너가 다른 포트로 재접속을 지시하는 구성(SCAN 등)은 터널 밖으로 나간다.
+- **MongoDB** — `MongoSession.BuildConnectionString` 이 provider 를 우회해 직접 만들기에
+  거기서 풀어 준다. 터널일 때는 **`directConnection=true`** 를 붙인다 — 안 붙이면 드라이버가
+  replica set 토폴로지를 탐색해 *서버가 알려준* 호스트로 다시 붙고, 그 주소는 터널 밖이라
+  조용히 실패한다.
+- **SQLite** — 파일 DB라 대상이 아니다. UI 에서 아예 비활성화한다(DataGrip 도 같다).
+
+**신원 문제 하나:** 터널을 쓰면 DB 주소가 대개 `localhost:5432` 로 같아진다. 그래서
+`SavedConnection.SameTarget`·`DisplayName` 에 점프 호스트를 넣었다 — 안 그러면 서로 다른
+서버의 접속이 로그인 목록에서 하나로 뭉개져 서로를 덮어쓴다. 단 `DisplayDatabase` 는
+건드리지 않았다(로그온 창이 그 문자열을 되파싱한다).
+
+테스트 18개 (설정 검증 · 프로필 전파 · 저장 신원 · Mongo 접속 문자열). 실제 포워딩은
+sshd 가 있어야 해서 자동 테스트로 두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.

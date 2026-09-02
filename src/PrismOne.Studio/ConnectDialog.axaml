@@ -45,6 +45,15 @@
           <CheckBox Name="ReadOnlyBox" Content="Read Only" FontSize="13"/>
           <TextBlock Text="비밀번호는 암호화되어 저장됩니다" FontSize="12" Opacity="0.6" VerticalAlignment="Center"/>
         </StackPanel>
+        <!-- DataGrip 의 SSH tunnel. 켜면 Database 칸의 주소를 **점프 호스트에서 본** 주소로 해석한다 -->
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="88,2,0,0">
+          <CheckBox Name="SshBox" Content="SSH Tunnel" FontSize="13" Click="OnSshToggled"
+                    ToolTip.Tip="점프 호스트를 거쳐 DB 에 접속합니다"/>
+          <Button Name="SshConfigButton" Content="Configure…" FontSize="12.5"
+                  MinHeight="26" Padding="10,2" VerticalAlignment="Center" Click="OnConfigureSsh"/>
+          <TextBlock Name="SshSummary" FontSize="12" Opacity="0.6" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
       </StackPanel>
     </Border>
     <TextBlock Grid.Row="0" Grid.Column="0" Name="LoginGroupHeader" Text=" Login " FontSize="13"
@@ -138,7 +147,12 @@
                            FontSize="11.5" FontWeight="SemiBold"/>
               </Border>
               <TextBlock Grid.Column="2" Text="{Binding Username}"/>
-              <TextBlock Grid.Column="3" Text="{Binding DisplayDatabase}"/>
+              <!-- 터널을 거치는 항목은 주소만 봐서는 구분이 안 된다(흔히 localhost) — 표식을 붙인다 -->
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4"
+                          VerticalAlignment="Center" ToolTip.Tip="{Binding SshLabel}">
+                <TextBlock Text="⇄" FontSize="12" Opacity="0.75" IsVisible="{Binding HasSsh}"/>
+                <TextBlock Text="{Binding DisplayDatabase}"/>
+              </StackPanel>
               <TextBlock Grid.Column="4" Text="{Binding Category}"/>
               <TextBlock Grid.Column="5" Text="{Binding Comment}"/>
             </Grid>

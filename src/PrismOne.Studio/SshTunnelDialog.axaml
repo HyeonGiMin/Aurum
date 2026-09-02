@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="PrismOne.Studio.SshTunnelDialog"
+        Icon="/Assets/icon.png"
+        Title="SSH Tunnel"
+        Width="520" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+  <!-- DataGrip 의 "SSH/SSL > SSH tunnel" 대응. 여기 적는 것은 **점프 호스트**이고,
+       로그온 창의 Database 칸은 그 서버에서 본 DB 주소다 (흔히 localhost:5432) -->
+  <StackPanel Margin="16" Spacing="4">
+    <TextBlock Text="DB 에 직접 붙지 않고 이 서버를 거쳐 접속합니다."
+               FontSize="12.5" Opacity="0.65" TextWrapping="Wrap"/>
+    <TextBlock Name="TargetHint" FontSize="12.5" Opacity="0.65" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+      <Grid.Styles>
+        <Style Selector="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/><Setter Property="FontSize" Value="13"/></Style>
+        <Style Selector="TextBox"><Setter Property="Margin" Value="0,4"/><Setter Property="MinHeight" Value="30"/><Setter Property="FontSize" Value="13"/></Style>
+      </Grid.Styles>
+
+      <TextBlock Grid.Row="0" Grid.Column="0" Text="SSH host:"/>
+      <TextBox   Grid.Row="0" Grid.Column="1" Name="HostBox" PlaceholderText="jump.example.com"/>
+
+      <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:"/>
+      <TextBox   Grid.Row="1" Grid.Column="1" Name="PortBox" PlaceholderText="22"/>
+
+      <TextBlock Grid.Row="2" Grid.Column="0" Text="Username:"/>
+      <TextBox   Grid.Row="2" Grid.Column="1" Name="UserBox"/>
+
+      <TextBlock Grid.Row="3" Grid.Column="0" Text="Auth:"/>
+      <ComboBox  Grid.Row="3" Grid.Column="1" Name="AuthCombo"
+                 MinHeight="30" FontSize="13" Margin="0,4"
+                 HorizontalAlignment="Stretch" SelectionChanged="OnAuthModeChanged"/>
+
+      <TextBlock Grid.Row="4" Grid.Column="0" Name="PasswordLabel" Text="Password:"/>
+      <TextBox   Grid.Row="4" Grid.Column="1" Name="PasswordBox" PasswordChar="●"/>
+
+      <TextBlock Grid.Row="5" Grid.Column="0" Name="KeyLabel" Text="Private key:"/>
+      <Grid      Grid.Row="5" Grid.Column="1" ColumnDefinitions="*,Auto">
+        <TextBox Grid.Column="0" Name="KeyPathBox" PlaceholderText="~/.ssh/id_ed25519"/>
+        <Button  Grid.Column="1" Name="BrowseButton" Content="…" MinWidth="36" MinHeight="30"
+                 Margin="6,4,0,4" Click="OnBrowseKey"/>
+      </Grid>
+
+      <TextBlock Grid.Row="6" Grid.Column="0" Name="PassphraseLabel" Text="Passphrase:"/>
+      <TextBox   Grid.Row="6" Grid.Column="1" Name="PassphraseBox" PasswordChar="●"/>
+    </Grid>
+
+    <TextBlock Name="StatusText" TextWrapping="Wrap" FontSize="12.5"
+               Margin="0,8,0,0" IsVisible="False"/>
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+      <Button Name="TestButton" Content="Test tunnel" MinWidth="100" Click="OnTest"/>
+      <Button Name="ClearButton" Content="Don't use SSH" MinWidth="110" Click="OnClear"/>
+      <Button Name="OkButton" Content="OK" Classes="accent" IsDefault="True" MinWidth="80" Click="OnOk"/>
+      <Button Content="Cancel" IsCancel="True" MinWidth="80" Click="OnCancel"/>
+    </StackPanel>
+
+    <ProgressBar Name="TestProgress" IsIndeterminate="True" IsVisible="False"
+                 MinWidth="0" Height="4" Margin="0,8,0,0"/>
+  </StackPanel>
+</Window>
