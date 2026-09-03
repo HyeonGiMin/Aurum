@@ -120,8 +120,29 @@ powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
 # → dist/Aurum/Aurum.exe (self-contained 단일 exe, 약 48MB)
 ```
 
-> `packaging/windows/*.ps1` 은 **UTF-8 BOM** 으로 저장한다. PowerShell 5.1 은 BOM 없는
+> `packaging/**/*.ps1` 은 **UTF-8 BOM** 으로 저장한다. PowerShell 5.1 은 BOM 없는
 > UTF-8 을 CP949 로 읽어 한글 주석이 깨지면서 스크립트 파싱이 어긋난다.
+
+## 설치 · 자동 업데이트
+
+설치본은 [GitHub Releases](https://github.com/HyeonGiMin/Aurum/releases/latest) 에서 받는다
+(Windows `Aurum-win-Setup.exe`, macOS `Aurum-osx-arm64.pkg`). Setup 으로 설치한 본은
+**시작할 때 새 릴리즈를 확인해 팝업으로 알리고, Update 를 누르면 내려받아 다시 시작**한다
+(Velopack). Help > Check for Updates 로 직접 확인할 수도 있고, Options 에서 시작 시 확인을 끌 수 있다.
+위의 zip / 단일 exe 본은 자동 업데이트가 되지 않는다.
+
+릴리즈 절차 — 태그를 밀면 `.github/workflows/release.yml` 이 두 플랫폼을 빌드해 Release 에 올린다:
+
+```bash
+git tag v0.4.0 && git push origin v0.4.0
+```
+
+로컬에서 Setup/업데이트 패키지를 미리 만들어 보려면:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging/velopack/pack.ps1 -Version 0.4.0
+# → dist/releases/Aurum-win-Setup.exe 등
+```
 
 ## 자가 검증 (스크린샷 하니스)
 

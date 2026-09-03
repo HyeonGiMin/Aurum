@@ -23,6 +23,7 @@ public partial class OptionsDialog : Window
         AllowNonSelectFavoritesOption.IsChecked = current.AllowNonSelectFavorites;
         FetchAllOnExecuteOption.IsChecked = current.FetchAllOnExecute;
         CountTotalRecordsOption.IsChecked = current.CountTotalRecords;
+        CheckUpdatesOnStartupOption.IsChecked = current.CheckUpdatesOnStartup;
         ThemeCombo.SelectedIndex = current.Theme switch { "Dark" => 1, "System" => 2, _ => 0 };
     }
 
@@ -40,6 +41,7 @@ public partial class OptionsDialog : Window
             AllowNonSelectFavorites = AllowNonSelectFavoritesOption.IsChecked == true,
             CountTotalRecords = CountTotalRecordsOption.IsChecked == true,
             FetchAllOnExecute = FetchAllOnExecuteOption.IsChecked == true,
+            CheckUpdatesOnStartup = CheckUpdatesOnStartupOption.IsChecked == true,
             Theme = ThemeCombo.SelectedIndex switch { 1 => "Dark", 2 => "System", _ => "Light" },
         };
         options.Save();

@@ -13,7 +13,7 @@ namespace PrismOne.Db.Core.Tests;
 /// 접속 정보를 코드에 박지 않기 위한 것이다 (MongoSessionLiveTests 와 동일 패턴).
 ///
 /// 로컬에서 돌리는 법 (PowerShell):
-///   $env:AURUM_ORACLE_TEST_HOST = "10.0.6.135"
+///   $env:AURUM_ORACLE_TEST_HOST = "oracle.example.com"
 ///   $env:AURUM_ORACLE_TEST_PORT = "1521"
 ///   $env:AURUM_ORACLE_TEST_SERVICE = "prismone"
 ///   $env:AURUM_ORACLE_TEST_USER = "prismone"

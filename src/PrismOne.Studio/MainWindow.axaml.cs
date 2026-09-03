@@ -97,6 +97,9 @@ public partial class MainWindow : Window
                 if (_tabs.Count == 0)
                     await NewTabAsync(null);
                 await ShowLogonAsync();
+                // 로그온 창이 닫힌 뒤에 확인한다 — 팝업 두 개가 겹치지 않게.
+                if (_options.CheckUpdatesOnStartup)
+                    _ = AppUpdater.CheckAsync(this, manual: false);
             };
 
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
@@ -384,6 +387,8 @@ public partial class MainWindow : Window
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
+            Item("Check for Updates…", () => OnMenuCheckUpdates(this, args)),
+            new NativeMenuItemSeparator(),
             Item("About Aurum", () => OnMenuAbout(this, args))));
         NativeMenu.SetMenu(this, root);
     }
@@ -2553,13 +2558,17 @@ public partial class MainWindow : Window
         bitmap.Save(path);
     }
 
+    /// <summary>Help > Check for Updates — 결과가 무엇이든 알린다 (최신이면 토스트).</summary>
+    private async void OnMenuCheckUpdates(object? sender, RoutedEventArgs e) =>
+        await AppUpdater.CheckAsync(this, manual: true);
+
     private async void OnMenuAbout(object? sender, RoutedEventArgs e)
     {
         var about = new Window
         {
             Title = "About Aurum",
             Width = 400,
-            Height = 180,
+            Height = 200,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false,
             ShowInTaskbar = false,
@@ -2570,6 +2579,7 @@ public partial class MainWindow : Window
                 Children =
                 {
                     new TextBlock { Text = "Aurum", FontSize = 16, FontWeight = Avalonia.Media.FontWeight.SemiBold },
+                    new TextBlock { Text = $"Version {AppUpdater.CurrentVersion}", FontSize = 12, Opacity = 0.7 },
                     new TextBlock { Text = "Golden 스타일 PostgreSQL 쿼리 툴 (IAP/PrismOne)" },
                     new TextBlock
                     {

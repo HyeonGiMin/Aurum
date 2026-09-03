@@ -111,6 +111,8 @@
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
       <MenuItem Header="Help">
+        <MenuItem Header="Check for Updates…" Click="OnMenuCheckUpdates"/>
+        <Separator/>
         <MenuItem Header="About Aurum" Click="OnMenuAbout"/>
       </MenuItem>
     </Menu>
