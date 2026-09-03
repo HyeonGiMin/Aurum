@@ -96,10 +96,12 @@ public partial class MainWindow : Window
             {
                 if (_tabs.Count == 0)
                     await NewTabAsync(null);
-                await ShowLogonAsync();
-                // 로그온 창이 닫힌 뒤에 확인한다 — 팝업 두 개가 겹치지 않게.
+                // 업데이트를 로그온보다 **먼저** 묻는다 — 접속해서 일을 시작한 뒤에
+                // "다시 시작하라"고 하면 하던 것을 버려야 한다. 네트워크가 느리면
+                // AppUpdater 가 스스로 물러나 로그온을 먼저 띄운다.
                 if (_options.CheckUpdatesOnStartup)
-                    _ = AppUpdater.CheckAsync(this, manual: false);
+                    await AppUpdater.CheckAtStartupAsync(this);
+                await ShowLogonAsync();
             };
 
         // 자가 스크린샷 모드 (UI 점검용): IAPDM_SHOT_DIR=<dir> 로 실행하면
@@ -2264,6 +2266,13 @@ public partial class MainWindow : Window
             await Task.Delay(500);
             SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
             importWin.Close();
+
+            // 업데이트 알림 — 가짜 버전으로 창 모양만 확인 (네트워크·설치 상태와 무관)
+            var updateWin = AppUpdater.PreviewWindow();
+            updateWin.Show(this);
+            await Task.Delay(400);
+            SaveShot(updateWin, System.IO.Path.Combine(dir, "shot_update.png"));
+            updateWin.Close();
 
             // Query History — 가짜 항목으로 렌더 확인 (실제 히스토리 파일을 읽지 않는다)
             var historyWin = new HistoryDialog(

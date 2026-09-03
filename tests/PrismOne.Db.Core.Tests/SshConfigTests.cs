@@ -4,9 +4,22 @@ using Xunit;
 namespace PrismOne.Db.Core.Tests;
 
 /// <summary>
+/// <c>SshConfig.HomeOverride</c> 는 <b>정적</b>이라, 이걸 쓰는 두 클래스가 나란히 돌면
+/// 서로의 임시 홈을 덮어쓴다 — 전체 실행에서만 간헐적으로 깨지던 원인이다
+/// (설정 파일 동시 쓰기로 IOException, 또는 남의 홈을 읽어 alias 가 안 풀림).
+/// xUnit 은 <b>컬렉션</b> 단위로 병렬 실행하므로, 같은 컬렉션에 묶어 순차로 돌린다.
+/// </summary>
+[CollectionDefinition(Name)]
+public sealed class SshConfigCollection
+{
+    public const string Name = "ssh-config (shared HomeOverride)";
+}
+
+/// <summary>
 /// <c>~/.ssh/config</c> 읽기. <see cref="SshConfig.HomeOverride"/> 로 임시 폴더를 보게 해
 /// 사용자의 진짜 설정은 건드리지 않는다.
 /// </summary>
+[Collection(SshConfigCollection.Name)]
 public class SshConfigTests : IDisposable
 {
     private readonly string _home;
@@ -183,6 +196,7 @@ public class SshConfigTests : IDisposable
 }
 
 /// <summary>ProxyJump 를 실제로 거쳐 갈 홉 목록으로 펴는 부분.</summary>
+[Collection(SshConfigCollection.Name)]
 public class SshHopsTests : IDisposable
 {
     private readonly string _home;
