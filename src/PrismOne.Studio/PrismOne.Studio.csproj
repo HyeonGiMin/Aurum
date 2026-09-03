@@ -12,7 +12,7 @@
     <!-- Windows 작업 표시줄·탐색기 아이콘 (packaging/windows/make-icon.ps1 로 생성) -->
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <!-- 릴리즈 워크플로우가 태그(vX.Y.Z)에서 -p:Version 으로 덮어쓴다. 여기 값은 로컬 빌드용. -->
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
