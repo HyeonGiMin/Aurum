@@ -15,6 +15,9 @@ namespace PrismOne.Studio;
 /// </summary>
 public sealed class CellComparer(int index) : IComparer
 {
+    /// <summary>비교하는 셀 인덱스 — 편집 모드 진입 시 정렬을 옮겨 적용할 때 쓴다.</summary>
+    public int Index => index;
+
     public int Compare(object? x, object? y)
     {
         var left = Cell(x);

@@ -75,13 +75,13 @@
 
         <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
 
-        <Button Classes="tool" Click="OnEditCommit" ToolTip.Tip="Commit — 변경분을 제출하고 확정 (수동 커밋 모드여도 COMMIT)">
+        <Button Classes="tool" Click="OnEditPost" ToolTip.Tip="Post — 고친 내용을 DB 로 보냄 (트랜잭션 안).&#x0a;확정은 상단 Commit(Ctrl+F5), 취소는 Rollback(Ctrl+F6)">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M4,13 L10,19 L20,5" Stroke="{DynamicResource ExportGreenBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
-        <Button Classes="tool" Click="OnEditRollback" ToolTip.Tip="Rollback — 변경 취소 (커밋 전 제출분은 ROLLBACK, 그리드는 다시 조회)">
+        <Button Classes="tool" Click="OnEditCancel" ToolTip.Tip="Cancel — 아직 Post 하지 않은 변경을 버리고 다시 조회.&#x0a;Post 한 것은 Rollback(Ctrl+F6) 으로 되돌린다">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>

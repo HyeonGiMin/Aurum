@@ -233,14 +233,22 @@ Text/Log 는 그리드 위에 덮어 표시되며, **오류 메시지는 어느 
 
 - **단일 테이블 SELECT 만** 가능합니다. 조인·`DISTINCT`·`GROUP BY`·집합연산·서브쿼리가 있으면
   거부하고 이유를 상태바에 표시합니다 (행을 특정할 수 없기 때문).
+- 결과 그리드를 **헤더 클릭으로 정렬해 둔 채** 편집 모드에 들어가면 그 순서가 유지됩니다
+  (편집 바에 `sorted by 컬럼 ▲` 표시). Post·Cancel·Rollback 으로 다시 조회해도 같은 순서입니다.
+  편집 중에는 행이 흔들리지 않도록 헤더 정렬을 바꿀 수 없습니다.
 - 행 식별은 Golden 이 Oracle ROWID 를 쓰던 것과 같은 방식으로 **PG 의 `ctid`** 를 씁니다.
   편집 모드 SELECT 에 `ctid` 컬럼이 자동으로 붙지만 그리드에는 보이지 않습니다.
 - 셀을 직접 고치고, **Add Row** 로 새 행을 추가하고, 행을 선택해
   **Delete Selected Records…**(`Delete N selected records?` 확인) 로 삭제 표시합니다.
 - **Paste Rows** — 클립보드의 **탭 구분 표**(엑셀에서 복사한 범위, 우리 TSV 내보내기)를
   새 행으로 한꺼번에 넣습니다. 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뜁니다.
-  붙여넣은 행도 Submit 해야 INSERT 됩니다.
-- **Submit Edits (Ctrl+Shift+S)** 를 눌러야 DB 로 나갑니다. 그전까지는 아무것도 반영되지 않습니다.
+  붙여넣은 행도 Post 해야 INSERT 됩니다.
+- 반영은 Golden 의 DBNavigator 와 같은 **2단계**입니다.
+  1. 편집 바의 **✓ Post** (또는 Ctrl+Shift+S) — 고친 내용을 트랜잭션 안에서 DB 로 보냅니다.
+     그전까지는 아무것도 나가지 않습니다. ✗ Cancel 은 아직 Post 하지 않은 변경을 버리고 다시 조회합니다.
+  2. 상단 툴바의 **Commit (Ctrl+F5)** 로 확정하거나 **Rollback (Ctrl+F6)** 으로 되돌립니다.
+     Rollback 하면 그리드를 다시 조회해 원래 값을 보여줍니다. Post 하지 않은 변경이 남은 채
+     Commit 을 누르면 먼저 Post 하고 확정합니다. Options 의 AutoCommit 이 켜져 있으면 Post 즉시 확정됩니다.
   - 변경분은 **한 트랜잭션**에서 UPDATE → DELETE → INSERT 순으로 실행됩니다.
   - 어느 한 문장이라도 **영향 행이 1 이 아니면 전부 롤백**합니다. 다른 사람이 먼저 고쳤거나
     `ctid` 가 바뀐 경우로, 다시 조회한 뒤 작업하세요.
@@ -597,7 +605,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 | Ctrl+L / Ctrl+J | 로그온 | | F9 / F7 / Ctrl+Enter | 문장 실행 |
 | F5 / F6 / Shift+Enter | 스크립트 실행 (커서부터) | | Ctrl+End | 전체 fetch |
 | **Ctrl+F7** | **Run Selected (선택 영역만)** | | | |
-| **Ctrl+E** / F11 | **Run and Edit (편집 모드)** | | Ctrl+Shift+S | Submit Edits |
+| **Ctrl+E** / F11 | **Run and Edit (편집 모드)** | | Ctrl+Shift+S | Post Edits (✓) — 확정은 Ctrl+F5 |
 | **Ctrl+F5** | **Commit** | | **Ctrl+F6** | **Rollback** |
 | Ctrl+Space (⌥Space) | 자동완성 | | Ctrl+F / Ctrl+H | 찾기 / 바꾸기 |
 | Ctrl+↑ / ↓ | 히스토리 | | F8 | Object Browser |
