@@ -126,8 +126,10 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 9. 워크스페이스 저장/복원 (P5)
 10. ~~EditMode(그리드 편집)~~ ✅ 구현됨 — Run and Edit(Ctrl+E/F11). 행 특정은 DB 별 의사
     컬럼(Oracle `ROWID` — Golden 원조 방식, PG `ctid`, SQLite `rowid`)을 provider 가 정한다
-    (2026-09-02 Oracle/SQLite 확장). Submit(Ctrl+Shift+S) 시 한 트랜잭션,
-    영향 행 ≠ 1 이면 전체 롤백. 붙여넣기 다중 insert(Paste Rows)도 구현됨.
+    (2026-09-02 Oracle/SQLite 확장). 편집 바 ✓(Post, Ctrl+Shift+S) 가 한 트랜잭션으로
+    보내고 상단 Commit(Ctrl+F5)/Rollback(Ctrl+F6) 이 확정·취소한다 (2026-09-03, Golden
+    DBNavigator 와 동일). 영향 행 ≠ 1 이면 전체 롤백. 붙여넣기 다중 insert(Paste Rows)도 구현됨.
+    편집 모드에선 셀 더블클릭이 편집 시작이라 셀 상세 창을 열지 않고, 상세 창은 하나만 재사용한다.
     Oracle 은 날짜 셀을 문자열로 바인딩하므로 세션에 NLS 형식(YYYY-MM-DD HH24:MI:SS)을 건다
 
 **시작 시 로그온 창**: Golden 은 실행하면 메인 창 위로 로그온 창을 곧바로 띄운다

@@ -22,7 +22,7 @@
   (PG · Oracle · MongoDB)
 - 실행 즉시 전체 fetch(5만 행 안전 상한) 또는 점진 fetch — 결과는
   DataGrid / Text / Log 3종 보기(F12), 결과 스냅샷을 새 창에 고정(Pin)
-- **Run and Edit(F11)** — 그리드에서 셀 수정·행 추가·삭제 → 한 트랜잭션 Submit
+- **Run and Edit(F11)** — 그리드에서 셀 수정·행 추가·삭제 → ✓ Post 후 Commit/Rollback (Golden EditMode)
 - 내보내기: CSV(COPY) · TSV · INSERT · **xlsx**(외부 라이브러리 없이 10만 행 ≈ 0.2초)
 - **CSV/TSV Import** — 헤더 매핑, 전량 성공 아니면 전량 롤백
 - Favorites(앱 내 쿼리 저장) · **Query History 조회 창**(시각·검색) · 워크스페이스

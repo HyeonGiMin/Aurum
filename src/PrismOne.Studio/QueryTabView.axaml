@@ -51,7 +51,8 @@
 
         <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
 
-        <Button Classes="tool" Click="OnEditAddRow" ToolTip.Tip="Insert record — 새 행 추가 (Submit 때 INSERT)">
+        <!-- Delphi DBNavigator 순서 (Golden): Insert · Delete · Edit | Post · Cancel · Refresh. Paste 는 우리 확장 -->
+        <Button Classes="tool" Click="OnEditAddRow" ToolTip.Tip="Insert record — 새 행 추가 (Post 때 INSERT)">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M9.7,4 L14.3,4 L14.3,9.7 L20,9.7 L20,14.3 L14.3,14.3 L14.3,20 L9.7,20 L9.7,14.3 L4,14.3 L4,9.7 L9.7,9.7 Z"
                   Fill="{DynamicResource ExportGreenBrush}"/>
@@ -65,26 +66,36 @@
           </Canvas></Viewbox>
         </Button>
 
-        <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
-
-        <Button Classes="tool" Click="OnEditDeleteRows" ToolTip.Tip="Delete record(s) — 선택 행 삭제 표시 (Submit 때 DELETE)">
+        <Button Classes="tool" Click="OnEditDeleteRows" ToolTip.Tip="Delete record — 선택 행 삭제 (확인 후 표시, Post 때 DELETE)">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M4,9.7 L20,9.7 L20,14.3 L4,14.3 Z" Fill="{DynamicResource CancelRedBrush}"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditRecord" ToolTip.Tip="Edit record — 현재 셀 편집 시작 (더블클릭·F2 와 같음)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M4,20 L4,16 L15,5 L19,9 L8,20 Z M13,7 L17,11" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 
         <Border Width="1" Height="16" Background="{DynamicResource SeparatorBrush}" Margin="6,0"/>
 
-        <Button Classes="tool" Click="OnEditCommit" ToolTip.Tip="Commit — 변경분을 제출하고 확정 (수동 커밋 모드여도 COMMIT)">
+        <Button Classes="tool" Click="OnEditPost" ToolTip.Tip="Post edit — 고친 내용을 DB 로 보냄 (트랜잭션 안).&#x0a;확정은 상단 Commit(Ctrl+F5), 취소는 Rollback(Ctrl+F6)">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M4,13 L10,19 L20,5" Stroke="{DynamicResource ExportGreenBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
-        <Button Classes="tool" Click="OnEditRollback" ToolTip.Tip="Rollback — 변경 취소 (커밋 전 제출분은 ROLLBACK, 그리드는 다시 조회)">
+        <Button Classes="tool" Click="OnEditCancel" ToolTip.Tip="Cancel edit — 아직 Post 하지 않은 변경을 버리고 다시 조회.&#x0a;Post 한 것은 Rollback(Ctrl+F6) 으로 되돌린다">
           <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
             <Path Data="M6,6 L18,18 M18,6 L6,18" Stroke="{DynamicResource CancelRedBrush}" StrokeThickness="3.2"
                   StrokeLineCap="Round" StrokeJoin="Round"/>
+          </Canvas></Viewbox>
+        </Button>
+        <Button Classes="tool" Click="OnEditRefresh" ToolTip.Tip="Refresh data — 다시 조회 (Post 전 변경이 있으면 버릴지 묻는다)">
+          <Viewbox Width="15" Height="15"><Canvas Width="24" Height="24">
+            <Path Data="M19.5,12 A7.5,7.5 0 1 1 17.3,6.7 M20,3.5 L20,9 L14.5,9" Stroke="{DynamicResource FloppyBlueBrush}"
+                  StrokeThickness="2.4" StrokeLineCap="Round" StrokeJoin="Round"/>
           </Canvas></Viewbox>
         </Button>
 

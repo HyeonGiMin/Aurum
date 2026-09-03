@@ -50,11 +50,11 @@
         <Separator/>
         <!-- Golden 의 Run and Edit — 결과 그리드에서 직접 수정/삭제/삽입 -->
         <MenuItem Header="Run and Edit (편집 모드로 실행)" InputGesture="Ctrl+E" Click="OnMenuRunAndEdit"/>
-        <MenuItem Header="Submit Edits" InputGesture="Ctrl+Shift+S" Click="OnMenuSubmitEdits"/>
+        <MenuItem Header="Post Edits (변경분을 DB 로 — 확정은 Commit)" InputGesture="Ctrl+Shift+S" Click="OnMenuSubmitEdits"/>
         <MenuItem Header="Add Row" Click="OnMenuAddRow"/>
         <MenuItem Header="Paste Rows (클립보드 표 → 새 행)" Click="OnMenuPasteRows"/>
         <MenuItem Header="Delete Selected Records…" Click="OnMenuDeleteRows"/>
-        <MenuItem Header="Revert Edits" Click="OnMenuRevertEdits"/>
+        <MenuItem Header="Cancel Edits (Post 전 변경 취소)" Click="OnMenuRevertEdits"/>
       </MenuItem>
       <MenuItem Header="Results">
         <MenuItem Header="Fetch All Records" InputGesture="Ctrl+End" Click="OnMenuFetchAll"/>

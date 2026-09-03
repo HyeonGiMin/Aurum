@@ -190,6 +190,8 @@ public partial class QueryTabView : UserControl
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // 셀 더블클릭 → 전문 상세 창 (jsonb 는 pretty-print)
         ResultGrid.DoubleTapped += OnCellDoubleTapped;
+        // 헤더 정렬을 기억해 Run and Edit 로 넘어가도 유지한다
+        ResultGrid.Sorting += OnGridSorting;
         // 맨 왼쪽 순번을 그리기 직전에 화면 위치로 매긴다 (정렬해도 1,2,3… 유지)
         ResultGrid.LoadingRow += OnResultRowLoading;
         // 상태바의 Selected / Modified 갱신 (Golden 파리티)
@@ -697,11 +699,18 @@ public partial class QueryTabView : UserControl
             SetInfo("Run and Edit: 단일 테이블 SELECT 만 편집할 수 있습니다 (조인·집계·DISTINCT 불가)");
             return false;
         }
+        // 헤더 클릭으로 정렬해 둔 상태를 편집 모드로 가져간다. 편집 SELECT 는 행 식별자가
+        // 0번 컬럼으로 앞에 붙으므로 읽기 전용 그리드에서 잡은 인덱스는 하나 밀린다.
+        // 편집 중에 같은 문장을 다시 돌리면 잡아둔 정렬을 그대로 쓰고, 다른 문장이면 버린다.
+        if (!IsEditing)
+            _editSort = CurrentHeaderSort() is { } sort ? (sort.Index + 1, sort.Direction) : null;
+        else if (_editSource!.Sql != prepared.Sql)
+            _editSort = null;
         _editSource = prepared;
         _deletedRows.Clear();
         await ExecuteStatementsAsync([new SqlStatement(prepared.Sql, 0, prepared.Sql.Length)], explain: false);
         if (_editSource is not null)
-            SetInfo($"EditMode: {prepared.Table} — 셀을 고치고 Submit(F11) 하세요");
+            SetInfo($"EditMode: {prepared.Table} — 셀을 고치고 ✓(Post) → Commit(Ctrl+F5) 으로 확정하세요");
         return true;
     }
 
@@ -709,6 +718,7 @@ public partial class QueryTabView : UserControl
     private void LeaveEditMode()
     {
         _editSource = null;
+        _editSort = null;
         _deletedRows.Clear();
         ResultGrid.IsReadOnly = true;
         EditBar.IsVisible = false;
@@ -727,7 +737,7 @@ public partial class QueryTabView : UserControl
             _rows.Remove(row);
         }
         if (selected.Count > 0)
-            SetInfo($"EditMode: {selected.Count} record(s) marked for delete — Submit 하면 반영됩니다");
+            SetInfo($"EditMode: {selected.Count} record(s) marked for delete — Post(✓) 하면 반영됩니다");
         return selected.Count;
     }
 
@@ -742,7 +752,7 @@ public partial class QueryTabView : UserControl
         var cells = new string?[_columns.Count];
         _rows.Add(new RowItem(_rows.Count + 1, cells));
         ResultGrid.ScrollIntoView(_rows[^1], null);
-        SetInfo("EditMode: 새 행 추가 — 값을 넣고 Submit 하세요");
+        SetInfo("EditMode: 새 행 추가 — 값을 넣고 Post(✓) 하세요");
     }
 
     /// <summary>
@@ -774,7 +784,7 @@ public partial class QueryTabView : UserControl
             _rows.Add(new RowItem(_rows.Count + 1, cells));
         if (pasted.Count > 0)
             ResultGrid.ScrollIntoView(_rows[^1], null);
-        SetInfo($"EditMode: Paste inserted {pasted.Count} records. — Submit 하면 반영됩니다");
+        SetInfo($"EditMode: Paste inserted {pasted.Count} records. — Post(✓) 하면 반영됩니다");
     }
 
     /// <summary>편집 내용을 되돌린다 — 원래 쿼리를 다시 실행.</summary>
@@ -796,6 +806,12 @@ public partial class QueryTabView : UserControl
     /// <param name="forceCommit">true 면 수동 커밋 모드여도 제출 직후 COMMIT (편집 바의 ✓).</param>
     public async Task SubmitEditsAsync(bool forceCommit)
     {
+        // 첫 fetch 가 아직 도는 동안 편집 바가 먼저 보인다 — 같은 접속에 두 작업을 겹치지 않게 막는다
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
         // 셀 편집 중이던 값이 있으면 먼저 확정한다 — 편집 바 클릭은 포커스를 옮기지 않는다
         ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
         if (_editSource is not { } source)
@@ -826,12 +842,7 @@ public partial class QueryTabView : UserControl
             return;
         }
 
-        // 점진 fetch 가 reader 를 물고 있으면 BEGIN/UPDATE 를 보낼 수 없다 — 먼저 닫는다
-        if (_current is { Completed: false })
-        {
-            await _current.AbortAsync();
-            _current = null;
-        }
+        await AbortPendingFetchAsync();
 
         var applied = 0;
         try
@@ -860,77 +871,91 @@ public partial class QueryTabView : UserControl
         if (AutoCommit || forceCommit)
             await _session.CommitAsync();
 
-        var pending = AutoCommit || forceCommit ? "" : " — Commit 필요";
+        var pending = AutoCommit || forceCommit ? "" : " — Commit(Ctrl+F5) 으로 확정, Rollback(Ctrl+F6) 으로 취소";
         await RevertEditsAsync();   // ctid 가 바뀌었을 수 있으니 다시 읽는다
-        SetInfo($"EditMode: {applied} change(s) submitted{pending}");
+        SetInfo($"EditMode: {applied} change(s) posted{pending}");
     }
 
     /// <summary>
-    /// 편집 바의 ✓ — 변경분을 제출하고 즉시 COMMIT 한다. 그리드 변경은 없지만
-    /// 앞서 제출만 해 둔(커밋 대기) 트랜잭션이 있으면 그것만 확정한다.
+    /// 편집 바의 ✓ (Golden DBNavigator 의 Post) — 고친 내용을 트랜잭션 안에서 DB 로 보낸다.
+    /// 확정은 상단 Commit(Ctrl+F5), 취소는 Rollback(Ctrl+F6). AutoCommit 이면 곧바로 확정된다.
     /// </summary>
-    public async Task CommitEditsAsync()
+    public Task PostEditsAsync() => SubmitEditsAsync(forceCommit: false);
+
+    /// <summary>
+    /// 편집 바의 ✗ (Golden 의 Cancel) — 아직 Post 하지 않은 변경만 버리고 다시 조회한다.
+    /// 이미 Post 한 것은 트랜잭션에 남아 있으므로 Rollback(Ctrl+F6) 으로 되돌린다.
+    /// </summary>
+    public async Task CancelEditsAsync()
     {
-        if (_session is null)
-        {
-            SetInfo("Not connected");
-            return;
-        }
         if (_executing)
         {
             SetInfo("Busy — statement still running. Cancel first.");
             return;
         }
-        // 점진 fetch 가 reader 를 물고 있으면 COMMIT 을 보낼 수 없다 — 먼저 닫는다
-        if (_current is { Completed: false })
+        if (!HasPendingEdits())
         {
-            await _current.AbortAsync();
-            _current = null;
-        }
-        ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
-        if (CollectChanges().Count > 0)
-        {
-            await SubmitEditsAsync(forceCommit: true);
+            var posted = _session is { InTransaction: true } ? " — Post 한 내용은 Rollback(Ctrl+F6) 으로 되돌립니다" : "";
+            SetInfo("EditMode: 취소할 변경이 없습니다" + posted);
             return;
         }
-        if (_session.InTransaction)
-        {
-            try { await _session.CommitAsync(); }
-            catch (Exception ex) { SetInfo($"Commit 실패: {ex.Message}"); return; }
-            SetInfo("EditMode: committed");
-        }
-        else
-        {
-            SetInfo("EditMode: 변경된 내용이 없습니다");
-        }
-    }
-
-    /// <summary>
-    /// 편집 바의 ✗ — 미제출 변경은 버리고, 제출됐지만 커밋 전인 것은 ROLLBACK 한 뒤
-    /// 원래 쿼리를 다시 읽어 그리드를 되돌린다.
-    /// </summary>
-    public async Task RollbackEditsAsync()
-    {
-        if (_session is null)
-            return;
-        if (_executing)
-        {
-            SetInfo("Busy — statement still running. Cancel first.");
-            return;
-        }
-        // 점진 fetch 가 reader 를 물고 있으면 ROLLBACK 을 보낼 수 없다 — 먼저 닫는다
-        if (_current is { Completed: false })
-        {
-            await _current.AbortAsync();
-            _current = null;
-        }
-        if (_session.InTransaction)
-        {
-            try { await _session.RollbackAsync(); }
-            catch (Exception ex) { SetInfo($"Rollback 실패: {ex.Message}"); return; }
-        }
+        await AbortPendingFetchAsync();
         await RevertEditsAsync();
-        SetInfo($"EditMode: rolled back — {EditTable}");
+    }
+
+    // ---------- 편집 모드의 정렬 유지 ----------
+
+    /// <summary>헤더 클릭으로 마지막에 정렬한 셀 인덱스. 새 결과가 바인딩되면 -1.</summary>
+    private int _sortedCellIndex = -1;
+
+    /// <summary>
+    /// 편집 모드에 들어갈 때 잡아둔 정렬. 편집 그리드는 헤더 정렬을 막아 두므로(행이 흔들리면
+    /// 혼란) 재조회(Post·Cancel·Rollback)마다 메모리에서 한 번 정렬해 순서를 유지한다.
+    /// </summary>
+    private (int Index, System.ComponentModel.ListSortDirection Direction)? _editSort;
+
+    private void OnGridSorting(object? sender, DataGridColumnEventArgs e) =>
+        _sortedCellIndex = (e.Column.CustomSortComparer as CellComparer)?.Index ?? -1;
+
+    /// <summary>지금 그리드에 걸린 헤더 정렬 (셀 인덱스 + 방향). 없으면 null.</summary>
+    private (int Index, System.ComponentModel.ListSortDirection Direction)? CurrentHeaderSort()
+    {
+        if (_sortedCellIndex < 0 || _gridView is null || _gridView.SortDescriptions.Count == 0)
+            return null;
+        return (_sortedCellIndex, _gridView.SortDescriptions[0].Direction);
+    }
+
+    /// <summary>편집 모드로 읽어 온 행을 기억해 둔 정렬대로 다시 세운다 (안정 정렬, 순번은 화면 순서).</summary>
+    private void ApplyEditSort()
+    {
+        if (_editSort is not { } sort || sort.Index >= _columns.Count || _rows.Count < 2)
+            return;
+        var comparer = new CellComparer(sort.Index);
+        var byCell = Comparer<RowItem>.Create((a, b) => comparer.Compare(a, b));
+        var ordered = sort.Direction == System.ComponentModel.ListSortDirection.Ascending
+            ? _rows.OrderBy(r => r, byCell)
+            : _rows.OrderByDescending(r => r, byCell);
+        _rows = new ObservableCollection<RowItem>(ordered);
+        SetGridSource(_rows);
+        var arrow = sort.Direction == System.ComponentModel.ListSortDirection.Ascending ? "▲" : "▼";
+        EditBarLabel.Text = $"Editing: {EditTable} · sorted by {_columns[sort.Index]} {arrow}";
+    }
+
+    /// <summary>편집 중이던 셀을 행에 확정한 뒤, 아직 Post 하지 않은 변경이 있는지 본다.</summary>
+    private bool HasPendingEdits()
+    {
+        ResultGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        return CollectChanges().Count > 0;
+    }
+
+    /// <summary>점진 fetch 가 reader 를 물고 있으면 트랜잭션 명령을 보낼 수 없다 — 먼저 닫는다.</summary>
+    private async Task AbortPendingFetchAsync()
+    {
+        if (_current is { Completed: false })
+        {
+            await _current.AbortAsync();
+            _current = null;
+        }
     }
 
     // ---------- EditBar (Golden 의 DBNavigator 줄) ----------
@@ -956,9 +981,49 @@ public partial class QueryTabView : UserControl
     private void OnEditNavLast(object? sender, RoutedEventArgs e) => NavigateRow(int.MaxValue);
     private void OnEditAddRow(object? sender, RoutedEventArgs e) => AddInsertRow();
     private async void OnEditPasteRows(object? sender, RoutedEventArgs e) => await PasteRowsAsync();
-    private void OnEditDeleteRows(object? sender, RoutedEventArgs e) => MarkSelectedRowsDeleted();
-    private async void OnEditCommit(object? sender, RoutedEventArgs e) => await CommitEditsAsync();
-    private async void OnEditRollback(object? sender, RoutedEventArgs e) => await RollbackEditsAsync();
+    private async void OnEditPost(object? sender, RoutedEventArgs e) => await PostEditsAsync();
+    private async void OnEditCancel(object? sender, RoutedEventArgs e) => await CancelEditsAsync();
+    private async void OnEditRefresh(object? sender, RoutedEventArgs e) => await RefreshEditsAsync();
+
+    /// <summary>Delete record — Golden 처럼 "Delete N selected records?" 를 묻고 삭제 표시한다.</summary>
+    private async void OnEditDeleteRows(object? sender, RoutedEventArgs e)
+    {
+        var count = SelectedRowCount;
+        if (count == 0)
+        {
+            SetInfo("삭제할 행을 선택하세요");
+            return;
+        }
+        if (VisualRoot is Window owner && await ConfirmDialog.ShowAsync(owner, $"Delete {count} selected records?"))
+            MarkSelectedRowsDeleted();
+    }
+
+    /// <summary>Edit record (DBNavigator) — 현재 셀 편집을 시작한다. 선택이 없으면 첫 행부터.</summary>
+    private void OnEditRecord(object? sender, RoutedEventArgs e)
+    {
+        if (_rows.Count == 0 || ResultGrid.Columns.Count < 2)
+            return;
+        if (ResultGrid.SelectedIndex < 0)
+            ResultGrid.SelectedIndex = 0;
+        ResultGrid.CurrentColumn ??= ResultGrid.Columns[1];   // 0번은 순번 컬럼
+        ResultGrid.Focus();
+        ResultGrid.BeginEdit();
+    }
+
+    /// <summary>Refresh data (DBNavigator) — 다시 조회한다. Post 전 변경이 있으면 버려도 되는지 묻는다.</summary>
+    public async Task RefreshEditsAsync()
+    {
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        if (HasPendingEdits() &&
+            !(VisualRoot is Window owner && await ConfirmDialog.ShowAsync(owner, "Discard unposted changes and refresh?")))
+            return;
+        await AbortPendingFetchAsync();
+        await RevertEditsAsync();
+    }
 
     /// <summary>그리드 상태에서 UPDATE/DELETE/INSERT 목록을 만든다. 빈 문자열은 NULL 로 본다.</summary>
     private List<GridChange> CollectChanges()
@@ -1510,6 +1575,9 @@ public partial class QueryTabView : UserControl
                     // 점진 fetch 로 둔 경우에만 전체 건수를 따로 센다 (옵션, 기본 꺼짐)
                     else if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
                         _ = CountTotalAsync(stmt.Text);
+                    // 편집 모드는 헤더 정렬을 막아 두므로 들어올 때 잡아둔 정렬을 여기서 적용한다
+                    if (IsEditing)
+                        ApplyEditSort();
                     AppendLog(stmt.Text, $"{_rows.Count:N0} row(s), {ScriptTime()}");
                 }
                 else
@@ -1900,8 +1968,14 @@ public partial class QueryTabView : UserControl
 
     // ---------- Cell detail (Golden 의 cell detail window, jsonb pretty-print) ----------
 
+    /// <summary>열려 있는 셀 상세 창 — 하나만 두고 내용을 바꿔 끼운다 (더블클릭마다 쌓이지 않게).</summary>
+    private Window? _cellDetail;
+
     private void OnCellDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e)
     {
+        // 편집 모드에서 더블클릭은 셀 편집 시작이다 — 상세 창은 Ctrl+F11 로만
+        if (IsEditing)
+            return;
         if (ResultGrid.SelectedItem is not RowItem row || ResultGrid.CurrentColumn is not { } col)
             return;
         var index = ResultGrid.Columns.IndexOf(col) - 1;   // 0번은 행번호 컬럼
@@ -1951,6 +2025,14 @@ public partial class QueryTabView : UserControl
         dock.Children.Add(header);
         dock.Children.Add(text);
 
+        if (_cellDetail is { } open)
+        {
+            open.Title = $"Cell Detail — {column}";
+            open.Content = dock;
+            open.Activate();
+            return;
+        }
+
         var window = new Window
         {
             Title = $"Cell Detail — {column}",
@@ -1958,6 +2040,8 @@ public partial class QueryTabView : UserControl
             Height = 540,
             Content = dock,
         };
+        window.Closed += (_, _) => _cellDetail = null;
+        _cellDetail = window;
         if (VisualRoot is Window owner)
             window.Show(owner);
         else
@@ -2087,13 +2171,20 @@ public partial class QueryTabView : UserControl
 
     public async Task CommitAsync()
     {
-        if (_session is null || !_session.InTransaction) return;
+        if (_session is null) return;
         if (_executing || _current is { Completed: false })
         {
             // Golden: "cannot commit transaction - SQL statements in progress"
             SetInfo("Cannot commit — statement still running/fetching. Cancel or Fetch All first.");
             return;
         }
+        // EditMode: Post 하지 않은 변경이 남아 있으면 먼저 보내고 확정한다 (Golden 은 Commit 이 Post 를 겸한다)
+        if (IsEditing && HasPendingEdits())
+        {
+            await SubmitEditsAsync(forceCommit: true);
+            return;
+        }
+        if (!_session.InTransaction) return;
         try
         {
             await _session.CommitAsync();
@@ -2104,18 +2195,27 @@ public partial class QueryTabView : UserControl
 
     public async Task RollbackAsync()
     {
-        if (_session is null || !_session.InTransaction) return;
+        if (_session is null) return;
         if (_executing || _current is { Completed: false })
         {
             SetInfo("Cannot rollback — statement still running/fetching. Cancel or Fetch All first.");
             return;
         }
-        try
+        var hadTransaction = _session.InTransaction;
+        if (hadTransaction)
         {
-            await _session.RollbackAsync();
-            SetInfo("Rollback complete.");
+            try { await _session.RollbackAsync(); }
+            catch (Exception ex) { ShowError(ex.Message); return; }
         }
-        catch (Exception ex) { ShowError(ex.Message); }
+        // EditMode: 되돌린 데이터를 다시 읽고, Post 전 변경도 함께 버린다
+        if (IsEditing && (hadTransaction || HasPendingEdits()))
+        {
+            await RevertEditsAsync();
+            SetInfo($"Rollback complete — {EditTable} 다시 조회했습니다");
+            return;
+        }
+        if (hadTransaction)
+            SetInfo("Rollback complete.");
     }
 
     private async Task RecoverAsync()
@@ -2135,6 +2235,7 @@ public partial class QueryTabView : UserControl
         _columns = columns;
         _rows = [];
         _transposed = false;
+        _sortedCellIndex = -1;   // 새 결과 — 이전 헤더 정렬은 무효
         NoRecordsPanel.IsVisible = columns.Count == 0;
         ResultGrid.IsVisible = columns.Count > 0;
         ResultGrid.Columns.Clear();
