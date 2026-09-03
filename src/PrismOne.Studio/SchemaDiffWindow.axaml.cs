@@ -76,8 +76,10 @@ public partial class SchemaDiffWindow : Window
             string baselineLabel;
             if (Selected.Connection is { } conn)
             {
+                // 터널 설정도 같이 실어야 한다 — 저장된 접속이 SSH 를 쓰면 여기서 빠뜨린 순간
+                // 점프 호스트에서 본 주소(흔히 localhost)로 직접 붙으려 해 엉뚱하게 실패한다.
                 var profile = new ConnectionProfile(conn.Host, conn.Port, conn.Database,
-                    conn.Username, conn.Password!, ReadOnly: true, conn.Kind);
+                    conn.Username, conn.Password!, ReadOnly: true, conn.Kind, conn.Ssh);
                 baseline = await LoadGraphAsync(profile);
                 baselineLabel = conn.DisplayName;
             }

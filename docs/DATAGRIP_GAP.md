@@ -21,6 +21,8 @@ Golden 파리티는 끝났다(GOLDEN_BEHAVIOR.md). 이 문서는 **Golden 에는
 | 5 | CSV/TSV **import** (파일 → 테이블) | export 만 | 가끔 | 중간 | ✅ 완료 (2026-08-04) |
 | 6 | 결과 탭 여러 개 / 고정(pin) | 탭당 1개 | 가끔 | 중간 | ✅ 완료 (2026-08-04, 새 창 고정) |
 | 7 | Find usages / Go to declaration | 없음 | 가끔 | 높음 | 파서 필요 |
+| 9 | **SSH 터널** (점프 호스트 경유 접속) | 없음 | 상시(운영망) | 중간 | ✅ 완료 (2026-09-02) |
+| 10 | ssh-agent · ~/.ssh/config · ProxyJump | 없음 | 자주(운영망) | 중간 | ✅ 완료 (2026-09-02) |
 | 8 | 커스텀 추출기(스크립트) | 고정 4종 | 드묾 | 중간 | 보안상 비채택 |
 | — | ~~동기화 DDL 생성~~ | 없음 | — | — | **Aurum 제외 → `iapdb`** |
 
@@ -123,3 +125,110 @@ QueryTabView 의 0.6초 디바운스 타이머·호버 툴팁. FROM/JOIN/INTO/UP
   "두 결과를 나란히 비교"라는 실제 용도는 그대로 충족한다.
 - **Find usages**: SQL 파서가 있어야 제대로 된다. 비용 대비 후순위
 - **커스텀 추출기**: 스크립트 실행 = 보안 검토 필요. 후순위
+
+## 9. SSH 터널 — ✅ 구현됨 (2026-09-02, DataGrip + pgAdmin 기준)
+
+**왜 필요했나:** 운영 DB 는 포트가 밖으로 안 열려 있고 bastion 을 거친다. 그동안은
+사용자가 손으로 `ssh -L` 을 띄우고 로그온 창에 `localhost:<임의포트>` 를 적어야 했다 —
+포트를 외우고, 터널이 죽으면 왜 안 되는지 알 수 없었다.
+
+**어디에 끼웠나:** 접속 경로가 이미 한 곳으로 모여 있어(`ConnectionProfile` →
+`IDbProvider.BuildConnectionString`/`OpenAsync`) 그 경계에서 host/port 만 로컬 포워딩
+끝점으로 바꾸는 것으로 끝났다. `SchemaCache`·`ErdCatalog`·`SessionMonitor`·`CopyExporter`
+같은 호출부는 한 줄도 고치지 않았다.
+
+- `Ssh/SshOptions` — 점프 호스트 + 인증(비밀번호 / 개인키+passphrase). `ConnectionProfile`
+  과 `SavedConnection` 의 **맨 뒤 기본값 필드**라 기존 `connections.json` 이 그대로 읽힌다.
+- `Ssh/SshTunnel` — SSH.NET 기반. **127.0.0.1 의 임의 포트로만** listen 한다(`ssh -L` 기본과
+  동일 — 남이 우리 터널을 타고 DB 에 붙지 못하게). 포트는 미리 잡아 두고 그 번호로 연다.
+- `Ssh/SshTunnelPool` — **(SSH 대상 + DB 대상)마다 터널 하나**를 재사용한다. 이게 핵심이다:
+  자동완성 캐시·ERD·Session Monitor 가 접속을 열고 바로 닫는데, 그때마다 SSH 핸드셰이크를
+  하면(1~2초) 도구를 못 쓴다. 쿼리 탭은 `LeaseAsync` 로 참조를 걸어 붙잡고, 참조가 없는
+  터널은 5분 뒤 닫힌다.
+
+**호스트 키 검증 (pgAdmin 기준):** SSH.NET 은 `HostKeyReceived` 를 구독하지 않으면
+**어떤 호스트 키든 그냥 신뢰한다.** 그대로 두면 중간자가 bastion 인 척하고 SSH 비밀번호와
+그 뒤의 DB 비밀번호를 전부 받아갈 수 있다 — 터널을 쓰는 이유 자체를 무너뜨린다.
+그래서 pgAdmin 과 같은 규칙을 넣었다:
+
+- 아는 키면 조용히 통과, `@revoked` 면 무조건 거부, 처음 보거나 다르면 **지문을 보여주고 묻는다**
+  (`SHA256:…` — `ssh` 명령과 같은 표기라 관리자에게 받은 값과 눈으로 대조된다).
+- 불일치는 알던 지문과 받은 지문을 나란히 보여주는 경고. **기본 버튼은 언제나 거부**다.
+- `~/.ssh/known_hosts` 는 **읽기만** 한다(해시 항목·와일드카드·`[host]:port` 포함) — 터미널에서
+  이미 붙어 본 사람은 아무것도 안 물어보게. 승인분은 `~/.prismone-studio/known_hosts` 에만 쓴다:
+  다른 도구가 쓰는 파일을 GUI 가 말없이 고치면 안 된다.
+- **물어볼 UI 가 없으면 거부한다**(`SshTunnelPool.HostKeyPrompt` 가 비어 있을 때 — 콘솔·테스트).
+  물어볼 사람이 없다고 조용히 신뢰하면 이 기능이 없는 것과 같다.
+- 물음은 핸드셰이크 도중 **동기**로 오므로 터널 접속을 통째로 스레드 풀에서 돌린다
+  (`Task.Run`). UI 스레드에서 물으면 창을 띄우는 순간 교착한다.
+
+**비밀 저장 (pgAdmin 의 "Prompt for password?"):** SSH 비밀번호·passphrase 는 DB 비밀번호와
+같은 `PasswordCipher` 로 암호화해 남기지만, `SavePassword` 를 끄면 **암호문으로도 남기지
+않는다** — 그 선택의 뜻은 "잘 숨겨라" 가 아니라 "두지 마라" 다. 저장을 끈 항목은 Login 을
+누를 때 비밀번호 칸으로 들어간다(DB 비밀번호 재입력과 같은 흐름).
+
+**DB 별로 따로 손댄 곳:**
+
+- **Oracle** — `OracleErdCatalog` 는 provider 를 안 거치고 직접 접속 문자열을 만들어서
+  거기서도 한 번 더 풀어 준다. 드라이버 풀링(MaxPoolSize=5)이 켜져 있어 터널이 풀보다
+  오래 살아야 하는데, 탭이 참조를 잡고 있으므로 만족한다.
+  *남은 제약*: 리스너가 다른 포트로 재접속을 지시하는 구성(SCAN 등)은 터널 밖으로 나간다.
+- **MongoDB** — `MongoSession.BuildConnectionString` 이 provider 를 우회해 직접 만들기에
+  거기서 풀어 준다. 터널일 때는 **`directConnection=true`** 를 붙인다 — 안 붙이면 드라이버가
+  replica set 토폴로지를 탐색해 *서버가 알려준* 호스트로 다시 붙고, 그 주소는 터널 밖이라
+  조용히 실패한다.
+- **SQLite** — 파일 DB라 대상이 아니다. UI 에서 아예 비활성화한다(DataGrip 도 같다).
+
+**신원 문제 하나:** 터널을 쓰면 DB 주소가 대개 `localhost:5432` 로 같아진다. 그래서
+`SavedConnection.SameTarget`·`DisplayName` 에 점프 호스트를 넣었다 — 안 그러면 서로 다른
+서버의 접속이 로그인 목록에서 하나로 뭉개져 서로를 덮어쓴다. 단 `DisplayDatabase` 는
+건드리지 않았다(로그온 창이 그 문자열을 되파싱한다).
+
+**ssh-agent (DataGrip 의 "authentication agent"):** SSH.NET 에는 agent 지원이 없다.
+대신 `HostAlgorithm` 이 정확히 맞는 훅이었다 — 공개키 blob(`Data`)과 서명(`Sign`)만 내주면
+되고, agent 가 하는 일이 정확히 그 둘이다. 그래서 OpenSSH agent 프로토콜을 직접 구현하고
+(`Ssh/SshAgent.cs`) `AgentHostAlgorithm : HostAlgorithm` 으로 끼웠다. **개인키는 우리
+프로세스에 들어오지 않는다** — 그게 agent 를 쓰는 이유다. RSA 키는 요즘 서버가 SHA-1 서명을
+거부하므로 rsa-sha2-512 · rsa-sha2-256 · ssh-rsa 를 선호도 순으로 셋 다 올린다.
+전송은 Linux·macOS 가 `$SSH_AUTH_SOCK` 유닉스 소켓, Windows 가 OpenSSH 명명 파이프다.
+Pageant 고유의 WM_COPYDATA 공유메모리 방식은 넣지 않았다 — Pageant 를 OpenSSH 파이프로
+노출하면(PuTTY 0.77+) 그대로 붙는다.
+
+**`~/.ssh/config` (DataGrip 의 "OpenSSH config"):** `Ssh/SshConfig.cs`. OpenSSH 규칙 그대로
+**먼저 나온 값이 이긴다** — 그래야 사람들이 파일 맨 아래에 `Host *` 를 두는 관례가 통한다.
+`Host` 패턴(와일드카드·부정), `Include`(글로브), `Key=Value` 표기, `~` 확장을 다룬다.
+`Match` 블록은 **통째로 건너뛴다**: 조건이 실행 환경에 달려 있어 우리가 판정할 수 없고,
+잘못 적용하면 엉뚱한 호스트에 설정이 새기 때문이다.
+
+**ProxyJump 다단 경유 (DataGrip 도 못 하는 것 — ProxyCommand 로 우회해야 한다):**
+`Ssh/SshHops.cs` 가 설정을 홉 목록으로 편다. 터널은 **포워딩을 사슬로 잇는다** — 첫 홉에
+붙어 두 번째 홉의 22번으로 가는 로컬 포워딩을 열고, 그 로컬 포트에 두 번째 SSH 세션을
+붙이고, 이를 반복하다 마지막 홉에서 DB 로 포워딩한다. SSH.NET 의 공개 API 만으로 된다.
+
+여기서 놓치기 쉬운 함정 하나: 중간 홉은 `127.0.0.1:임의포트` 로 붙지만 **호스트 키는 그
+홉의 진짜 이름으로 대조해야 한다.** 루프백 주소로 대조하면 모든 점프 호스트가 같은 이름이
+되어 검증이 통째로 무의미해진다. 그래서 "TCP 를 여는 주소" 와 "신원" 을 분리해 넘긴다.
+순환(`a → b → a`)은 깊이로 끊는다 — 홉은 재귀가 풀릴 때 담기므로 목록 길이만 봐서는 못 잡는다.
+
+**설정 공유 (DataGrip 의 이름 붙인 SSH configuration):** 같은 bastion 을 쓰는 접속이 열 개면
+설정도 열 벌이었다 — 포트가 바뀌면 열 군데를 고쳐야 했다. 이제 이름을 붙이면
+`~/.prismone-studio/ssh-profiles.json` 에 한 벌만 남고 접속 항목은 이름만 들고 있다
+(`SshOptions.Name`). 이름이 없으면 예전처럼 접속 항목 안에 통째로 남는다 — 한 번 쓰고 말
+bastion 때문에 공유 목록이 지저분해지지 않게.
+
+여기서 중요한 판단 하나: **가리키던 설정이 지워졌을 때 조용히 직접 접속으로 되돌리지 않는다.**
+이름만 남은 채로 두고 `Validate()` 가 "저장된 SSH 설정 'prod-bastion' 을 찾을 수 없습니다" 로
+분명히 실패시킨다. 조용히 되돌리면 bastion 을 거치라고 적어 둔 접속이 DB 주소(흔히
+localhost)로 직접 나가 엉뚱한 곳에 붙는다.
+
+**ssh-agent 는 직접 짜다가 패키지로 갈아탔다.** 손으로 쓴 판(304줄)은 FIDO 보안키(`sk-*`)와
+OpenSSH 인증서를 키 종류로 알아보지 못해 **조용히 건너뛰었다** — "agent 에 키가 있는데
+Aurum 만 못 본다" 는 진단하기 아주 나쁜 증상이다. `SshNet.Agent`(MIT, SSH.NET 에 버전 고정)로
+바꾸면서 Pageant 의 WM_COPYDATA 경로까지 함께 얻었다.
+
+테스트 63개. 실제 포워딩 · 호스트 키 물음 · agent 서명은 sshd 와 agent 가 있어야 해서 자동
+테스트로 두지 않았다 — Oracle/Mongo 실접속 테스트와 같은 방침.
+
+**검증:** 이 저장소에는 CI 가 없어서 그동안 컴파일 여부조차 확인할 수 없었다.
+`.github/workflows/build.yml` 을 넣어 push 마다 `dotnet build`(Release) + `dotnet test` 가
+돌게 했다.

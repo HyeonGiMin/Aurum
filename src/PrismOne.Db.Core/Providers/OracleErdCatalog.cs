@@ -28,9 +28,14 @@ public sealed class OracleErdCatalog(ConnectionProfile profile) : IErdCatalog
         "SYSDG", "SYSKM", "SYSRAC", "GGSYS", "ANONYMOUS", "PUBLIC",
     ];
 
+    /// <summary>
+    /// SSH 를 쓰는 프로필이면 터널을 통과한 주소로 연다 — 이 카탈로그는 provider 를 거치지
+    /// 않고 직접 접속 문자열을 만들기 때문에 여기서 한 번 더 풀어 줘야 한다.
+    /// </summary>
     private async Task<OracleConnection> OpenAsync(CancellationToken ct)
     {
-        var conn = new OracleConnection(new OracleProvider().BuildConnectionString(profile));
+        var effective = await PrismOne.Db.Core.Ssh.SshTunnelPool.ResolveAsync(profile, ct);
+        var conn = new OracleConnection(new OracleProvider().BuildConnectionString(effective));
         await conn.OpenAsync(ct);
         return conn;
     }

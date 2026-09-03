@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using PrismOne.Db.Core;
 using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
+using PrismOne.Db.Core.Ssh;
 
 namespace PrismOne.Studio;
 
@@ -21,6 +23,12 @@ public partial class ConnectDialog : Window
 
     private List<SavedConnection> _saved = [];
 
+    /// <summary>
+    /// 마지막으로 설정한 SSH 터널. 체크박스를 껐다 켜도 다시 입력하지 않도록 들고 있고,
+    /// 실제로 접속에 쓰이는지는 <see cref="EffectiveSsh"/> 가 정한다.
+    /// </summary>
+    private SshOptions? _ssh;
+
     public ConnectDialog() : this(ConnectionProfile.Default) { }
 
     public ConnectDialog(ConnectionProfile initial)
@@ -31,11 +39,14 @@ public partial class ConnectDialog : Window
         UsernameBox.Text = initial.Username;
         PasswordBox.Text = initial.Password;
         DatabaseCombo.Text = FormatDatabase(initial.Host, initial.Port, initial.Database, initial.Kind);
+        _ssh = initial.Ssh;
+        SshBox.IsChecked = initial.Ssh is not null;
         ApplyDbTypeToFields();
         RefreshSavedList();
         if (_saved.Count > 0)
             SavedGrid.SelectedIndex = 0;   // 최근 사용 로그인 기본 선택
         UpdateHeader();
+        UpdateSshSummary();
 
         // 편집 가능한 콤보의 텍스트 변경도 헤더에 반영
         DatabaseCombo.PropertyChanged += (_, e) =>
@@ -170,10 +181,14 @@ public partial class ConnectDialog : Window
             DatabaseCombo.SelectedItem = (DatabaseCombo.ItemsSource as IEnumerable<string>)?
                 .FirstOrDefault(s => s == c.DisplayDatabase);
             DatabaseCombo.Text = c.DisplayDatabase;
+            // 터널 설정도 항목에 딸려 온다 — 안 그러면 저장된 접속을 골라도 직접 접속으로 나간다
+            _ssh = c.Ssh;
+            SshBox.IsChecked = c.Ssh is not null;
             // Save password 체크는 사용자가 끈 경우가 아니면 항상 켜둔다
             // (예전에 비밀번호 없이 저장된 항목을 선택해도 꺼지지 않게)
             ErrorText.IsVisible = false;
             UpdateHeader();
+            UpdateSshSummary();
         }
     }
 
@@ -204,8 +219,11 @@ public partial class ConnectDialog : Window
         PasswordBox.Text = "";
         DatabaseCombo.Text = "";
         ReadOnlyBox.IsChecked = false;
+        _ssh = null;
+        SshBox.IsChecked = false;
         ErrorText.IsVisible = false;
         UpdateHeader();
+        UpdateSshSummary();
         UsernameBox.Focus();
     }
 
@@ -246,6 +264,12 @@ public partial class ConnectDialog : Window
         UsernameLabel.Opacity = fileDb ? 0.4 : 1;
         PasswordLabel.Opacity = fileDb ? 0.4 : 1;
 
+        // 파일 DB 는 네트워크로 붙는 게 아니라 터널이 의미가 없다 (DataGrip 도 SQLite 는 안 준다)
+        SshBox.IsEnabled = !fileDb;
+        SshConfigButton.IsEnabled = !fileDb;
+        if (fileDb) SshBox.IsChecked = false;
+        UpdateSshSummary();
+
         DatabaseLabel.Text = fileDb ? "File:" : "Database:";
         DatabaseCombo.PlaceholderText = kind switch
         {
@@ -253,6 +277,51 @@ public partial class ConnectDialog : Window
             DbKind.Oracle => "host[:1521]/service",
             _ => "host[:port]/database",
         };
+    }
+
+    // ---------- SSH 터널 ----------
+
+    /// <summary>체크가 켜져 있을 때만 실제로 쓰인다 — 껐다 켜도 설정은 남는다.</summary>
+    private SshOptions? EffectiveSsh => SshBox.IsChecked == true ? _ssh : null;
+
+    /// <summary>체크를 켰는데 설정이 없으면 바로 설정 창을 연다 — 빈 채로 켜두면 로그인이 실패한다.</summary>
+    private async void OnSshToggled(object? sender, RoutedEventArgs e)
+    {
+        if (SshBox.IsChecked == true && _ssh is null)
+        {
+            await ConfigureSshAsync();
+            // 설정 없이 창을 닫았으면 체크도 되돌린다
+            if (_ssh is null) SshBox.IsChecked = false;
+        }
+        UpdateSshSummary();
+    }
+
+    private async void OnConfigureSsh(object? sender, RoutedEventArgs e) => await ConfigureSshAsync();
+
+    private async Task ConfigureSshAsync(bool askPassword = false)
+    {
+        // 설정 창의 "Test tunnel" 이 실제로 붙어 볼 DB 주소 — 지금 입력된 값을 그대로 쓴다.
+        // 아직 안 적었거나 형식이 틀렸으면 기본값으로 두고, 판정은 로그인 때 한다.
+        var kind = SelectedKind;
+        var parsed = ParseDatabase(DatabaseCombo.Text, kind);
+        var dialog = new SshTunnelDialog(
+            _ssh, parsed?.Host ?? "localhost", parsed?.Port ?? SavedConnection.DefaultPort(kind));
+        if (askPassword) dialog.AskForPassword();
+        await dialog.ShowDialog(this);
+        if (!dialog.Confirmed) return;      // Cancel — 아무것도 바꾸지 않는다
+
+        _ssh = dialog.Result;
+        SshBox.IsChecked = _ssh is not null;
+        ErrorText.IsVisible = false;
+        UpdateSshSummary();
+    }
+
+    private void UpdateSshSummary()
+    {
+        SshSummary.Text = EffectiveSsh is { } ssh
+            ? $"via {ssh.Label} [{ssh.AuthLabel}]" + (ssh.NeedsPassword ? " · 비밀번호 필요" : "")
+            : "";
+        SshConfigButton.Content = _ssh is null ? "Configure…" : "Edit…";
     }
 
     private void UpdateHeader()
@@ -271,6 +340,19 @@ public partial class ConnectDialog : Window
         ErrorText.IsVisible = false;
 
         var kind = SelectedKind;
+
+        // 비밀번호를 저장하지 않기로 한 터널이면 지금 채워야 한다 — DB 비밀번호를
+        // 다시 묻는 것과 같은 흐름이다(저장된 항목을 고르면 비어 있는 채로 온다).
+        if (EffectiveSsh is { NeedsPassword: true })
+        {
+            await ConfigureSshAsync(askPassword: true);
+            if (EffectiveSsh is not { NeedsPassword: false })
+            {
+                ShowError("SSH 비밀번호를 입력해야 접속할 수 있습니다.");
+                return;
+            }
+        }
+
         ConnectionProfile profile;
 
         if (kind == DbKind.Sqlite)
@@ -302,7 +384,8 @@ public partial class ConnectDialog : Window
                 UsernameBox.Text?.Trim() ?? "",
                 PasswordBox.Text ?? "",
                 ReadOnly: ReadOnlyBox.IsChecked == true,
-                Kind: kind);
+                Kind: kind,
+                Ssh: EffectiveSsh);
 
             // Golden: 비밀번호 미저장 항목은 비밀번호만 채우면 바로 로그인
             if (string.IsNullOrEmpty(profile.Password))
@@ -324,12 +407,22 @@ public partial class ConnectDialog : Window
             Result = profile;
             Close();
         }
+        catch (SshTunnelException ex)
+        {
+            // 터널 실패는 DB 실패와 완전히 다른 문제다 — 사람이 손볼 곳이 SSH 설정이지 DB 가 아니다
+            ShowError(ex.Message);
+            await ErrorDialog.ShowAsync(this, "SSH tunnel failed",
+                $"SSH 터널을 세우지 못해 DB 에 붙지 못했습니다.\n{EffectiveSsh?.Describe}", ex);
+        }
         catch (Exception ex)
         {
             // Golden 처럼 인라인으로도 남기되, 이유를 놓치지 않게 팝업으로도 띄운다
             ShowError(ex.Message);
+            var target = profile.SshLabel is { } via
+                ? $"{profile.DisplayName} ({via})"
+                : profile.DisplayName;
             await ErrorDialog.ShowAsync(this, "Connection failed",
-                $"{profile.Provider.DisplayName} 접속에 실패했습니다.\n{profile.DisplayName}", ex);
+                $"{profile.Provider.DisplayName} 접속에 실패했습니다.\n{target}", ex);
         }
         finally
         {

@@ -154,9 +154,13 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = true;
         FetchAllButton.IsEnabled = true;
         ExportButton.IsEnabled = true;
-        // Golden 타이틀 형식: user@db - Benthic Software: Golden7
-        Title = $"{profile.DisplayName} - Aurum";
-        StatusLabel.Text = $"Connected: {profile.DisplayName}";
+        // Golden 타이틀 형식: user@db - Benthic Software: Golden7.
+        // 터널을 거치면 주소만으로는 어디에 붙었는지 알 수 없다(흔히 localhost) — 점프 호스트를 덧붙인다.
+        var connLabel = profile.SshLabel is { } via
+            ? $"{profile.DisplayName} [{via}]"
+            : profile.DisplayName;
+        Title = $"{connLabel} - Aurum";
+        StatusLabel.Text = $"Connected: {connLabel}";
 
         // 쿼리 실행은 이제 드라이버 중립(QuerySession 이 DbConnection 을 쓴다)이지만,
         // Object Browser·자동완성 캐시·스키마 버전 pill 은 아직 PG 카탈로그에 묶여 있다.
@@ -1545,7 +1549,9 @@ public partial class MainWindow : Window
             Avalonia.Media.Color.Parse(connected ? "#2E7D32" : "#C0392B"));
         ConnText.Foreground = new Avalonia.Media.SolidColorBrush(
             Avalonia.Media.Color.Parse(connected ? "#1E5B20" : "#7B241C"));
-        ConnText.Text = connected ? _profile!.DisplayName : "Disconnected";
+        ConnText.Text = connected
+            ? _profile!.DisplayName + (_profile.SshLabel is { } via ? $" [{via}]" : "")
+            : "Disconnected";
         if (!connected)
             SchemaPill.IsVisible = false;
     }

@@ -16,6 +16,10 @@
 - **F9** 커서 문장 실행 · **F5/Shift+Enter** 스크립트(커서부터 끝까지) · Cancel
 - 공유 세션 모델 + 전용 세션 탭(Ctrl+Shift+T), 수동 커밋 기본(Ctrl+F5/F6),
   Tx Isolation 툴바
+- **SSH 터널** — 점프(bastion) 호스트를 거쳐 접속. 비밀번호 · 개인키 · **ssh-agent/Pageant** ·
+  **`~/.ssh/config`** 인증, **ProxyJump 다단 경유**, **호스트 키 확인**(known_hosts 대조 +
+  지문 확인 창), 여러 접속이 나눠 쓰는 **이름 붙인 설정**, 대상마다 터널 하나를 재사용
+  (PG · Oracle · MongoDB)
 - 실행 즉시 전체 fetch(5만 행 안전 상한) 또는 점진 fetch — 결과는
   DataGrid / Text / Log 3종 보기(F12), 결과 스냅샷을 새 창에 고정(Pin)
 - **Run and Edit(F11)** — 그리드에서 셀 수정·행 추가·삭제 → 한 트랜잭션 Submit
@@ -48,6 +52,7 @@
 1. **실행** — 배포본(`Aurum.app` / `Aurum.exe`)을 실행하면 로그온 창이 뜬다.
 2. **접속** — Type(PostgreSQL/Oracle/SQLite) 선택, `host[:port]/database` + 계정 입력.
    접속 정보는 AES-256-GCM 으로 암호화되어 `~/.prismone-studio/` 에 저장된다.
+   DB 포트가 막혀 있으면 **SSH Tunnel** 을 켜고 점프 호스트를 지정한다 (DataGrip 과 같은 방식).
 3. **실행** — 에디터에 SQL 을 쓰고 **F9**. 자동완성은 `.` 입력 또는 Ctrl+Space.
 4. 이후는 키맵이 곧 사용법이다:
 
