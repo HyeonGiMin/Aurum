@@ -39,6 +39,12 @@ public sealed class AppOptions
     public bool AllowNonSelectFavorites { get; set; }
 
     /// <summary>
+    /// 시작할 때 GitHub Releases 에서 새 버전을 확인해 팝업으로 알린다 (Studio AppUpdater).
+    /// 끄면 Help > Check for Updates 로만 확인한다. 기본은 켬.
+    /// </summary>
+    public bool CheckUpdatesOnStartup { get; set; } = true;
+
+    /// <summary>
     /// SELECT 실행 후 <c>COUNT(*)</c> 를 따로 돌려 전체 건수를 상태바에 보인다
     /// (Golden 이 레코드 수를 별도 조회하는 방식).
     ///

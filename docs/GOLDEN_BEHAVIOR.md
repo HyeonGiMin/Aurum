@@ -1,8 +1,8 @@
 # Golden 8 동작 명세 (분석 결과)
 
-출처: 공식 배포판 `golden_846.zip`(benthicsoftware.com, 2026-07 빌드)의 실행 바이너리에서 추출한
-UI 문자열·액션 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.png) + 제품 페이지.
-아래 인용문("...")은 바이너리에서 추출한 원문 그대로다.
+출처: Golden 8 공식 배포판(benthicsoftware.com, 2026-07 빌드)을 설치해 실행하며 관찰한
+UI 문자열·메뉴 캡션/힌트 + 공식 스크린샷(golden8-popupshowing.png) + 제품 페이지.
+아래 인용문("...")은 화면에 표시되는 문구를 그대로 옮긴 것이다.
 
 ## 1. 시작 흐름
 
