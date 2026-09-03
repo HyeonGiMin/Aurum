@@ -332,10 +332,10 @@ public partial class MainWindow : Window
             Item("Rollback (Ctrl+F6)", () => OnMenuRollback(this, args)),
             new NativeMenuItemSeparator(),
             Item("Run and Edit (Ctrl+E)", () => OnMenuRunAndEdit(this, args)),
-            Item("Submit Edits (⇧⌘S)", () => OnMenuSubmitEdits(this, args)),
+            Item("Post Edits (⇧⌘S)", () => OnMenuSubmitEdits(this, args)),
             Item("Add Row", () => OnMenuAddRow(this, args)),
             Item("Delete Selected Records…", () => OnMenuDeleteRows(this, args)),
-            Item("Revert Edits", () => OnMenuRevertEdits(this, args)),
+            Item("Cancel Edits", () => OnMenuRevertEdits(this, args)),
             new NativeMenuItemSeparator(),
             Item("Print SQL… (⌘P)", () => PrintSql(auto: true)),
             Item("Print Preview (SQL)", () => PrintSql(auto: false))));
@@ -1095,42 +1095,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>예/아니오 확인 창 — 그리드 삭제처럼 되돌리기 어려운 동작에만 쓴다.</summary>
-    private async Task<bool> ConfirmAsync(string message)
-    {
-        var result = false;
-        var yes = new Button { Content = "Yes", MinWidth = 80, MinHeight = 30, IsDefault = true };
-        var no = new Button { Content = "No", MinWidth = 80, MinHeight = 30, IsCancel = true };
-        var dialog = new Window
-        {
-            Title = "Aurum",
-            Width = 380,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            // Golden 처럼 작업표시줄에는 메인 창 하나만 — 부속 창은 창 선택 목록에 안 뜬다
-            ShowInTaskbar = false,
-            Content = new StackPanel
-            {
-                Margin = new Avalonia.Thickness(20),
-                Spacing = 16,
-                Children =
-                {
-                    new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                    new StackPanel
-                    {
-                        Orientation = Avalonia.Layout.Orientation.Horizontal,
-                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                        Spacing = 8,
-                        Children = { no, yes },
-                    },
-                },
-            },
-        };
-        yes.Click += (_, _) => { result = true; dialog.Close(); };
-        no.Click += (_, _) => dialog.Close();
-        await dialog.ShowDialog(this);
-        return result;
-    }
+    private Task<bool> ConfirmAsync(string message) => ConfirmDialog.ShowAsync(this, message);
 
     // ---------- Favorites (Golden 의 즐겨찾기 메뉴) ----------
 

@@ -243,6 +243,10 @@ Text/Log 는 그리드 위에 덮어 표시되며, **오류 메시지는 어느 
 - **Paste Rows** — 클립보드의 **탭 구분 표**(엑셀에서 복사한 범위, 우리 TSV 내보내기)를
   새 행으로 한꺼번에 넣습니다. 첫 줄이 컬럼명과 같으면 헤더로 보고 건너뜁니다.
   붙여넣은 행도 Post 해야 INSERT 됩니다.
+- 편집 바는 Delphi DBNavigator(Golden) 순서 그대로입니다: **First · Prior · Next · Last | Insert ·
+  Paste · Delete · Edit | Post · Cancel · Refresh**. Delete 는 `Delete N selected records?` 를 묻고,
+  Edit 는 현재 셀 편집을 시작하며(더블클릭·F2 와 같음), Refresh 는 다시 조회합니다(Post 전 변경이
+  있으면 버릴지 묻습니다).
 - 반영은 Golden 의 DBNavigator 와 같은 **2단계**입니다.
   1. 편집 바의 **✓ Post** (또는 Ctrl+Shift+S) — 고친 내용을 트랜잭션 안에서 DB 로 보냅니다.
      그전까지는 아무것도 나가지 않습니다. ✗ Cancel 은 아직 Post 하지 않은 변경을 버리고 다시 조회합니다.
@@ -253,7 +257,7 @@ Text/Log 는 그리드 위에 덮어 표시되며, **오류 메시지는 어느 
   - 어느 한 문장이라도 **영향 행이 1 이 아니면 전부 롤백**합니다. 다른 사람이 먼저 고쳤거나
     `ctid` 가 바뀐 경우로, 다시 조회한 뒤 작업하세요.
   - Tx Mode 가 Manual(기본)이면 커밋되지 않은 채 `[TX]` 로 남습니다 — 툴바 ✓ 로 확정하세요.
-- **Revert Edits** 는 원래 쿼리를 다시 실행해 편집 전으로 되돌립니다.
+- Script 메뉴의 **Cancel Edits** 는 원래 쿼리를 다시 실행해 Post 전 변경을 버립니다 (편집 바 ✗ 와 같음).
 - **빈 칸은 NULL 로 저장**됩니다. 빈 문자열이 필요하면 Run and Edit 대신 UPDATE 문을 쓰세요.
 - 편집 모드에서는 옵션의 NULL 표시 문자열을 적용하지 않습니다(그 값이 그대로 저장되면 곤란하므로).
 - 다른 문장을 실행하면 편집 모드가 자동으로 풀립니다.

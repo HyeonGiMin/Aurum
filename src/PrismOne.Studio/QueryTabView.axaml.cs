@@ -981,9 +981,49 @@ public partial class QueryTabView : UserControl
     private void OnEditNavLast(object? sender, RoutedEventArgs e) => NavigateRow(int.MaxValue);
     private void OnEditAddRow(object? sender, RoutedEventArgs e) => AddInsertRow();
     private async void OnEditPasteRows(object? sender, RoutedEventArgs e) => await PasteRowsAsync();
-    private void OnEditDeleteRows(object? sender, RoutedEventArgs e) => MarkSelectedRowsDeleted();
     private async void OnEditPost(object? sender, RoutedEventArgs e) => await PostEditsAsync();
     private async void OnEditCancel(object? sender, RoutedEventArgs e) => await CancelEditsAsync();
+    private async void OnEditRefresh(object? sender, RoutedEventArgs e) => await RefreshEditsAsync();
+
+    /// <summary>Delete record — Golden 처럼 "Delete N selected records?" 를 묻고 삭제 표시한다.</summary>
+    private async void OnEditDeleteRows(object? sender, RoutedEventArgs e)
+    {
+        var count = SelectedRowCount;
+        if (count == 0)
+        {
+            SetInfo("삭제할 행을 선택하세요");
+            return;
+        }
+        if (VisualRoot is Window owner && await ConfirmDialog.ShowAsync(owner, $"Delete {count} selected records?"))
+            MarkSelectedRowsDeleted();
+    }
+
+    /// <summary>Edit record (DBNavigator) — 현재 셀 편집을 시작한다. 선택이 없으면 첫 행부터.</summary>
+    private void OnEditRecord(object? sender, RoutedEventArgs e)
+    {
+        if (_rows.Count == 0 || ResultGrid.Columns.Count < 2)
+            return;
+        if (ResultGrid.SelectedIndex < 0)
+            ResultGrid.SelectedIndex = 0;
+        ResultGrid.CurrentColumn ??= ResultGrid.Columns[1];   // 0번은 순번 컬럼
+        ResultGrid.Focus();
+        ResultGrid.BeginEdit();
+    }
+
+    /// <summary>Refresh data (DBNavigator) — 다시 조회한다. Post 전 변경이 있으면 버려도 되는지 묻는다.</summary>
+    public async Task RefreshEditsAsync()
+    {
+        if (_executing)
+        {
+            SetInfo("Busy — statement still running. Cancel first.");
+            return;
+        }
+        if (HasPendingEdits() &&
+            !(VisualRoot is Window owner && await ConfirmDialog.ShowAsync(owner, "Discard unposted changes and refresh?")))
+            return;
+        await AbortPendingFetchAsync();
+        await RevertEditsAsync();
+    }
 
     /// <summary>그리드 상태에서 UPDATE/DELETE/INSERT 목록을 만든다. 빈 문자열은 NULL 로 본다.</summary>
     private List<GridChange> CollectChanges()
