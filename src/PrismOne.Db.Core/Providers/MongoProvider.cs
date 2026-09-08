@@ -19,7 +19,10 @@ public sealed class MongoProvider : IDbProvider
     public DbCapabilities Capabilities { get; } = new(
         Transactions: false,      // replica set 이 있어야 하고 조회 전용이라 쓰지 않는다
         IsolationLevels: false,
-        GridEditing: false,       // _id 기준 편집은 아직 (MULTI_DB_PLAN 3단계 잔여)
+        // 이 플래그는 "행을 찾을 의사 컬럼(ctid/ROWID)이 있는가" 다 — Mongo 는 없다.
+        // 그리드 편집 자체는 2026-09-08 부터 되고, _id + 원본 문서로 찾는 별도 경로를 쓴다
+        // (MongoGridEditor · QueryTabView.RunAndEditMongoAsync).
+        GridEditing: false,
         ExplainPlan: true,        // explain() — queryPlanner/executionStats 를 플랜 트리로
         ServerMessages: false,
         SessionMonitor: true,     // currentOp / killOp

@@ -99,6 +99,11 @@ public sealed class MongoDbConnection : DbConnection
         string database, string collection, BsonValue id, BsonDocument updated, CancellationToken ct = default) =>
         Session.ReplaceDocumentAsync(database, collection, id, updated, ct);
 
+    /// <summary>Run and Edit (그리드 편집) 저장 경로 — 바뀐 필드만 $set.</summary>
+    public Task UpdateDocumentAsync(
+        string database, string collection, BsonValue id, BsonDocument update, CancellationToken ct = default) =>
+        Session.UpdateDocumentAsync(database, collection, id, update, ct);
+
     /// <summary>Add Document (Studio3T 대응) 저장 경로.</summary>
     public Task InsertDocumentAsync(
         string database, string collection, BsonDocument document, CancellationToken ct = default) =>

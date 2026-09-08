@@ -16,6 +16,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Npgsql;
 using PrismOne.Db.Core;
+using MongoDB.Bson;
 using PrismOne.Db.Core.Mongo;
 using PrismOne.Db.Core.Providers;
 
@@ -677,6 +678,12 @@ public partial class QueryTabView : UserControl
     /// <summary>편집 대상 테이블 — 상태 표시용.</summary>
     public string? EditTable => _editSource?.Table;
 
+    /// <summary>
+    /// Mongo 편집 모드인가. SQL 편집과 달리 0번 컬럼이 의사 컬럼이 아니라 <c>_id</c> 이고,
+    /// 행 식별은 <see cref="RowItem.MongoContext"/> 가 맡는다.
+    /// </summary>
+    private bool _mongoEdit;
+
     public int PendingEditCount => CollectChanges().Count;
 
     /// <summary>그리드에서 선택된 행 수 — 삭제 확인 문구에 쓴다.</summary>
@@ -693,6 +700,10 @@ public partial class QueryTabView : UserControl
             SetInfo("Not connected");
             return false;
         }
+        // Mongo 는 의사 컬럼(ctid/ROWID)이 아니라 _id 로 행을 찾는다 — 별도 경로
+        if (_session.Connection is MongoDbConnection)
+            return await RunAndEditMongoAsync();
+
         var provider = _session.Profile.Provider;
         if (!provider.Capabilities.GridEditing)
         {
@@ -720,11 +731,51 @@ public partial class QueryTabView : UserControl
         return true;
     }
 
+    /// <summary>
+    /// Mongo 의 Run and Edit. SQL 을 다시 쓰지 않고 원래 find 를 그대로 돌린 뒤,
+    /// 행마다 딸려 오는 원본 문서(<see cref="MongoRowContext"/>)로 편집한다.
+    /// projection·aggregate 결과는 원본이 없어 거부한다.
+    ///
+    /// Mongo 에는 (replica set 없이) 트랜잭션이 없어 <b>Post 하면 바로 반영</b>된다 —
+    /// SQL 처럼 Commit/Rollback 으로 되돌릴 수 없다.
+    /// </summary>
+    private async Task<bool> RunAndEditMongoAsync()
+    {
+        var sql = StatementForFavorite();
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            SetInfo("Run and Edit: 실행할 문장이 없습니다");
+            return false;
+        }
+
+        _mongoEdit = true;
+        _editSource = new EditableQuery("(mongo)", sql);
+        _editSort = null;
+        _deletedRows.Clear();
+        await ExecuteStatementsAsync([new SqlStatement(sql, 0, sql.Length)], explain: false);
+        if (_editSource is null)
+            return false;   // 실행이 편집 모드를 풀었다 (오류 등)
+
+        if (_rows.Select(r => r.MongoContext).OfType<MongoRowContext>().FirstOrDefault() is not { } context)
+        {
+            LeaveEditMode();
+            SetInfo("Run and Edit: 원본 문서를 알 수 있는 find 결과만 편집할 수 있습니다 "
+                  + "(projection·aggregate 는 불가)");
+            return false;
+        }
+
+        _editSource = new EditableQuery($"{context.Database}.{context.Collection}", sql);
+        EditBarLabel.Text = $"Editing: {EditTable}";
+        SetInfo($"EditMode: {EditTable} — Mongo 는 트랜잭션이 없어 ✓(Post) 하면 즉시 반영됩니다");
+        return true;
+    }
+
     /// <summary>편집 모드 해제 (일반 실행으로 돌아갈 때).</summary>
     private void LeaveEditMode()
     {
         _editSource = null;
         _editSort = null;
+        _mongoEdit = false;
         _deletedRows.Clear();
         ResultGrid.IsReadOnly = true;
         EditBar.IsVisible = false;
@@ -738,7 +789,8 @@ public partial class QueryTabView : UserControl
         var selected = ResultGrid.SelectedItems.OfType<RowItem>().ToList();
         foreach (var row in selected)
         {
-            if (row.RowId is not null)
+            // SQL 은 RowId(ctid/ROWID), Mongo 는 원본 문서로 지울 행을 찾는다
+            if (row.RowId is not null || row.MongoContext is not null)
                 _deletedRows.Add(row);
             _rows.Remove(row);
         }
@@ -825,6 +877,11 @@ public partial class QueryTabView : UserControl
             SetInfo("편집 모드가 아닙니다 (Run and Edit)");
             return;
         }
+        if (_mongoEdit)
+        {
+            await SubmitMongoEditsAsync();
+            return;
+        }
         if (_session is null)
         {
             SetInfo("Not connected");
@@ -880,6 +937,114 @@ public partial class QueryTabView : UserControl
         var pending = AutoCommit || forceCommit ? "" : " — Commit(Ctrl+F5) 으로 확정, Rollback(Ctrl+F6) 으로 취소";
         await RevertEditsAsync();   // ctid 가 바뀌었을 수 있으니 다시 읽는다
         SetInfo($"EditMode: {applied} change(s) posted{pending}");
+    }
+
+    /// <summary>
+    /// Mongo 편집 제출. SQL 과 달리 <b>한 트랜잭션으로 묶을 수 없다</b> —
+    /// 문서 하나씩 반영되고, 중간에 실패하면 그 앞까지는 이미 들어간 채로 멈춘다.
+    /// (Mongo 의 다중 문서 트랜잭션은 replica set 이 필요하다.)
+    /// </summary>
+    private async Task SubmitMongoEditsAsync()
+    {
+        if (_session?.Connection is not MongoDbConnection mongo)
+        {
+            SetInfo("Mongo 접속이 아닙니다");
+            return;
+        }
+
+        var updates = new List<(MongoRowContext Context, BsonDocument Update)>();
+        var inserts = new List<BsonDocument>();
+        var deletes = _deletedRows.Select(r => r.MongoContext).OfType<MongoRowContext>().ToList();
+
+        // 값 → BSON 변환은 여기서 다 끝낸다. 하나라도 타입이 어긋나면 아무것도 보내지 않는다
+        // (부분 반영을 되돌릴 수 없으므로 나가기 전에 막는 게 유일한 방어선이다)
+        try
+        {
+            foreach (var row in _rows)
+            {
+                if (row.MongoContext is not MongoRowContext context)
+                {
+                    var filled = CellPairs(row, onlyFilled: true);
+                    if (filled.Count > 0)
+                        inserts.Add(MongoGridEditor.BuildInsert(filled));
+                    continue;
+                }
+                if (row.Original is not { } original)
+                    continue;
+                var edited = new List<(string, string?)>();
+                for (var i = 0; i < _columns.Count && i < row.Cells.Length; i++)
+                {
+                    if (row.Cells[i] != original[i])
+                        edited.Add((_columns[i], NormalizeCell(row.Cells[i])));
+                }
+                if (edited.Count > 0)
+                    updates.Add((context, MongoGridEditor.BuildUpdate(context.Document, edited)));
+            }
+        }
+        catch (ArgumentException ex)
+        {
+            SetInfo($"EditMode: {ex.Message}");
+            return;
+        }
+
+        if (updates.Count + inserts.Count + deletes.Count == 0)
+        {
+            SetInfo("EditMode: 변경된 내용이 없습니다");
+            return;
+        }
+
+        // 새 문서를 넣을 컬렉션은 지금 보고 있는 그 컬렉션이다
+        var target = _rows.Select(r => r.MongoContext).OfType<MongoRowContext>().FirstOrDefault()
+                     ?? deletes.FirstOrDefault();
+        if (inserts.Count > 0 && target is null)
+        {
+            SetInfo("EditMode: 새 문서를 넣을 컬렉션을 알 수 없습니다 — 먼저 조회하세요");
+            return;
+        }
+
+        var applied = 0;
+        try
+        {
+            foreach (var (context, update) in updates)
+            {
+                await mongo.UpdateDocumentAsync(
+                    context.Database, context.Collection, context.Document[MongoGridEditor.IdField], update);
+                applied++;
+            }
+            foreach (var context in deletes)
+            {
+                await mongo.DeleteDocumentAsync(
+                    context.Database, context.Collection, context.Document[MongoGridEditor.IdField]);
+                applied++;
+            }
+            foreach (var document in inserts)
+            {
+                await mongo.InsertDocumentAsync(target!.Database, target.Collection, document);
+                applied++;
+            }
+        }
+        catch (Exception ex)
+        {
+            await RevertEditsAsync();
+            SetInfo($"EditMode 실패: {ex.Message} — 앞선 {applied}건은 이미 반영됐습니다 "
+                  + "(Mongo 는 되돌릴 수 없습니다)");
+            return;
+        }
+
+        await RevertEditsAsync();
+        SetInfo($"EditMode: {applied} change(s) applied — Mongo 는 트랜잭션이 없어 즉시 반영됩니다");
+    }
+
+    /// <summary>행의 (컬럼, 값) 쌍. Mongo 새 문서용 — 빈 칸은 넣지 않는다.</summary>
+    private List<(string, string?)> CellPairs(RowItem row, bool onlyFilled)
+    {
+        var pairs = new List<(string, string?)>();
+        for (var i = 0; i < _columns.Count && i < row.Cells.Length; i++)
+        {
+            if (!onlyFilled || !string.IsNullOrEmpty(row.Cells[i]))
+                pairs.Add((_columns[i], row.Cells[i]));
+        }
+        return pairs;
     }
 
     /// <summary>
@@ -2260,8 +2425,9 @@ public partial class QueryTabView : UserControl
             noColumn.CellStyleClasses.Add("rownum");
             ResultGrid.Columns.Add(noColumn);
 
-            // 편집 모드면 첫 컬럼은 행 식별자(ctid)라 감춘다
-            var first = IsEditing ? 1 : 0;
+            // 편집 모드면 첫 컬럼은 행 식별자(ctid)라 감춘다.
+            // Mongo 는 앞에 붙인 컬럼이 없다 — 0번이 진짜 _id 라 그대로 보여준다.
+            var first = IsEditing && !_mongoEdit ? 1 : 0;
             for (var i = first; i < columns.Count; i++)
             {
                 ResultGrid.Columns.Add(new DataGridTextColumn
@@ -2335,7 +2501,8 @@ public partial class QueryTabView : UserControl
                 _rows.Add(IsEditing
                     ? new RowItem(++no, cells, row.Raw)
                     {
-                        RowId = cells.Length > 0 ? cells[0] : null,
+                        // Mongo 는 행 식별을 MongoContext 가 맡는다 (0번은 감춘 의사 컬럼이 아니다)
+                        RowId = !_mongoEdit && cells.Length > 0 ? cells[0] : null,
                         Original = (string?[])cells.Clone(),
                         MongoContext = row.RowContext,
                     }
