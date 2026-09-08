@@ -175,9 +175,15 @@ public static class SqlBuilder
     {
         var trimmed = column.Trim();
         var dot = trimmed.IndexOf('.');
-        if (dot <= 0 || dot == trimmed.Length - 1)
+        if (dot < 0)
             return prefix + QuoteIdentifier(trimmed);
-        return QuoteIdentifier(trimmed[..dot]) + "." + QuoteIdentifier(trimmed[(dot + 1)..]);
+
+        // 점 양옆의 공백까지 털어낸다 — 손으로 적은 ON("s . key")도 같은 식별자가 되게
+        var qualifier = trimmed[..dot].TrimEnd();
+        var name = trimmed[(dot + 1)..].TrimStart();
+        if (qualifier.Length == 0 || name.Length == 0)
+            return prefix + QuoteIdentifier(trimmed);
+        return QuoteIdentifier(qualifier) + "." + QuoteIdentifier(name);
     }
 
     private static string RenderCondition(QueryCondition condition, string prefix)

@@ -39,6 +39,12 @@ public partial class SqlBuilderDialog : Window
     private IReadOnlyList<ErdRelation>? _relations;
     private bool _relationsTried;
 
+    /// <summary>테이블 추가가 도는 중. 겹쳐 들어오면 별칭이 겹치고 FROM/JOIN 순서가 어긋난다.</summary>
+    private bool _adding;
+
+    /// <summary>패널을 다시 그리는 동안 미리보기를 멈춘다 (ItemsSource 교체가 이벤트를 쏟아낸다).</summary>
+    private bool _rebuilding;
+
     /// <summary>확인을 눌렀을 때 만들어진 SQL. 취소면 null.</summary>
     public string? Result { get; private set; }
 
@@ -95,6 +101,10 @@ public partial class SqlBuilderDialog : Window
 
     private async Task AddSelectedTableAsync()
     {
+        // 컬럼·FK 조회를 기다리는 동안 또 들어오면 같은 별칭이 두 번 나오고,
+        // 둘 다 "첫 테이블"로 보여 뜻하지 않은 cross join 이 된다
+        if (_adding)
+            return;
         if (TableList.SelectedItem is not string qualified)
         {
             StatusText.Text = "왼쪽에서 테이블을 고르세요.";
@@ -103,20 +113,32 @@ public partial class SqlBuilderDialog : Window
         if (_tables.FirstOrDefault(t => t.QualifiedName == qualified) is not { } table)
             return;
 
-        var entry = new Entry { Table = table, Alias = NextAlias(table) };
-        entry.Columns = await LoadColumnsAsync(table);
-
-        // 두 번째부터는 JOIN — FK 를 찾아 ON 을 채운다
-        if (_entries.Count > 0)
+        _adding = true;
+        try
         {
-            await EnsureRelationsAsync();
-            entry.On = SuggestOn(entry);
-            if (entry.On.Count == 0)
-                StatusText.Text = $"{table.Name}: FK 를 찾지 못했습니다 — ON 을 직접 적으세요";
-        }
+            // 별칭과 자리를 await 전에 확정한다 — 순서가 사용자가 누른 순서와 같아야 한다
+            var isJoin = _entries.Count > 0;
+            var entry = new Entry { Table = table, Alias = NextAlias(table) };
+            _entries.Add(entry);
+            BuildJoinRows();
 
-        _entries.Add(entry);
-        RebuildAll();
+            entry.Columns = await LoadColumnsAsync(table);
+
+            // 두 번째부터는 JOIN — FK 를 찾아 ON 을 채운다
+            if (isJoin)
+            {
+                await EnsureRelationsAsync();
+                entry.On = SuggestOn(entry);
+                if (entry.On.Count == 0)
+                    StatusText.Text = $"{table.Name}: FK 를 찾지 못했습니다 — ON 을 직접 적으세요";
+            }
+
+            RebuildAll();
+        }
+        finally
+        {
+            _adding = false;
+        }
     }
 
     /// <summary>테이블 이름 첫 글자로 별칭을 만들고, 겹치면 숫자를 붙인다 (s, p, s2 …).</summary>
@@ -141,7 +163,6 @@ public partial class SqlBuilderDialog : Window
     {
         if (_relationsTried || _profile is null)
             return;
-        _relationsTried = true;
         var schemas = _entries.Select(x => x.Table.Schema)
             .Concat(_tables.Select(t => t.Schema))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -159,6 +180,12 @@ public partial class SqlBuilderDialog : Window
             _relations = null;
             StatusText.Text = $"FK 를 읽지 못했습니다 — ON 을 직접 적으세요 ({ex.Message})";
         }
+        finally
+        {
+            // 조회가 끝난 뒤에 표시한다 — 먼저 세우면 아직 읽는 중인데 "못 찾았다"고 하게 된다.
+            // 실패해도 다시 시도하지 않는다 (Oracle 은 관계 조회가 매우 비싸다).
+            _relationsTried = true;
+        }
     }
 
     /// <summary>이미 들어간 테이블 중 하나와 FK 로 이어지면 그 짝을 ON 으로 돌려준다.</summary>
@@ -167,7 +194,8 @@ public partial class SqlBuilderDialog : Window
         if (_relations is not { Count: > 0 })
             return [];
 
-        foreach (var existing in _entries)
+        // 자기 자신과는 맞추지 않는다 — self FK 가 있는 테이블이 자기 별칭으로 조인돼 버린다
+        foreach (var existing in _entries.Where(x => !ReferenceEquals(x, incoming)))
         {
             foreach (var rel in _relations)
             {
@@ -193,10 +221,57 @@ public partial class SqlBuilderDialog : Window
 
     private void RebuildAll()
     {
-        BuildJoinRows();
-        BuildColumnChecks();
-        RebuildOrderCombo();
+        _rebuilding = true;
+        try
+        {
+            BuildJoinRows();
+            BuildColumnChecks();
+            RebuildOrderCombo();
+            PruneDependentRows();
+        }
+        finally
+        {
+            _rebuilding = false;
+        }
         UpdatePreview();
+    }
+
+    /// <summary>
+    /// 빠진 테이블을 가리키는 조건·집계 줄을 걷어내고, 남은 줄의 컬럼 목록을 새로 고친다.
+    /// 그러지 않으면 FROM 에 없는 별칭이 WHERE 에 남아 <b>실행할 때에야</b> 터진다.
+    /// </summary>
+    private void PruneDependentRows()
+    {
+        var valid = QualifiedColumns();
+
+        foreach (var row in ConditionPanel.Children.OfType<StackPanel>().ToList())
+        {
+            if (row.Children.OfType<ComboBox>().FirstOrDefault() is not { } combo)
+                continue;
+            var selected = combo.SelectedItem as string;
+            if (selected is { Length: > 0 } && !valid.Contains(selected))
+            {
+                ConditionPanel.Children.Remove(row);
+                continue;
+            }
+            combo.ItemsSource = valid;
+            combo.SelectedItem = selected;
+        }
+
+        foreach (var row in AggregatePanel.Children.OfType<StackPanel>().ToList())
+        {
+            var combos = row.Children.OfType<ComboBox>().ToList();
+            if (combos.Count < 2)
+                continue;
+            var selected = combos[1].SelectedItem as string;
+            if (selected is { Length: > 0 } && !valid.Contains(selected))
+            {
+                AggregatePanel.Children.Remove(row);
+                continue;
+            }
+            combos[1].ItemsSource = new[] { "" }.Concat(valid).ToList();
+            combos[1].SelectedItem = selected ?? "";
+        }
     }
 
     private void BuildJoinRows()
@@ -294,6 +369,13 @@ public partial class SqlBuilderDialog : Window
 
     private void BuildColumnChecks()
     {
+        // 테이블을 하나 더 붙였다고 앞서 고른 컬럼이 사라지면 안 된다 — 체크 상태를 옮겨 담는다
+        var wasChecked = ColumnPanel.Children
+            .OfType<CheckBox>()
+            .Where(b => b.IsChecked == true)
+            .Select(b => (string)b.Tag!)
+            .ToHashSet(StringComparer.Ordinal);
+
         ColumnPanel.Children.Clear();
         foreach (var entry in _entries)
         {
@@ -306,13 +388,16 @@ public partial class SqlBuilderDialog : Window
             });
             foreach (var column in entry.Columns)
             {
+                var tag = $"{entry.Alias}.{column}";
                 var box = new CheckBox
                 {
                     // 문자열을 그대로 주면 '_' 가 단축키 표시로 먹혀 study_key 가 studykey 로 보인다
                     Content = new TextBlock { Text = column, FontSize = 12.5 },
                     MinHeight = 22,
-                    Tag = $"{entry.Alias}.{column}",
+                    Tag = tag,
+                    IsChecked = wasChecked.Contains(tag),
                 };
+                // 상태를 되돌린 뒤에 붙인다 — 먼저 붙이면 복원 때마다 미리보기가 다시 그려진다
                 box.IsCheckedChanged += OnSpecCheckChanged;
                 ColumnPanel.Children.Add(box);
             }
@@ -496,6 +581,8 @@ public partial class SqlBuilderDialog : Window
 
     private void UpdatePreview()
     {
+        if (_rebuilding)
+            return;
         if (CurrentSpec() is not { } spec)
         {
             PreviewBox.Text = "";

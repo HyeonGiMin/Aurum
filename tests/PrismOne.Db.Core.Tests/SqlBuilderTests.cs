@@ -245,6 +245,18 @@ public class SqlBuilderTests
     }
 
     [Fact]
+    public void SpacesAroundTheDotAreNotPartOfTheIdentifier()
+    {
+        // ON 은 손으로 적을 수 있다 — "s . patient_key" 가 "s "·" patient_key" 로 굳으면 안 된다
+        var join = new QueryJoin("prismone.patient", "p", JoinKind.Inner,
+            [new JoinOn("s . patient_key", "p . patient_key")]);
+
+        var sql = SqlBuilder.Build(Spec(alias: "s", joins: [join]));
+
+        Assert.Contains("on s.patient_key = p.patient_key", sql);
+    }
+
+    [Fact]
     public void MixedCaseIdentifiersStayQuotedOnBothSidesOfADot()
     {
         var sql = SqlBuilder.Build(Spec(columns: ["S.Study Key"], alias: "s"));
