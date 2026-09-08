@@ -23,13 +23,17 @@ public enum SqlCompletionKind { Table, View, Schema, Column, Keyword }
 public sealed class SqlCompletionItem(string text, string description, double priority, SqlCompletionKind kind)
     : ICompletionData
 {
-    private static readonly (string Badge, string Fill, string Fore)[] Styles =
+    /// <summary>
+    /// 종류별 배지. 색은 테마 사전에서 읽는다 — 예전에는 라이트 색을 코드에 박아 두어
+    /// 다크 테마에서 흰 상자가 떠 보였다. 폴백 값은 라이트 기준.
+    /// </summary>
+    private static readonly (string Badge, string Key, string BgFallback, string FgFallback)[] Styles =
     [
-        ("T",  "#E3F0FB", "#1B5E9C"),   // Table
-        ("V",  "#EDE7F6", "#5E35B1"),   // View
-        ("S",  "#E8F5E9", "#2E7D32"),   // Schema
-        ("C",  "#FFF3E0", "#B26A00"),   // Column
-        ("K",  "#F2F2F2", "#6B6B6B"),   // Keyword
+        ("T", "CompletionTable",   "#E3F0FB", "#1B5E9C"),   // Table
+        ("V", "CompletionView",    "#EDE7F6", "#5E35B1"),   // View
+        ("S", "CompletionSchema",  "#E8F5E9", "#2E7D32"),   // Schema
+        ("C", "CompletionColumn",  "#FFF3E0", "#B26A00"),   // Column
+        ("K", "CompletionKeyword", "#F0F0F0", "#6B6B6B"),   // Keyword
     ];
 
     public Avalonia.Media.IImage? Image => null;
@@ -43,20 +47,20 @@ public sealed class SqlCompletionItem(string text, string description, double pr
     {
         get
         {
-            var (badgeText, fill, fore) = Styles[(int)Kind];
+            var (badgeText, key, bgFallback, fgFallback) = Styles[(int)Kind];
             var badge = new Border
             {
-                Background = new SolidColorBrush(Color.Parse(fill)),
+                Background = ThemeBrushes.Get(key + "BgBrush", bgFallback),
                 CornerRadius = new CornerRadius(3),
-                Width = 18,
-                Height = 16,
+                Width = 19,
+                Height = 17,
                 VerticalAlignment = VerticalAlignment.Center,
                 Child = new TextBlock
                 {
                     Text = badgeText,
                     FontSize = 10.5,
                     FontWeight = FontWeight.Bold,
-                    Foreground = new SolidColorBrush(Color.Parse(fore)),
+                    Foreground = ThemeBrushes.Get(key + "FgBrush", fgFallback),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                 },
@@ -67,13 +71,15 @@ public sealed class SqlCompletionItem(string text, string description, double pr
                 FontSize = 12.5,
                 FontWeight = Kind == SqlCompletionKind.Keyword ? FontWeight.Normal : FontWeight.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
             var detail = new TextBlock
             {
                 Text = Description as string ?? "",
                 FontSize = 11,
-                Opacity = 0.6,
-                Margin = new Thickness(10, 0, 0, 0),
+                // 선택된 줄은 배경이 강조색이라 Opacity 로 흐리면 읽기 어렵다 — 살짝만 줄인다
+                Opacity = 0.72,
+                Margin = new Thickness(12, 0, 2, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -81,7 +87,8 @@ public sealed class SqlCompletionItem(string text, string description, double pr
             var grid = new Grid
             {
                 ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"),
-                MinWidth = 260,
+                MinWidth = 300,
+                Margin = new Thickness(0, 1),
             };
             badge.Margin = new Thickness(0, 0, 8, 0);
             Grid.SetColumn(badge, 0);

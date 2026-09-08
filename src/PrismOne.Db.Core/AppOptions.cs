@@ -45,6 +45,14 @@ public sealed class AppOptions
     public bool CheckUpdatesOnStartup { get; set; } = true;
 
     /// <summary>
+    /// 자동완성 팝업을 언제 띄울지. Golden 은 <b>손으로 부를 때만</b>(Ctrl+Space) 띄우므로
+    /// 그 습관을 그대로 쓰고 싶으면 <see cref="PrismOne.Db.Core.CompletionTrigger.Manual"/> 로 둔다.
+    /// 기본은 Auto — '.' 과 FROM/JOIN 뒤에서 알아서 뜬다.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<CompletionTrigger>))]
+    public CompletionTrigger CompletionTrigger { get; set; } = CompletionTrigger.Auto;
+
+    /// <summary>
     /// SELECT 실행 후 <c>COUNT(*)</c> 를 따로 돌려 전체 건수를 상태바에 보인다
     /// (Golden 이 레코드 수를 별도 조회하는 방식).
     ///
@@ -105,6 +113,19 @@ public sealed class AppOptions
         }
         catch { /* 옵션 저장 실패는 치명적이지 않다 */ }
     }
+}
+
+/// <summary>자동완성 팝업을 띄우는 방식.</summary>
+public enum CompletionTrigger
+{
+    /// <summary>'.' 과 FROM/JOIN 뒤에서 알아서 뜬다. Ctrl+Space 도 그대로 쓴다.</summary>
+    Auto,
+
+    /// <summary>Ctrl+Space 로 부를 때만 뜬다 (Golden 방식).</summary>
+    Manual,
+
+    /// <summary>쓰지 않는다.</summary>
+    Off,
 }
 
 /// <summary>기억된 창 위치·크기. Maximized 면 X/Y/W/H 는 복원(normal) 시점 값.</summary>

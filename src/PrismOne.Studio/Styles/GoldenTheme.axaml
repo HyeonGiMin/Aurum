@@ -36,6 +36,17 @@
           <SolidColorBrush x:Key="DiffAddedBrush">#2E7D32</SolidColorBrush>
           <SolidColorBrush x:Key="DiffChangedBrush">#C77400</SolidColorBrush>
           <SolidColorBrush x:Key="PlanBarTrackBrush">#DCDCDC</SolidColorBrush>
+          <!-- 자동완성 종류 배지 (T/V/S/C/K) — 바탕은 옅게, 글자는 진하게 -->
+          <SolidColorBrush x:Key="CompletionTableBgBrush">#E3F0FB</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionTableFgBrush">#1B5E9C</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionViewBgBrush">#EDE7F6</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionViewFgBrush">#5E35B1</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionSchemaBgBrush">#E8F5E9</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionSchemaFgBrush">#2E7D32</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionColumnBgBrush">#FFF3E0</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionColumnFgBrush">#B26A00</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionKeywordBgBrush">#F0F0F0</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionKeywordFgBrush">#6B6B6B</SolidColorBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <SolidColorBrush x:Key="ChromeBgBrush">#2B2B2B</SolidColorBrush>
@@ -66,6 +77,18 @@
           <SolidColorBrush x:Key="DiffAddedBrush">#66BB6A</SolidColorBrush>
           <SolidColorBrush x:Key="DiffChangedBrush">#FFB74D</SolidColorBrush>
           <SolidColorBrush x:Key="PlanBarTrackBrush">#3A3A3A</SolidColorBrush>
+          <!-- 자동완성 종류 배지 — 다크에서는 바탕을 어둡게 깔고 글자를 밝게 (라이트 색을 그대로
+               쓰면 흰 상자가 떠 보인다) -->
+          <SolidColorBrush x:Key="CompletionTableBgBrush">#1E3A52</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionTableFgBrush">#7FB6E8</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionViewBgBrush">#332A4A</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionViewFgBrush">#B39DDB</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionSchemaBgBrush">#1F3D24</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionSchemaFgBrush">#81C784</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionColumnBgBrush">#43331E</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionColumnFgBrush">#E0A85C</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionKeywordBgBrush">#343434</SolidColorBrush>
+          <SolidColorBrush x:Key="CompletionKeywordFgBrush">#A0A0A0</SolidColorBrush>
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 

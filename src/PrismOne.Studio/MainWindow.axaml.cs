@@ -2267,6 +2267,27 @@ public partial class MainWindow : Window
             SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
             importWin.Close();
 
+            // 자동완성 팝업 — 샘플 카탈로그로 배지·색이 테마에 맞는지 확인 (접속 없이)
+            if (ActiveView is { } completionView)
+            {
+                var keepSql = completionView.GetSql();
+                completionView.CompletionTables = _allTables;   // 접속 경로가 아니라 여기선 직접 채운다
+                completionView.SetSql("select * from ");
+                completionView.FocusEditor();
+                await Task.Delay(200);
+                await completionView.ShowCompletionForShotAsync();
+                await Task.Delay(700);
+                if (completionView.CompletionWindowForShot is { } popup && popup.Bounds.Width > 1)
+                {
+                    var size = new Avalonia.PixelSize((int)popup.Bounds.Width, (int)popup.Bounds.Height);
+                    using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
+                    bmp.Render(popup);
+                    bmp.Save(System.IO.Path.Combine(dir, "shot_completion.png"));
+                }
+                completionView.CloseCompletionForShot();
+                completionView.SetSql(keepSql);
+            }
+
             // 업데이트 알림 — 가짜 버전으로 창 모양만 확인 (네트워크·설치 상태와 무관)
             var updateWin = AppUpdater.PreviewWindow();
             updateWin.Show(this);
