@@ -50,7 +50,7 @@
         <!-- HTML 뷰어의 "테이블로 이동(t)" — 이름을 치면 그 테이블로 스크롤·선택한다.
              Filter 와 달리 다이어그램을 좁히지 않는다 -->
         <AutoCompleteBox Name="JumpBox" Width="170" Margin="8,2,6,2"
-                         Watermark="테이블로 이동… (t)"
+                         PlaceholderText="테이블로 이동… (t)"
                          FilterMode="Contains" MinimumPrefixLength="1"
                          SelectionChanged="OnJumpSelected"
                          ToolTip.Tip="이름을 치면 해당 테이블로 이동·선택합니다 (단축키 t)"/>

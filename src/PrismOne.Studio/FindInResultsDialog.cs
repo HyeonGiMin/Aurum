@@ -28,7 +28,7 @@ public sealed class FindInResultsDialog : Window
     {
         _target = target;
 
-        _term = new TextBox { Width = 240, MinHeight = 30, Watermark = "찾을 값" };
+        _term = new TextBox { Width = 240, MinHeight = 30, PlaceholderText = "찾을 값" };
         _matchCase = new CheckBox { Content = "대소문자 구분", FontSize = 12.5 };
         _wholeCell = new CheckBox { Content = "셀 전체 일치", FontSize = 12.5 };
         _status = new TextBlock

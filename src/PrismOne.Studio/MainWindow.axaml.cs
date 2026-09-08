@@ -499,7 +499,7 @@ public partial class MainWindow : Window
                         t.Name, t.IsView ? "view" : "", ExplorerNodeKind.Table, t.QualifiedName, [])
                     {
                         Schema = t.Schema,
-                        Icon = Icon(t.IsView ? "IconViewGrid" : "IconTableGrid"),
+                        Icon = IconGeometry(t.IsView ? "IconViewGrid" : "IconTableGrid"),
                         IconBrush = Brush(t.IsView ? "ViewPurpleBrush" : "TableBlueBrush"),
                     });
                 var routineNodes = (schemaRoutines ?? [])
@@ -510,14 +510,14 @@ public partial class MainWindow : Window
                     {
                         Schema = r.Owner,
                         ObjectType = r.ObjectType,
-                        Icon = Icon("IconCode"),
+                        Icon = IconGeometry("IconCode"),
                         IconBrush = Brush("RoutineOrangeBrush"),
                     });
                 var count = (schemaTables?.Count ?? 0) + (schemaRoutines?.Count ?? 0);
                 return new ExplorerNode(schema, $"({count})", ExplorerNodeKind.Schema, "",
                     [.. tableNodes, .. routineNodes])
                 {
-                    Icon = Icon("IconDatabase"),
+                    Icon = IconGeometry("IconDatabase"),
                     IconBrush = Brush("DbGreenBrush"),
                     IsExpanded = expand,
                 };
@@ -533,7 +533,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>앱 리소스에서 아이콘 도형을 꺼낸다. 없으면 null (아이콘만 비고 트리는 뜬다).</summary>
-    private Geometry? Icon(string key) =>
+    private Geometry? IconGeometry(string key) =>
         Application.Current?.TryFindResource(key, out var value) == true ? value as Geometry : null;
 
     private IBrush? Brush(string key) =>
@@ -1996,7 +1996,7 @@ public partial class MainWindow : Window
                     var size = new Avalonia.PixelSize((int)popup.Bounds.Width, (int)popup.Bounds.Height);
                     using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
                     bmp.Render(popup);
-                    bmp.Save(System.IO.Path.Combine(dir, "live_completion.png"));
+                    bmp.Save(System.IO.Path.Combine(dir, "live_completion.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
                 }
                 else
                 {
@@ -2316,7 +2316,7 @@ public partial class MainWindow : Window
                     var size = new Avalonia.PixelSize((int)popup.Bounds.Width, (int)popup.Bounds.Height);
                     using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
                     bmp.Render(popup);
-                    bmp.Save(System.IO.Path.Combine(dir, "shot_completion.png"));
+                    bmp.Save(System.IO.Path.Combine(dir, "shot_completion.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
                 }
                 completionView.CloseCompletionForShot();
                 completionView.SetSql(keepSql);
@@ -2577,14 +2577,14 @@ public partial class MainWindow : Window
                    new Avalonia.PixelSize(512, 512), new Avalonia.Vector(96, 96)))
         {
             bitmap.Render(canvas);
-            bitmap.Save(path);
+            bitmap.Save(path, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
         }
         // .icns 최상위(512@2x)용 1024px — 같은 512 좌표계를 2배 DPI 로 렌더
         using (var bitmap2x = new Avalonia.Media.Imaging.RenderTargetBitmap(
                    new Avalonia.PixelSize(1024, 1024), new Avalonia.Vector(192, 192)))
         {
             bitmap2x.Render(canvas);
-            bitmap2x.Save(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, "icon_1024.png"));
+            bitmap2x.Save(System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path)!, "icon_1024.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
         }
     }
 
@@ -2595,7 +2595,7 @@ public partial class MainWindow : Window
             Math.Max(1, (int)window.Bounds.Height));
         using var bitmap = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
         bitmap.Render(window);
-        bitmap.Save(path);
+        bitmap.Save(path, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
     }
 
     /// <summary>Help > Check for Updates — 결과가 무엇이든 알린다 (최신이면 토스트).</summary>
