@@ -41,6 +41,9 @@ public partial class QueryTabView
     /// </summary>
     private bool _mongoEdit;
 
+    /// <summary>Mongo 편집 모드인가 (다른 partial 파일에서 컬럼 자리 계산에 쓴다).</summary>
+    internal bool IsMongoEdit => _mongoEdit;
+
     public int PendingEditCount => CollectChanges().Count;
 
     /// <summary>그리드에서 선택된 행 수 — 삭제 확인 문구에 쓴다.</summary>

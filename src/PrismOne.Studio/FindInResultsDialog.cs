@@ -103,6 +103,11 @@ public sealed class FindInResultsDialog : Window
             _status.Text = "결과 탭이 없습니다.";
             return;
         }
+        if (!view.CanFindInResults)
+        {
+            _status.Text = "전치(Transpose) 상태에서는 찾을 수 없습니다 — Ctrl+Shift+X 로 되돌리세요.";
+            return;
+        }
 
         var matchCase = _matchCase.IsChecked == true;
         var wholeCell = _wholeCell.IsChecked == true;

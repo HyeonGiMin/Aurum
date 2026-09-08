@@ -1,0 +1,63 @@
+    private (
+    private (int Index, System.ComponentModel.ListSortDirection Direction)? CurrentHeaderSort(
+    private async Task AbortPendingFetchAsync(
+    private async Task RecoverAsync(
+    private async Task SubmitMongoEditsAsync(
+    private async Task<bool> RunAndEditMongoAsync(
+    private async void OnEditCancel(object? sender, RoutedEventArgs e) => await CancelEditsAsync(
+    private async void OnEditDeleteRows(
+    private async void OnEditPasteRows(object? sender, RoutedEventArgs e) => await PasteRowsAsync(
+    private async void OnEditPost(object? sender, RoutedEventArgs e) => await PostEditsAsync(
+    private async void OnEditRefresh(object? sender, RoutedEventArgs e) => await RefreshEditsAsync(
+    private bool HasPendingEdits(
+    private List<(string, string?)> CellPairs(
+    private List<GridChange> CollectChanges(
+    private void AppendLog(
+    private void ApplyEditSort(
+    private void ApplyResultView(
+    private void ClearResultArea(
+    private void LeaveEditMode(
+    private void NavigateRow(
+    private void OnCellDoubleTapped(
+    private void OnEditAddRow(object? sender, RoutedEventArgs e) => AddInsertRow(
+    private void OnEditNavFirst(object? sender, RoutedEventArgs e) => NavigateRow(
+    private void OnEditNavLast(object? sender, RoutedEventArgs e) => NavigateRow(
+    private void OnEditNavNext(object? sender, RoutedEventArgs e) => NavigateRow(
+    private void OnEditNavPrev(object? sender, RoutedEventArgs e) => NavigateRow(
+    private void OnEditRecord(
+    private void OnGridSorting(
+    private void OnResultRowLoading(
+    private void OpenCellDetail(
+    private void RenderNormal(
+    private void SetGridSource(
+    public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) LoadedSnapshot() => Snapshot(
+    public async Task AddMongoDocumentAsync(
+    public async Task CancelEditsAsync(
+    public async Task CommitAsync(
+    public async Task DeleteSelectedMongoDocumentsAsync(
+    public async Task EditSelectedDocumentAsync(
+    public async Task PasteRowsAsync(
+    public async Task RefreshEditsAsync(
+    public async Task RevertEditsAsync(
+    public async Task RollbackAsync(
+    public async Task SubmitEditsAsync(
+    public async Task<bool> RunAndEditAsync(
+    public bool FindInResults(
+    public bool TryUseDatabase(
+    public int CountInResults(
+    public int MarkSelectedRowsDeleted(
+    public int PendingEditCount => CollectChanges(
+    public int SelectedRowCount => ResultGrid.SelectedItems.OfType<RowItem>().Count(
+    public Task PostEditsAsync() => SubmitEditsAsync(
+    public Task SubmitEditsAsync() => SubmitEditsAsync(
+    public void AddInsertRow(
+    public void Cancel() => _cts?.Cancel(
+    public void ClearFilter(
+    public void ClearResults(
+    public void CycleResultView(
+    public void FilterBySelectedCell(
+    public void FilterBySelectedCellInGrid(
+    public void GotoRecord(
+    public void ShowCellDetail(
+    public void SizeColumnsToFit(
+    public void ToggleTranspose(

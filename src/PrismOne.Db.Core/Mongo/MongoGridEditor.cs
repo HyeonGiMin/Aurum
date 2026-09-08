@@ -1,3 +1,4 @@
+using System.Globalization;
 using MongoDB.Bson;
 
 namespace PrismOne.Db.Core.Mongo;
@@ -97,16 +98,50 @@ public static class MongoGridEditor
         return original.BsonType switch
         {
             BsonType.Boolean => bool.TryParse(value, out var b) ? b : throw Bad(field, value, "참/거짓"),
-            BsonType.Int32 => int.TryParse(value, out var i) ? i : throw Bad(field, value, "정수"),
-            BsonType.Int64 => long.TryParse(value, out var l) ? l : throw Bad(field, value, "정수"),
-            BsonType.Double => double.TryParse(value, out var d) ? d : throw Bad(field, value, "실수"),
-            BsonType.Decimal128 => decimal.TryParse(value, out var m) ? m : throw Bad(field, value, "실수"),
-            BsonType.DateTime => DateTime.TryParse(value, out var t)
-                ? t.ToUniversalTime()
-                : throw Bad(field, value, "날짜"),
+            BsonType.Int32 => TryInt(value, out var i) ? i : throw Bad(field, value, "정수"),
+            BsonType.Int64 => TryLong(value, out var l) ? l : throw Bad(field, value, "정수"),
+            BsonType.Double => TryDouble(value, out var d) ? d : throw Bad(field, value, "실수"),
+            BsonType.Decimal128 => TryDecimal(value, out var m) ? m : throw Bad(field, value, "실수"),
+            BsonType.DateTime => TryUtcDate(value, out var t) ? t : throw Bad(field, value, "날짜"),
             BsonType.ObjectId => ObjectId.TryParse(value, out var oid) ? oid : throw Bad(field, value, "ObjectId"),
             _ => value,
         };
+    }
+
+    // 파싱은 InvariantCulture 를 먼저 보고 현재 문화권으로 한 번 더 본다.
+    // 그리드는 현재 문화권으로 그리는데(MongoAdo 의 ToString) 사용자가 다른 표기를
+    // 붙여 넣을 수도 있어서, 둘 다 받아 주는 쪽이 실수로 거절하는 것보다 낫다.
+    private static bool TryInt(string v, out int r) =>
+        int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out r) ||
+        int.TryParse(v, NumberStyles.Integer, CultureInfo.CurrentCulture, out r);
+
+    private static bool TryLong(string v, out long r) =>
+        long.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out r) ||
+        long.TryParse(v, NumberStyles.Integer, CultureInfo.CurrentCulture, out r);
+
+    private static bool TryDouble(string v, out double r) =>
+        double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out r) ||
+        double.TryParse(v, NumberStyles.Float, CultureInfo.CurrentCulture, out r);
+
+    private static bool TryDecimal(string v, out decimal r) =>
+        decimal.TryParse(v, NumberStyles.Number, CultureInfo.InvariantCulture, out r) ||
+        decimal.TryParse(v, NumberStyles.Number, CultureInfo.CurrentCulture, out r);
+
+    /// <summary>
+    /// 날짜 셀을 UTC 로 읽는다.
+    ///
+    /// **표시가 이미 UTC 라서 그렇다** — <see cref="MongoDocuments.ToCell"/> 이
+    /// <c>ToUniversalTime()</c> 한 값을 넣고, 그리드는 거기에 Z 같은 표시를 붙이지 않는다.
+    /// 그래서 사용자가 <b>보이는 그대로</b> 고쳐 넣은 문자열은 이미 UTC 시각이다.
+    /// 이걸 <c>DateTime.Parse</c> 기본값(Unspecified)으로 읽고 <c>ToUniversalTime()</c> 하면
+    /// 로컬로 오해해 표준시차만큼 밀린다 (KST 면 9시간). AssumeUniversal 로 막는다.
+    /// 사용자가 오프셋을 직접 붙였으면 AdjustToUniversal 이 그걸 존중한다.
+    /// </summary>
+    private static bool TryUtcDate(string v, out DateTime r)
+    {
+        const DateTimeStyles styles = DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal;
+        return DateTime.TryParse(v, CultureInfo.InvariantCulture, styles, out r) ||
+               DateTime.TryParse(v, CultureInfo.CurrentCulture, styles, out r);
     }
 
     /// <summary>원본 타입을 모를 때의 추론. 날짜는 넘겨짚지 않는다 (문자열로 둔다).</summary>

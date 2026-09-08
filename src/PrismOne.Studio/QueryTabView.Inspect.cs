@@ -30,10 +30,18 @@ public partial class QueryTabView
     /// <returns>찾았으면 true.</returns>
     public bool FindInResults(string term, bool matchCase, bool wholeCell, bool backwards, bool fromStart)
     {
-        if (_rows.Count == 0 || string.IsNullOrEmpty(term))
+        // 전치 상태에서는 그리드에 묶인 것이 _rows 가 아니라 행/열을 뒤집은 별도 컬렉션이라
+        // 여기서 찾은 자리를 그대로 선택하면 엉뚱한 칸을 잡는다 (필터도 같은 이유로 막는다)
+        if (_transposed || _rows.Count == 0 || string.IsNullOrEmpty(term))
             return false;
 
-        var cells = _rows.Select(r => r.Cells).ToList();
+        // SQL 편집 모드는 0번이 감춘 행 식별자(ctid/ROWID)다 — 검색에서 빼야 식별자가
+        // 걸리지도 않고, 남은 셀 인덱스가 그리드 컬럼과 정확히 한 칸 차이로 맞는다.
+        // (Mongo 편집은 감춘 컬럼이 없다.)
+        var hidden = IsEditing && !IsMongoEdit ? 1 : 0;
+        var cells = _rows
+            .Select(r => r.Cells.Length > hidden ? r.Cells[hidden..] : [])
+            .ToList();
         var from = fromStart ? null : _lastHit;
         var hit = GridSearch.FindNext(
             cells, term,
@@ -53,8 +61,18 @@ public partial class QueryTabView
     }
 
     /// <summary>받은 행 중 몇 칸이 걸리는지 — 찾기 창의 안내용.</summary>
-    public int CountInResults(string term, bool matchCase, bool wholeCell) =>
-        GridSearch.Count(_rows.Select(r => r.Cells).ToList(), term, matchCase, wholeCell);
+    public int CountInResults(string term, bool matchCase, bool wholeCell)
+    {
+        var hidden = IsEditing && !IsMongoEdit ? 1 : 0;
+        var cells = _rows.Select(r => r.Cells.Length > hidden ? r.Cells[hidden..] : []).ToList();
+        return GridSearch.Count(cells, term, matchCase, wholeCell);
+    }
+
+    /// <summary>
+    /// 지금 찾기를 쓸 수 있는가. 전치 상태에서는 그리드에 묶인 컬렉션이 달라 자리를
+    /// 그대로 옮길 수 없다 — 찾기 창이 이유를 알리도록 밖으로 낸다.
+    /// </summary>
+    public bool CanFindInResults => !_transposed;
 
     /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>
     public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) LoadedSnapshot() => Snapshot();

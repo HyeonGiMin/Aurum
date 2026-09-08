@@ -71,6 +71,36 @@ public class MongoGridEditorTests
     }
 
     [Fact]
+    public void DateWithoutAZoneMarkerIsTakenAsUtcNotLocal()
+    {
+        // 그리드는 UTC 값을 Z 없이 그대로 보여준다(MongoDocuments.ToCell 이 ToUniversalTime).
+        // 사용자가 본 대로 고쳐 넣은 이 문자열을 로컬로 오해하면 KST 에서 9시간 밀린다.
+        var set = Set(MongoGridEditor.BuildUpdate(Sample(), [("seen_at", "2026-09-08 01:02:03")]));
+
+        Assert.Equal(
+            new DateTime(2026, 9, 8, 1, 2, 3, DateTimeKind.Utc),
+            set["seen_at"].ToUniversalTime());
+    }
+
+    [Fact]
+    public void ExplicitOffsetIsRespectedInsteadOfAssumedUtc()
+    {
+        var set = Set(MongoGridEditor.BuildUpdate(Sample(), [("seen_at", "2026-09-08 10:02:03+09:00")]));
+
+        Assert.Equal(
+            new DateTime(2026, 9, 8, 1, 2, 3, DateTimeKind.Utc),
+            set["seen_at"].ToUniversalTime());
+    }
+
+    [Fact]
+    public void NumbersParseWithTheInvariantDecimalPointRegardlessOfLocale()
+    {
+        var set = Set(MongoGridEditor.BuildUpdate(Sample(), [("score", "9.25")]));
+
+        Assert.Equal(9.25, set["score"].AsDouble);
+    }
+
+    [Fact]
     public void ChangingIdIsRefused()
         => Assert.Throws<ArgumentException>(() =>
             MongoGridEditor.BuildUpdate(Sample(), [("_id", "64b7f0c2e13b4a5d6c8f0a99")]));
