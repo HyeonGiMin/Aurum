@@ -38,6 +38,16 @@
     <CheckBox Name="CountTotalRecordsOption" FontSize="13"
               Content="전체 레코드 수 조회 (COUNT(*) 를 따로 실행)"
               ToolTip.Tip="점진 fetch 로 둘 때만 씁니다. 상태바에 'Fetched N of M records' 로 표시합니다.&#x0a;대용량 테이블에서는 COUNT(*) 가 느릴 수 있어 기본은 꺼둡니다."/>
+    <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+      <TextBlock Grid.Column="0" Text="자동완성 팝업" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0"/>
+      <ComboBox Grid.Column="1" Name="CompletionTriggerCombo" FontSize="13" HorizontalAlignment="Stretch"
+                ToolTip.Tip="Golden 은 Ctrl+Space 로 부를 때만 띄웁니다.&#x0a;'자동' 은 '.' 과 FROM/JOIN 뒤에서도 알아서 뜹니다.">
+        <ComboBoxItem>자동 ('.' · FROM/JOIN 뒤 + Ctrl+Space)</ComboBoxItem>
+        <ComboBoxItem>Ctrl+Space 로만 (Golden 방식)</ComboBoxItem>
+        <ComboBoxItem>쓰지 않음</ComboBoxItem>
+      </ComboBox>
+    </Grid>
+
     <CheckBox Name="CheckUpdatesOnStartupOption" FontSize="13"
               Content="시작할 때 새 버전 확인 (GitHub Releases)"
               ToolTip.Tip="새 버전이 있으면 팝업으로 알리고, Update 를 누르면 내려받아 다시 시작합니다.&#x0a;꺼도 Help &gt; Check for Updates 로 직접 확인할 수 있습니다."/>

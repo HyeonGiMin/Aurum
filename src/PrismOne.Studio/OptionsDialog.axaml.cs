@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -24,6 +25,7 @@ public partial class OptionsDialog : Window
         FetchAllOnExecuteOption.IsChecked = current.FetchAllOnExecute;
         CountTotalRecordsOption.IsChecked = current.CountTotalRecords;
         CheckUpdatesOnStartupOption.IsChecked = current.CheckUpdatesOnStartup;
+        CompletionTriggerCombo.SelectedIndex = (int)current.CompletionTrigger;
         ThemeCombo.SelectedIndex = current.Theme switch { "Dark" => 1, "System" => 2, _ => 0 };
     }
 
@@ -42,6 +44,7 @@ public partial class OptionsDialog : Window
             CountTotalRecords = CountTotalRecordsOption.IsChecked == true,
             FetchAllOnExecute = FetchAllOnExecuteOption.IsChecked == true,
             CheckUpdatesOnStartup = CheckUpdatesOnStartupOption.IsChecked == true,
+            CompletionTrigger = (CompletionTrigger)Math.Clamp(CompletionTriggerCombo.SelectedIndex, 0, 2),
             Theme = ThemeCombo.SelectedIndex switch { 1 => "Dark", 2 => "System", _ => "Light" },
         };
         options.Save();

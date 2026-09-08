@@ -2134,6 +2134,14 @@ public partial class MainWindow : Window
                     new(5, "study_dttm", "timestamp", "yes", "", ""),
                     new(6, "modality", "varchar(16)", "yes", "", ""),
                 ],
+                // SQL Builder 조인 화면을 오프라인으로 확인하려면 상대 테이블도 컬럼이 있어야 한다
+                ["prismone.patient"] =
+                [
+                    new(1, "patient_key", "bigint", "no", "P1", ""),
+                    new(2, "patient_id", "varchar(64)", "no", "", ""),
+                    new(3, "patient_name", "varchar(128)", "yes", "", ""),
+                    new(4, "birth_date", "date", "yes", "", ""),
+                ],
             };
             var sampleCache = new SchemaCache(
                 _ => Task.FromResult(new SchemaSnapshot(_allTables, sampleColumns)));
@@ -2267,6 +2275,27 @@ public partial class MainWindow : Window
             SaveShot(importWin, System.IO.Path.Combine(dir, "shot_import.png"));
             importWin.Close();
 
+            // 자동완성 팝업 — 샘플 카탈로그로 배지·색이 테마에 맞는지 확인 (접속 없이)
+            if (ActiveView is { } completionView)
+            {
+                var keepSql = completionView.GetSql();
+                completionView.CompletionTables = _allTables;   // 접속 경로가 아니라 여기선 직접 채운다
+                completionView.SetSql("select * from ");
+                completionView.FocusEditor();
+                await Task.Delay(200);
+                await completionView.ShowCompletionForShotAsync();
+                await Task.Delay(700);
+                if (completionView.CompletionWindowForShot is { } popup && popup.Bounds.Width > 1)
+                {
+                    var size = new Avalonia.PixelSize((int)popup.Bounds.Width, (int)popup.Bounds.Height);
+                    using var bmp = new Avalonia.Media.Imaging.RenderTargetBitmap(size, new Avalonia.Vector(96, 96));
+                    bmp.Render(popup);
+                    bmp.Save(System.IO.Path.Combine(dir, "shot_completion.png"));
+                }
+                completionView.CloseCompletionForShot();
+                completionView.SetSql(keepSql);
+            }
+
             // 업데이트 알림 — 가짜 버전으로 창 모양만 확인 (네트워크·설치 상태와 무관)
             var updateWin = AppUpdater.PreviewWindow();
             updateWin.Show(this);
@@ -2338,8 +2367,12 @@ public partial class MainWindow : Window
             SaveShot(dialog, System.IO.Path.Combine(dir, "shot_login_filter.png"));
             dialog.Close();
 
-            var builder = new SqlBuilderDialog(_allTables, null);
+            // SQL Builder — 조인·집계까지 보이게 두 테이블을 넣은 상태로 찍는다
+            var builder = new SqlBuilderDialog(_allTables, null) { SchemaCache = sampleCache };
             builder.Show(this);
+            await Task.Delay(300);
+            await builder.AddForShotAsync("prismone.study");
+            await builder.AddForShotAsync("prismone.patient", "s.patient_key = p.patient_key");
             await Task.Delay(500);
             SaveShot(builder, System.IO.Path.Combine(dir, "shot_sqlbuilder.png"));
             builder.Close();

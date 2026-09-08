@@ -213,6 +213,9 @@ public partial class QueryTabView : UserControl
         // + FROM/JOIN 뒤에서는 스페이스/첫 글자 입력만으로 테이블 목록 자동 팝업
         Editor.TextArea.TextEntered += (_, e) =>
         {
+            // Golden 은 Ctrl+Space 로 부를 때만 띄운다 — Manual/Off 면 저절로 뜨지 않는다
+            if (Options.CompletionTrigger != CompletionTrigger.Auto)
+                return;
             if (e.Text == ".")
             {
                 _ = ShowCompletionAsync();
@@ -237,7 +240,7 @@ public partial class QueryTabView : UserControl
             var trigger = e.Key == Avalonia.Input.Key.Space &&
                           (e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) ||
                            (OperatingSystem.IsMacOS() && e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Alt)));
-            if (trigger)
+            if (trigger && Options.CompletionTrigger != CompletionTrigger.Off)
             {
                 e.Handled = true;
                 _ = ShowCompletionAsync();
@@ -254,6 +257,9 @@ public partial class QueryTabView : UserControl
         Editor.CaretOffset = (Editor.Text ?? "").Length;
         return ShowCompletionAsync();
     }
+
+    /// <summary>스크린샷 모드 전용 — 팝업을 닫는다 (다음 캡처를 가리지 않게).</summary>
+    internal void CloseCompletionForShot() => _completion?.Close();
 
     // ---------- Autocomplete ----------
 
