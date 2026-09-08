@@ -475,6 +475,18 @@ Mongo 뿐 아니라 **모든 DB 종류에서 됩니다**(TSV·INSERT 내보내�
 - 테이블 **더블클릭 → 쿼리에 이름 붙여넣기** (`Use Schema` 체크 시 스키마 접두어 포함).
 - `select / * / from / where` 미니 그리드: 클릭하면 해당 단어 삽입.
 
+## 8.9 Find in Results — 결과 그리드에서 찾기
+
+**Results > Find in Results…** (Ctrl+Shift+F3). 에디터 Find(Ctrl+F)가 SQL 문을 뒤지는 것과 달리
+**결과 셀**을 뒤집니다.
+
+- 찾으면 그 칸을 선택하고 스크롤합니다. **Find Next / Find Previous** 로 이어 찾고,
+  끝에 닿으면 처음으로 돌아옵니다. 창을 띄워 둔 채로 계속 누르면 됩니다 (F3 / Shift+F3 도 동작).
+- **대소문자 구분** · **셀 전체 일치** 옵션이 있습니다. 조건을 바꾸면 처음부터 다시 찾습니다.
+- **이미 가져온 행만** 뒤집니다. 점진 fetch 로 아직 안 받은 행은 화면에 없으므로,
+  못 찾으면 "받은 N행 안에는 없습니다" 라고 알려 줍니다 — Ctrl+End 로 끝까지 가져온 뒤
+  다시 찾으세요.
+
 ## 9. Messages (RAISE NOTICE)
 
 PG 함수가 `RAISE NOTICE/WARNING` 을 내면 결과 아래 **Messages pane** 이 자동으로

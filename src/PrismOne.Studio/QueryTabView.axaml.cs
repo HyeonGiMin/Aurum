@@ -2134,6 +2134,47 @@ public partial class QueryTabView : UserControl
         OpenCellDetail(_columns[index], row.No, row.Raw?[index] ?? row.Cells[index]);
     }
 
+    // ---------- Find in Results (Golden 의 "Find in Results…") ----------
+
+    /// <summary>마지막으로 찾은 자리 — Find Next 가 여기서 이어간다.</summary>
+    private GridHit? _lastHit;
+
+    /// <summary>지금 그리드에 보이는 행 수 (못 찾았을 때 "받은 N행 안에는 없다"고 알리려고).</summary>
+    public int LoadedRowCount => _rows.Count;
+
+    /// <summary>
+    /// 이미 가져온 셀에서 찾아 그 칸을 선택하고 스크롤한다.
+    /// 아직 fetch 하지 않은 행은 UI 에 없으므로 못 찾는다 — 그 사실을 호출자가 알린다.
+    /// </summary>
+    /// <returns>찾았으면 true.</returns>
+    public bool FindInResults(string term, bool matchCase, bool wholeCell, bool backwards, bool fromStart)
+    {
+        if (_rows.Count == 0 || string.IsNullOrEmpty(term))
+            return false;
+
+        var cells = _rows.Select(r => r.Cells).ToList();
+        var from = fromStart ? null : _lastHit;
+        var hit = GridSearch.FindNext(
+            cells, term,
+            from?.Row ?? -1, from?.Column ?? -1,
+            matchCase, wholeCell, backwards);
+        if (hit is not { } found)
+            return false;
+
+        _lastHit = found;
+        ResultGrid.SelectedIndex = found.Row;
+        // 0번은 순번 컬럼이라 셀 인덱스와 한 칸 어긋난다
+        var column = found.Column + 1;
+        if (column < ResultGrid.Columns.Count)
+            ResultGrid.CurrentColumn = ResultGrid.Columns[column];
+        ResultGrid.ScrollIntoView(_rows[found.Row], ResultGrid.CurrentColumn);
+        return true;
+    }
+
+    /// <summary>받은 행 중 몇 칸이 걸리는지 — 찾기 창의 안내용.</summary>
+    public int CountInResults(string term, bool matchCase, bool wholeCell) =>
+        GridSearch.Count(_rows.Select(r => r.Cells).ToList(), term, matchCase, wholeCell);
+
     /// <summary>Export 용 — 현재 로드된 행 (Transpose 여부와 무관하게 원본 순서).</summary>
     public (IReadOnlyList<string> Columns, IReadOnlyList<string?[]> Rows) LoadedSnapshot() => Snapshot();
 
@@ -2407,6 +2448,7 @@ public partial class QueryTabView : UserControl
         _rows = [];
         _transposed = false;
         _sortedCellIndex = -1;   // 새 결과 — 이전 헤더 정렬은 무효
+        _lastHit = null;         // 찾기 위치도 무효
         NoRecordsPanel.IsVisible = columns.Count == 0;
         ResultGrid.IsVisible = columns.Count > 0;
         ResultGrid.Columns.Clear();

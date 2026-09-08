@@ -165,7 +165,7 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 
 | 항목 | 키 | 우리 상태 |
 |---|---|---|
-| Find in Results… | | ❌ 미구현 (에디터 Find 만 있음) |
+| Find in Results… | | ✅ 구현됨 (2026-09-08, Ctrl+Shift+F3 — 대소문자·셀 전체 일치, 이어 찾기) |
 | Goto Record Number… | Ctrl+G | ✅ 구현됨 (2026-08-04) |
 | Spreadsheet Autosize ▸ | | △ Size All Columns to Fit 단일 명령 |
 | Clear Spreadsheet | | ✅ Clear Results 로 구현됨 (2026-08-04) |

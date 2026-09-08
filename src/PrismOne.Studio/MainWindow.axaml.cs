@@ -349,6 +349,7 @@ public partial class MainWindow : Window
             new NativeMenuItemSeparator(),
             Item("Transpose Columns/Records (⇧⌘X)", () => OnMenuTranspose(this, args)),
             Item("Size All Columns to Fit", () => OnMenuSizeColumns(this, args)),
+            Item("Find in Results… (⇧⌘F3)", () => OnMenuFindInResults(this, args)),
             Item("Goto Record Number… (⌘G)", () => OnMenuGotoRecord(this, args)),
             Item("Cell Details… (⌃F11)", () => OnMenuCellDetail(this, args)),
             Item("Edit Document… (Mongo) (⇧⌘D)", () => OnMenuEditDocument(this, args)),
@@ -899,6 +900,13 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             OnMenuGotoRecord(sender, e);
+        }
+        // 결과 그리드 찾기. F3 단독·Ctrl+F 는 에디터 찾기라 자리가 없어 Ctrl+Shift+F3 을 쓴다
+        // (Ctrl+Shift+F 는 즐겨찾기 추가에 이미 쓰인다)
+        else if (e.Key == Key.F3 && cmdOrCtrl && shift)
+        {
+            e.Handled = true;
+            OnMenuFindInResults(sender, e);
         }
         else if (e.Key == Key.P && cmdOrCtrl)
         {
@@ -1652,6 +1660,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Golden "Goto Record Number" (Ctrl+G) — 행 번호를 물어보고 그 행으로 간다.</summary>
+    /// <summary>
+    /// Results > Find in Results — 그리드 안에서 값 찾기 (Golden 파리티).
+    /// 창은 하나만 두고 다시 부르면 앞으로 가져온다 (이어 찾기 위치를 잃지 않게).
+    /// </summary>
+    private FindInResultsDialog? _findInResults;
+
+    private void OnMenuFindInResults(object? sender, RoutedEventArgs e)
+    {
+        if (_findInResults is { } open)
+        {
+            open.Activate();
+            return;
+        }
+        _findInResults = new FindInResultsDialog(() => ActiveView);
+        _findInResults.Closed += (_, _) => _findInResults = null;
+        _findInResults.Show(this);
+    }
+
     private async void OnMenuGotoRecord(object? sender, RoutedEventArgs e)
     {
         if (ActiveView is not { } view) return;
@@ -2295,6 +2321,13 @@ public partial class MainWindow : Window
                 completionView.CloseCompletionForShot();
                 completionView.SetSql(keepSql);
             }
+
+            // 결과 그리드 찾기 창 — 접속 없이 렌더만 확인
+            var find = new FindInResultsDialog(() => ActiveView);
+            find.Show(this);
+            await Task.Delay(400);
+            SaveShot(find, System.IO.Path.Combine(dir, "shot_findresults.png"));
+            find.Close();
 
             // 업데이트 알림 — 가짜 버전으로 창 모양만 확인 (네트워크·설치 상태와 무관)
             var updateWin = AppUpdater.PreviewWindow();
