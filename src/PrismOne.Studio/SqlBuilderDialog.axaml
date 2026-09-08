@@ -4,53 +4,79 @@
         x:Class="PrismOne.Studio.SqlBuilderDialog"
         Icon="/Assets/icon.png"
         Title="SQL Builder - Aurum"
-        Width="900" Height="640"
+        Width="1000" Height="720"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
-  <Grid Margin="14" ColumnDefinitions="260,12,*" RowDefinitions="Auto,*,Auto">
+  <Grid Margin="14" ColumnDefinitions="270,12,*" RowDefinitions="Auto,*,Auto">
 
-    <!-- 왼쪽: 테이블 목록 -->
-    <TextBlock Grid.Row="0" Grid.Column="0" Text="Table" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
-    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*">
+    <!-- 왼쪽: 테이블 목록. 더블클릭이나 버튼으로 쿼리에 넣는다 -->
+    <TextBlock Grid.Row="0" Grid.Column="0" Text="Tables" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
+    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*,Auto">
       <TextBox Grid.Row="0" Name="TableFilterBox" MinHeight="30" FontSize="13" Margin="0,0,0,6"
                PlaceholderText="필터" TextChanged="OnTableFilterChanged"/>
-      <ListBox Grid.Row="1" Name="TableList" FontSize="12.5" SelectionChanged="OnTableSelected"/>
+      <ListBox Grid.Row="1" Name="TableList" FontSize="12.5" DoubleTapped="OnTableActivated"/>
+      <Button Grid.Row="2" Content="쿼리에 추가 →" MinHeight="30" Margin="0,6,0,0"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              Click="OnAddTable"
+              ToolTip.Tip="첫 테이블은 FROM, 그 다음부터는 JOIN 으로 붙습니다.&#x0a;FK 가 있으면 ON 조건을 채워 줍니다."/>
     </Grid>
 
-    <!-- 오른쪽: 컬럼 · 조건 · 정렬 -->
-    <TextBlock Grid.Row="0" Grid.Column="2" Text="Columns · Where · Order by"
-               FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
-    <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="*,Auto,Auto,Auto,Auto,1.1*">
+    <!-- 오른쪽: 쿼리 구성 + 미리보기 -->
+    <TextBlock Grid.Row="0" Grid.Column="2" Text="Query" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6"/>
+    <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="*,Auto,Auto">
 
-      <Border Grid.Row="0" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1" Padding="6">
-        <ScrollViewer>
-          <StackPanel Name="ColumnPanel" Spacing="2"/>
-        </ScrollViewer>
-      </Border>
+      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="4">
 
-      <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,4">
-        <TextBlock Grid.Column="0" Text="조건 (비워 두면 전체 조회)" FontSize="12" Opacity="0.7"
-                   VerticalAlignment="Center"/>
-        <CheckBox Grid.Column="1" Name="UseAliasBox" Content="별칭 s" FontSize="12" Margin="0,0,8,0"
-                  IsCheckedChanged="OnSpecCheckChanged"/>
-        <Button Grid.Column="2" Content="+ 조건" FontSize="12" Padding="8,3" Click="OnAddCondition"/>
-      </Grid>
+          <!-- FROM · JOIN -->
+          <TextBlock Text="From · Join" FontSize="12" Opacity="0.7"/>
+          <Border BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1" Padding="6" MinHeight="46">
+            <StackPanel Name="JoinPanel" Spacing="4"/>
+          </Border>
 
-      <StackPanel Grid.Row="2" Name="ConditionPanel" Spacing="4"/>
+          <!-- 컬럼 -->
+          <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Text="Columns (아무것도 안 고르면 *)" FontSize="12" Opacity="0.7"
+                       VerticalAlignment="Center"/>
+            <CheckBox Grid.Column="1" Name="DistinctBox" Content="distinct" FontSize="12" Margin="0,0,8,0"
+                      IsCheckedChanged="OnSpecCheckChanged"/>
+            <Button Grid.Column="2" Content="+ 집계" FontSize="12" Padding="8,3" Click="OnAddAggregate"
+                    ToolTip.Tip="count/sum/avg/min/max — 하나라도 넣으면 고른 컬럼이 GROUP BY 가 됩니다."/>
+          </Grid>
+          <Border BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1" Padding="6"
+                  Height="150">
+            <ScrollViewer>
+              <StackPanel Name="ColumnPanel" Spacing="2"/>
+            </ScrollViewer>
+          </Border>
 
-      <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,10,0,4">
-        <TextBlock Grid.Column="0" Text="Order by" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
-        <ComboBox Grid.Column="1" Name="OrderColumnCombo" FontSize="12" HorizontalAlignment="Stretch"
-                  SelectionChanged="OnSpecSelectionChanged"/>
-        <CheckBox Grid.Column="2" Name="OrderDescBox" Content="desc" FontSize="12" Margin="8,0"
-                  IsCheckedChanged="OnSpecCheckChanged"/>
-        <TextBlock Grid.Column="3" Text="Limit" FontSize="12" VerticalAlignment="Center" Margin="8,0,6,0"/>
-        <TextBox Grid.Column="4" Name="LimitBox" Width="80" MinHeight="28" FontSize="12"
-                 Text="100" TextChanged="OnSpecTextChanged"/>
-      </Grid>
+          <StackPanel Name="AggregatePanel" Spacing="4"/>
 
-      <TextBlock Grid.Row="4" Text="미리보기" FontSize="12" Opacity="0.7" Margin="0,6,0,4"/>
-      <TextBox Grid.Row="5" Name="PreviewBox" IsReadOnly="True" AcceptsReturn="True"
+          <!-- 조건 -->
+          <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <TextBlock Grid.Column="0" Text="Where (비워 두면 전체 조회)" FontSize="12" Opacity="0.7"
+                       VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="+ 조건" FontSize="12" Padding="8,3" Click="OnAddCondition"/>
+          </Grid>
+          <StackPanel Name="ConditionPanel" Spacing="4"/>
+
+          <!-- 정렬 · 상한 -->
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,10,0,0">
+            <TextBlock Grid.Column="0" Text="Order by" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox Grid.Column="1" Name="OrderColumnCombo" FontSize="12" HorizontalAlignment="Stretch"
+                      SelectionChanged="OnSpecSelectionChanged"/>
+            <CheckBox Grid.Column="2" Name="OrderDescBox" Content="desc" FontSize="12" Margin="8,0"
+                      IsCheckedChanged="OnSpecCheckChanged"/>
+            <TextBlock Grid.Column="3" Text="Limit" FontSize="12" VerticalAlignment="Center" Margin="8,0,6,0"/>
+            <TextBox Grid.Column="4" Name="LimitBox" Width="80" MinHeight="28" FontSize="12"
+                     Text="100" TextChanged="OnSpecTextChanged"/>
+          </Grid>
+
+        </StackPanel>
+      </ScrollViewer>
+
+      <TextBlock Grid.Row="1" Text="미리보기" FontSize="12" Opacity="0.7" Margin="0,8,0,4"/>
+      <TextBox Grid.Row="2" Name="PreviewBox" IsReadOnly="True" AcceptsReturn="True" Height="150"
                FontFamily="Consolas,Menlo,DejaVu Sans Mono,monospace" FontSize="12.5"
                VerticalContentAlignment="Top"
                ScrollViewer.HorizontalScrollBarVisibility="Auto"

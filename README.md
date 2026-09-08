@@ -28,7 +28,10 @@
 - Favorites(앱 내 쿼리 저장) · **Query History 조회 창**(시각·검색) · 워크스페이스
 
 **스키마를 아는 에디터**
-- 자동완성(테이블·컬럼·별칭 해석, 3개 DB 공통) — introspection 캐시로 접속 왕복 없음
+- 자동완성(테이블·컬럼·별칭 해석, 3개 DB 공통) — introspection 캐시로 접속 왕복 없음.
+  호출 방식은 Options 에서 자동 / Ctrl+Space 로만(Golden 방식) / 끄기 중에 고른다
+- **SQL Builder** — 테이블을 골라 SELECT 조립. 여러 테이블 **JOIN**(FK 에서 ON 자동 채움),
+  집계 + GROUP BY, distinct, 미리보기 후 에디터 삽입
 - **SQL 검증** — 없는 테이블/컬럼에 빨간 물결 밑줄 + 툴팁 (실행 전에 오타를 잡는다)
 - **Explain Plan 시각화** — 노드별 self 비용 막대·%·행수 예측 오차 배지 (PG)
 

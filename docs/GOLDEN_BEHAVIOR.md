@@ -108,7 +108,9 @@ Filter ▾ 로 Username/Database/Category 필터). 비밀번호 미저장 항목
 - **Favorites**: 즐겨찾기 쿼리 메뉴(필터 지원). 기본은 SELECT만 실행 허용
   ("Allow non-Select statements to run from the Favorites Menu." 옵션)
 - **History**: 쿼리 히스토리 (서버 저장 옵션 UseServerHistory 존재)
-- ~~SQLBuilder(비주얼 쿼리 빌더)~~ ✅ 구현됨 (Tools > SQL Builder — 테이블·컬럼·WHERE·정렬·Limit,
+- ~~SQLBuilder(비주얼 쿼리 빌더)~~ ✅ 구현됨 (Tools > SQL Builder — 테이블·컬럼·WHERE·정렬·Limit.
+  2026-09-08 확장: **여러 테이블 JOIN**(FK 에서 ON 자동 채움, inner/left/right/full),
+  **집계 + GROUP BY**, **distinct**, Oracle 은 `fetch first N rows only`),
   미리보기 후 에디터 삽입), Describe 창(스키마/타입별)
 
 ## 10. 우리 구현과의 갭 (우선순위순)
