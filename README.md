@@ -89,7 +89,8 @@ src/
   PrismOne.Db.Core/    # 드라이버 중립 코어: 세션·fetch·편집·export/import·카탈로그·diff·검증 (테스트 281개)
   PrismOne.Studio/     # GUI (제품명 Aurum) — 네임스페이스는 역사적 이유로 PrismOne.Studio 유지
 tests/
-  PrismOne.Db.Core.Tests/
+  PrismOne.Db.Core.Tests/   # 코어 로직
+  PrismOne.Studio.Tests/    # UI 계층의 순수 로직 (자동완성 위치 판정·정렬 비교자 등)
 packaging/             # macOS .app · Windows 단일 exe
 docs/                  # 사용법·설계 문서 (아래 문서 지도)
 ```
@@ -108,7 +109,7 @@ docs/                  # 사용법·설계 문서 (아래 문서 지도)
 ```bash
 # .NET 10 SDK 필요
 dotnet build Aurum.sln
-dotnet test tests/PrismOne.Db.Core.Tests
+dotnet test Aurum.sln            # 코어 + Studio 테스트 프로젝트
 dotnet run --project src/PrismOne.Studio
 ```
 
