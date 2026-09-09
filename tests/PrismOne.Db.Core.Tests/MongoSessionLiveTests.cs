@@ -307,7 +307,7 @@ public class MongoSessionLiveTests
             await session.InsertDocumentAsync(database, "people", document);
 
             var result = await session.ExecuteAsync("db.people.find({ name: 'auto-id' })");
-            Assert.Equal(1, result.Table.Rows.Count);
+            Assert.Single(result.Table.Rows);
         }
         finally
         {
@@ -361,7 +361,7 @@ public class MongoSessionLiveTests
             Assert.Contains("1", ex.Message);   // 1개는 들어갔다는 메시지
 
             var check = await session.ExecuteAsync("db.people.find({ _id: 200 })");
-            Assert.Equal(1, check.Table.Rows.Count);   // 첫 문서는 실제로 들어갔다
+            Assert.Single(check.Table.Rows);   // 첫 문서는 실제로 들어갔다
         }
         finally
         {
