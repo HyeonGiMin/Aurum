@@ -61,6 +61,7 @@
         <Separator/>
         <MenuItem Header="Transpose Columns/Records" InputGesture="Ctrl+Shift+X" Click="OnMenuTranspose"/>
         <MenuItem Header="Size All Columns to Fit" Click="OnMenuSizeColumns"/>
+        <MenuItem Header="Find in Results…" InputGesture="Ctrl+Shift+F3" Click="OnMenuFindInResults"/>
         <MenuItem Header="Goto Record Number…" InputGesture="Ctrl+G" Click="OnMenuGotoRecord"/>
         <MenuItem Header="Cell Details…" InputGesture="Ctrl+F11" Click="OnMenuCellDetail"/>
         <!-- Studio3T 의 Edit/Add/Delete Document 대응 — Mongo 전용, 즉시 저장(단계적 커밋 없음) -->

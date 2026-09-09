@@ -316,7 +316,7 @@ public partial class SqlBuilderDialog : Window
             var on = new TextBox
             {
                 Text = string.Join(" and ", entry.On.Select(o => $"{o.Left} = {o.Right}")),
-                Watermark = first ? "" : "예: s.patient_key = p.patient_key",
+                PlaceholderText = first ? "" : "예: s.patient_key = p.patient_key",
                 IsEnabled = !first,
                 FontSize = 12,
                 MinHeight = 26,
@@ -465,7 +465,7 @@ public partial class SqlBuilderDialog : Window
             FontSize = 12,
             MinWidth = 96,
         };
-        var value = new TextBox { Width = 170, MinHeight = 26, FontSize = 12, Watermark = "값" };
+        var value = new TextBox { Width = 170, MinHeight = 26, FontSize = 12, PlaceholderText = "값" };
         var remove = new Button { Content = "✕", FontSize = 12, Padding = new Avalonia.Thickness(7, 2) };
 
         column.SelectionChanged += OnSpecSelectionChanged;
@@ -504,7 +504,7 @@ public partial class SqlBuilderDialog : Window
             FontSize = 12,
             MinWidth = 190,
         };
-        var alias = new TextBox { Width = 120, MinHeight = 26, FontSize = 12, Watermark = "별칭" };
+        var alias = new TextBox { Width = 120, MinHeight = 26, FontSize = 12, PlaceholderText = "별칭" };
         var remove = new Button { Content = "✕", FontSize = 12, Padding = new Avalonia.Thickness(7, 2) };
 
         fn.SelectionChanged += OnSpecSelectionChanged;

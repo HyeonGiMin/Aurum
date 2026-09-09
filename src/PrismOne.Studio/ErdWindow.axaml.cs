@@ -685,7 +685,7 @@ public partial class ErdWindow : Window
             using var bitmap = new RenderTargetBitmap(new PixelSize(width, height), new Vector(96, 96));
             bitmap.Render(surface);
             await using var stream = await file.OpenWriteAsync();
-            bitmap.Save(stream);
+            bitmap.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
             ErdStatus.Text = $"Saved {file.Name} ({width}×{height}px)";
             Toast.Show(this, "PNG 저장 완료", $"{file.Name} ({width}×{height}px)");
         }

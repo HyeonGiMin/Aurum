@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Studio(UI) 계층의 순수 로직 테스트.
+
+    Avalonia 컨트롤을 만드는 코드는 여기서 돌리지 않는다 — 앱 수명주기가 필요하다.
+    대신 자동완성 위치 판정·정렬 비교자·ON 파싱처럼 **화면 없이 판단하는 부분**을
+    실물로 검증한다. (전에는 Db.Core.Tests 가 정규식을 베껴 두고 사본을 검사했다.)
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PrismOne.Studio\PrismOne.Studio.csproj" />
+  </ItemGroup>
+
+</Project>

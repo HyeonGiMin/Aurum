@@ -319,6 +319,22 @@ public sealed class MongoSession : IDisposable
                 "문서를 찾지 못했습니다 — 다른 곳에서 먼저 지웠거나 바뀌었을 수 있습니다. 다시 조회해 주세요.");
     }
 
+    /// <summary>
+    /// 그리드 편집 저장 — <c>_id</c> 로 찾아 <b>바뀐 필드만</b> 고친다 (<c>$set</c>).
+    /// Edit Document 의 통째 교체와 달리, 그리드에 안 보이는 필드는 건드리지 않는다
+    /// (컬럼 상한·깊이 제한으로 접힌 필드가 있을 수 있다).
+    /// </summary>
+    public async Task UpdateDocumentAsync(
+        string database, string collection, BsonValue id, BsonDocument update, CancellationToken ct = default)
+    {
+        var filter = Builders<BsonDocument>.Filter.Eq("_id", id);
+        var result = await _client.GetDatabase(database).GetCollection<BsonDocument>(collection)
+            .UpdateOneAsync(filter, update, cancellationToken: ct);
+        if (result.MatchedCount == 0)
+            throw new MongoQueryException(
+                "문서를 찾지 못했습니다 — 다른 곳에서 먼저 지웠거나 바뀌었을 수 있습니다. 다시 조회해 주세요.");
+    }
+
     /// <summary>Add Document 저장 — 문서를 그대로 넣는다. <c>_id</c> 를 안 적으면 Mongo 가 만든다.</summary>
     public async Task InsertDocumentAsync(
         string database, string collection, BsonDocument document, CancellationToken ct = default) =>
