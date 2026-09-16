@@ -106,11 +106,14 @@ jobs:
           vpk download github --repoUrl https://github.com/${{ github.repository }}
           --token ${{ secrets.GITHUB_TOKEN }} -c osx-arm64 -o releases
 
+      # --noInst: .pkg 설치본을 만들지 않는다. 맥은 Aurum.app 하나로만 배포한다 —
+      # 업데이터(UpdateMac)까지 번들 안에 있어서 지우려면 앱만 휴지통에 넣으면 된다.
+      # (설치본은 설치 위치를 고를 수 있는 대신 시스템에 수신 기록을 남긴다.)
       - name: Pack
         run: >
           vpk pack -u Aurum -v ${{ steps.ver.outputs.version }} -p publish -e Aurum
           --packTitle Aurum --packAuthors "HyeonGi Min"
-          --icon icon.icns
+          --icon icon.icns --noInst
           -c osx-arm64 -o releases
 
       - name: Upload to GitHub Release

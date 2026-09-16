@@ -129,14 +129,27 @@ powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
 
 ## 설치 · 자동 업데이트
 
-설치본은 [GitHub Releases](https://github.com/HyeonGiMin/Aurum/releases/latest) 에서 받는다
-(Windows `Aurum-win-Setup.exe`, macOS `Aurum-osx-arm64.pkg`). Setup 으로 설치한 본은
-**시작할 때 — 로그온 창보다 먼저 — 새 릴리즈를 확인해 팝업으로 알리고, Update 를 누르면
-내려받아 다시 시작**한다 (Velopack). 접속해서 일을 시작한 뒤에 재시작을 요구하지 않으려는 것이고,
-네트워크가 느리면 4초만 기다렸다 로그온을 먼저 띄운다. 팝업은 현재→새 버전, 내려받을 용량
-(델타가 있으면 그만큼만), 릴리즈 노트를 보여준다.
+배포본은 [GitHub Releases](https://github.com/HyeonGiMin/Aurum/releases/latest) 에서 받는다.
+
+| OS | 받을 것 | 설치 |
+|---|---|---|
+| Windows | `Aurum-win-Setup.exe` | 실행하면 `%LocalAppData%\Aurum` 에 설치된다 (관리자 권한 없음) |
+| macOS (Apple Silicon) | `Aurum-osx-arm64-Portable.zip` | 풀면 **`Aurum.app` 하나**. 원하는 곳에 두고 실행 |
+
+**맥은 앱 하나로만 배포한다.** 업데이터까지 번들 안에 들어 있어서 **지우려면 `Aurum.app` 을
+휴지통에 넣으면 끝**이다 (설치 프로그램도, 시스템 수신 기록도 없다). 앱을 옮겨도 자동 업데이트는
+그대로 된다. 남는 것은 업데이트 캐시(`~/Library/Caches/velopack/Aurum/`)와 접속 설정
+(`~/.prismone-studio/`) 두 폴더뿐이라, 완전히 지우려면 이 둘도 함께 지운다.
+
+> 맥에서 처음 열 때 "확인되지 않은 개발자" 경고가 뜬다 — 서명·공증을 하지 않았기 때문이다.
+> **앱을 우클릭 → 열기**로 한 번 허용하면 그 뒤로는 그냥 열린다.
+
+배포본은 **시작할 때 — 로그온 창보다 먼저 — 새 릴리즈를 확인해 팝업으로 알리고,
+Update 를 누르면 내려받아 다시 시작**한다 (Velopack). 접속해서 일을 시작한 뒤에 재시작을
+요구하지 않으려는 것이고, 네트워크가 느리면 4초만 기다렸다 로그온을 먼저 띄운다.
+팝업은 현재→새 버전, 내려받을 용량(델타가 있으면 그만큼만), 릴리즈 노트를 보여준다.
 Help > Check for Updates 로 직접 확인할 수도 있고, Options 에서 시작 시 확인을 끌 수 있다.
-위의 zip / 단일 exe 본은 자동 업데이트가 되지 않는다.
+아래 `make-app.ps1` 로 만든 단일 exe 본은 자동 업데이트가 되지 않는다.
 
 릴리즈 절차 — 태그를 밀면 `.github/workflows/release.yml` 이 두 플랫폼을 빌드해 Release 에 올린다:
 
