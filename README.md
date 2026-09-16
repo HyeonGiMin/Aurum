@@ -134,11 +134,13 @@ powershell -ExecutionPolicy Bypass -File packaging/windows/make-app.ps1
 | OS | 받을 것 | 설치 |
 |---|---|---|
 | Windows | `Aurum-win-Setup.exe` | 실행하면 `%LocalAppData%\Aurum` 에 설치된다 (관리자 권한 없음) |
-| macOS (Apple Silicon) | `Aurum-osx-arm64-Portable.zip` | 풀면 **`Aurum.app` 하나**. 원하는 곳에 두고 실행 |
+| macOS (Apple Silicon) | `Aurum-osx-arm64.dmg` | 열어서 **`Aurum.app` 을 Applications 로 끌어다 놓는다** |
 
-**맥은 앱 하나로만 배포한다.** 업데이터까지 번들 안에 들어 있어서 **지우려면 `Aurum.app` 을
-휴지통에 넣으면 끝**이다 (설치 프로그램도, 시스템 수신 기록도 없다). 앱을 옮겨도 자동 업데이트는
-그대로 된다. 남는 것은 업데이트 캐시(`~/Library/Caches/velopack/Aurum/`)와 접속 설정
+**맥은 앱 하나로만 배포한다.** DMG 를 열면 `Aurum.app` 과 Applications 바로가기가 나란히 있고,
+끌어다 놓으면 복사가 끝이다. 업데이터까지 번들 안에 들어 있어서 **지우려면 `Aurum.app` 을
+휴지통에 넣으면 끝**이다 (설치 프로그램도, 시스템 수신 기록도, 흩어진 파일도 없다).
+앱을 다른 폴더로 옮겨도 자동 업데이트는 그대로 된다.
+남는 것은 업데이트 캐시(`~/Library/Caches/velopack/Aurum/`)와 접속 설정
 (`~/.prismone-studio/`) 두 폴더뿐이라, 완전히 지우려면 이 둘도 함께 지운다.
 
 > 맥에서 처음 열 때 "확인되지 않은 개발자" 경고가 뜬다 — 서명·공증을 하지 않았기 때문이다.

@@ -116,9 +116,39 @@ jobs:
           --icon icon.icns --noInst
           -c osx-arm64 -o releases
 
+      # 맥 배포는 DMG 하나로 한다 — 열면 Aurum.app 과 Applications 바로가기가 나란히 떠서
+      # 끌어다 놓아 복사하는, 맥에서 가장 익숙한 방식이다. 지울 때도 앱만 버리면 끝.
+      # vpk 는 DMG 를 만들지 않으므로(설치본 .pkg 아니면 포터블 zip) 여기서 직접 만든다.
+      # 포터블 zip 안에 완성된 .app 이 들어 있으니 그것을 그대로 쓴다.
+      - name: Make DMG
+        run: |
+          set -eu
+          stage="$RUNNER_TEMP/dmg"
+          rm -rf "$stage" && mkdir -p "$stage"
+          zip=$(ls releases/*Portable.zip)
+          # unzip 대신 ditto — 맥 확장 속성·심볼릭 링크를 그대로 살린다
+          ditto -x -k "$zip" "$stage"
+          ln -s /Applications "$stage/Applications"
+          mkdir -p dmg
+          hdiutil create -volname Aurum -srcfolder "$stage" -ov -format UDZO \
+            "dmg/Aurum-osx-arm64.dmg"
+
       - name: Upload to GitHub Release
         run: >
           vpk upload github --repoUrl https://github.com/${{ github.repository }}
           --token ${{ secrets.GITHUB_TOKEN }} --publish --merge
           --tag ${{ github.ref_name }} --releaseName "Aurum ${{ steps.ver.outputs.version }}"
           -c osx-arm64 -o releases
+
+      # DMG 를 붙이고 포터블 zip 은 뗀다 — 같은 .app 이 두 벌 올라가면 어느 걸 받아야 할지
+      # 헷갈린다. 업데이트 피드(releases.osx-arm64.json)는 nupkg 만 참조하므로 자동
+      # 업데이트에는 영향이 없다.
+      - name: Attach DMG (and drop the portable zip)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          tag="${{ github.ref_name }}"
+          gh release upload "$tag" dmg/Aurum-osx-arm64.dmg --clobber
+          zip_name=$(basename "$(ls releases/*Portable.zip)")
+          gh release delete-asset "$tag" "$zip_name" --yes || true
