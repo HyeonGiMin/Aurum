@@ -143,7 +143,7 @@ public static class SqlCompletion
         return map;
     }
 
-    /// <summary>커서(단어 시작) 직전의 키워드가 테이블 자리인지 — from/join/into/update 뒤.</summary>
+    /// <summary>커서(단어 시작) 직전의 키워드가 테이블 자리인지 — from/join/into/update 뒤, 줄 첫 DESC 뒤.</summary>
     public static bool IsTablePosition(string text, int wordStart)
     {
         var i = wordStart;
@@ -155,8 +155,16 @@ public static class SqlCompletion
             || word.Equals("join", StringComparison.OrdinalIgnoreCase)
             || word.Equals("into", StringComparison.OrdinalIgnoreCase)
             || word.Equals("update", StringComparison.OrdinalIgnoreCase)
-            || word.Equals("table", StringComparison.OrdinalIgnoreCase);
+            || word.Equals("table", StringComparison.OrdinalIgnoreCase)
+            || (DescribeCommand.IsCommandStart(word) && StartsStatement(text, i));
     }
+
+    /// <summary>
+    /// pos 가 문장 첫 단어인지 — DESC 는 문장을 여는 명령일 때만 테이블 자리다
+    /// (<c>order by x desc</c> 의 desc 는 여러 줄로 쓴 ORDER BY 의 줄 첫머리여도 아니다).
+    /// </summary>
+    private static bool StartsStatement(string text, int pos) =>
+        StatementSplitter.StatementAt(text, pos)?.Start == pos;
 
     /// <summary>
     /// 컬럼이 올 자리인지 — where/and/or/on/having/by/set/select 뒤, 또는 콤마 뒤.

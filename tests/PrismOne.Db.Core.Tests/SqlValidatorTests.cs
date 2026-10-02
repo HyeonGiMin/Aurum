@@ -36,6 +36,27 @@ public sealed class SqlValidatorTests
 
     // ---------- 잡아야 하는 것 ----------
 
+    [Theory]
+    [InlineData("desc prismone.stduy", "stduy")]
+    [InlineData("select 1;\nDESCRIBE stduy;", "stduy")]
+    [InlineData("desc study\ndesc examlst", "examlst")]   // 세미콜론 없는 DESC 줄이 이어져도
+    public void FlagsUnknownDescribeTarget(string sql, string bad)
+    {
+        var issue = Assert.Single(Validate(sql));
+        Assert.Equal(bad, sql.Substring(issue.Start, issue.Length));
+    }
+
+    [Theory]
+    [InlineData("desc prismone.study")]
+    [InlineData("desc examlist")]
+    [InlineData("desc \"Whatever\"")]                    // 따옴표 식별자는 판단하지 않는다
+    [InlineData("desc pg_class")]                        // 내장 카탈로그
+    [InlineData("desc information_schema.columns")]      // 모르는 스키마
+    [InlineData("select * from study\norder by study_key\ndesc")]   // ORDER BY 의 DESC
+    [InlineData("desc study\nselect patient_id from patient")]      // 다음 줄 단어를 별칭으로 잡지 않는다
+    public void DoesNotFlagValidOrUnknowableDescribe(string sql)
+        => Assert.Empty(Validate(sql));
+
     [Fact]
     public void FlagsUnknownTable()
     {

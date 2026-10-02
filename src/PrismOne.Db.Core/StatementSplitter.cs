@@ -14,6 +14,10 @@ public sealed record SqlStatement(string Text, int Start, int End);
 /// 보지 않고, 줄 전체가 <c>/</c> 하나뿐인 곳에서 끝난다. 그 밖의 보통 SQL 은 그대로
 /// 세미콜론으로 끊는다. PG 의 달러쿼팅은 Oracle 에 없는 문법이라 이 모드에서는 시도하지
 /// 않는다(오탐 방지).
+///
+/// <c>DESC[RIBE]</c> 는 SQL*Plus 줄 명령이라 두 모드 모두 세미콜론 없이도 줄 끝에서 끝난다
+/// (<see cref="DescribeCommand"/>). 지원하는 DB(PG·Oracle·SQLite)에는 DESC 로 시작하는 SQL 이
+/// 없어 충돌하지 않는다 — MySQL 처럼 <c>DESC SELECT …</c>(=EXPLAIN)가 있는 DB 를 붙이면 다시 볼 것.
 /// </summary>
 public static class StatementSplitter
 {
@@ -27,11 +31,20 @@ public static class StatementSplitter
         var n = sql.Length;
         var stmtStart = -1;   // 현재 문장의 첫 유효 문자 위치
         var inBlock = false;  // PL/SQL 블록 안이라 세미콜론을 구분자로 안 본다
+        var lineCommand = false;   // SQL*Plus 줄 명령(DESC) — 세미콜론 없이 줄 끝에서 끝난다
 
         while (i < n)
         {
             var c = sql[i];
 
+            // 줄 명령은 줄 끝이나 줄 주석 앞에서 끊는다 — 그 문자 자체는 아래에서 평소대로 처리
+            if (lineCommand && (c == '\n' || (c == '-' && i + 1 < n && sql[i + 1] == '-')))
+            {
+                AddStatement(result, sql, stmtStart, i, i);
+                stmtStart = -1;
+                lineCommand = false;
+                continue;
+            }
             if (c == '-' && i + 1 < n && sql[i + 1] == '-')
             {
                 var nl = sql.IndexOf('\n', i + 2);
@@ -61,6 +74,7 @@ public static class StatementSplitter
             {
                 stmtStart = i;
                 inBlock = oracleBlocks && IsPlSqlBlockStart(sql, i);
+                lineCommand = DescribeCommand.IsCommandStart(sql, i);
             }
 
             switch (c)
@@ -69,6 +83,7 @@ public static class StatementSplitter
                     if (inBlock) { i++; break; }   // PL/SQL 문법일 뿐 — 구분자 아님
                     AddStatement(result, sql, stmtStart, i, i + 1);
                     stmtStart = -1;
+                    lineCommand = false;
                     i++;
                     break;
                 case '\'':

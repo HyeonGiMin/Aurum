@@ -264,4 +264,39 @@ public class StatementSplitterTests
 
         Assert.Single(stmts);
     }
+
+    [Fact]
+    public void Split_DescribeEndsAtLineEndWithoutSemicolon()
+    {
+        // SQL*Plus 의 DESC 는 줄 명령 — 세미콜론 없이 줄 끝에서 끝난다
+        var sql = "desc study\nselect 1;\ndescribe patient";
+        var stmts = StatementSplitter.Split(sql);
+
+        Assert.Equal(["desc study", "select 1", "describe patient"], stmts.Select(s => s.Text));
+        Assert.Equal(sql.IndexOf('\n'), stmts[0].End);
+    }
+
+    [Fact]
+    public void Split_DescribeWithSemicolonAndTrailingComment()
+    {
+        var stmts = StatementSplitter.Split("desc study; -- 컬럼 확인\ndesc t -- 주석\nselect 2;");
+
+        Assert.Equal(["desc study", "desc t", "select 2"], stmts.Select(s => s.Text));
+    }
+
+    [Fact]
+    public void Split_DescribeQuotedIdentifierKeepsSemicolonAndDashes()
+    {
+        var stmts = StatementSplitter.Split("desc \"a;--b\"\nselect 1;");
+
+        Assert.Equal(["desc \"a;--b\"", "select 1"], stmts.Select(s => s.Text));
+    }
+
+    [Fact]
+    public void StatementAt_CaretAtEndOfDescribeLine()
+    {
+        var sql = "desc study\nselect 1;";
+
+        Assert.Equal("desc study", StatementSplitter.StatementAt(sql, 10)!.Text);
+    }
 }

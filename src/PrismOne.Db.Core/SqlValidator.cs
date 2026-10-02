@@ -54,6 +54,7 @@ public static class SqlValidator
         var text = Mask(sql);
         var locals = CollectLocalNames(text);          // CTE·서브쿼리 별칭
         var refs = CollectTableRefs(text);
+        CollectDescribeRefs(sql, text, refs);
 
         var schemas = new HashSet<string>(
             snapshot.Tables.Select(t => t.Schema), StringComparer.OrdinalIgnoreCase);
@@ -179,6 +180,22 @@ public static class SqlValidator
             }
         }
         return refs;
+    }
+
+    /// <summary>
+    /// DESC 줄 명령의 대상도 테이블 참조다. ORDER BY … DESC 와 헷갈리지 않게 문장 경계는
+    /// 분리기에 맡기고(문장 첫 단어일 때만), 다음 줄 단어를 별칭으로 집지 않게 문장 끝에서 자른다.
+    /// </summary>
+    private static void CollectDescribeRefs(string sql, string text, List<TableRef> refs)
+    {
+        if (!sql.Contains("desc", StringComparison.OrdinalIgnoreCase))
+            return;   // 대부분의 스크립트는 여기서 끝 — 분리기를 한 번 더 돌리지 않는다
+        foreach (var stmt in StatementSplitter.Split(sql))
+        {
+            var keywordEnd = DescribeCommand.KeywordEnd(sql, stmt.Start);
+            if (keywordEnd > 0)
+                ParseRef(text[..stmt.End], keywordEnd, refs, out _);
+        }
     }
 
     /// <summary>FROM 뒤 콤마 목록: <c>from a x, b y</c> — 옛날식 조인도 전부 잡는다.</summary>

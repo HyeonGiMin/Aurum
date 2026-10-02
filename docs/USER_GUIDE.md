@@ -368,6 +368,37 @@ DataGrip 의 unresolved reference 표시 대응입니다.
 그 테이블이 선택되고 컬럼 목록(describe)이 표시됩니다. `prismone.study` 처럼 스키마를
 붙여도 되고 `study` 만 써도 됩니다.
 
+### DESC 명령 (PostgreSQL · Oracle · SQLite)
+
+SQL*Plus 처럼 에디터에 **`desc 테이블`** 을 쓰고 실행(F9/F5)하면 결과 그리드에
+`Name / Null? / Type` 세 컬럼으로 컬럼 정의가 나옵니다. DESC 는 원래 SQL*Plus 가
+클라이언트에서 처리하던 명령이라 어느 DB 서버도 받지 않습니다 — Aurum 이 같은 모양의
+카탈로그 조회로 바꿔 실행합니다.
+
+```sql
+desc study
+describe prismone.study;
+DESC "MixedCase"
+```
+
+- `DESC`·`DESCR`·…·`DESCRIBE` 모두 받습니다. 세미콜론은 있어도 없어도 되고, **줄 끝에서
+  문장이 끝납니다** — 스크립트 중간에 `desc t` 한 줄만 끼워 넣어도 됩니다.
+- `desc ` 뒤에서는 자동완성이 테이블 목록을 띄우고, 없는 테이블 이름엔 빨간 밑줄이 그어집니다.
+- 없는 대상이면 오류로 알려 줍니다 (SQL*Plus 의 ORA-04043 자리).
+- 읽기 문장으로 취급하므로 수동 커밋 모드에서도 트랜잭션을 열지 않습니다.
+  실행 계획(⚡ᴱ/⚡ᴬ) 대상은 아닙니다.
+
+DB 별 이름 해석:
+
+| DB | 해석 | Type 표기 |
+|---|---|---|
+| PostgreSQL | 따옴표 없는 이름은 소문자로 접힘(`DESC STUDY` 도 찾음), 스키마 생략 시 search_path | `character varying(64)` 등 PG 표기 |
+| Oracle | 따옴표 없는 이름은 대문자로 접힘, 스키마 생략 시 현재 스키마 → 그 스키마의 동의어 → PUBLIC 동의어 (`desc dual` 가능) | SQL*Plus 와 같게 `VARCHAR2(20 CHAR)`, `NUMBER(10,2)`, `NUMBER(38)` |
+| SQLite | `main.` 등 스키마 지정 가능, 이름 대소문자 무시 | 선언한 타입 그대로 |
+
+프로시저·함수의 인자 목록과 Oracle 의 `schema.package.procedure`·`@dblink` 형식은
+아직 지원하지 않습니다.
+
 ## 7.9 Database Explorer — 왼쪽 스키마 트리 (Alt+1)
 
 **View > Database Explorer** 로 왼쪽 패널을 여닫습니다. **Golden 에는 없던 기능**이고
