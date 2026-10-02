@@ -50,6 +50,33 @@ public class OracleSessionLiveTests
     }
 
     [Fact]
+    public async Task Desc_ShowsSqlPlusTypesAndResolvesPublicSynonym()
+    {
+        if (Host is null) return;
+
+        await using var session = await QuerySession.CreateAsync(Profile);
+
+        // DUAL 은 SYS 소유 — 내 스키마에 없어 PUBLIC 동의어로 찾아가야 한다
+        await using var query = await session.ExecuteAsync("desc dual");
+        var rows = await query.FetchAsync(10);
+
+        Assert.Equal(["Name", "Null?", "Type"], query.Columns);
+        Assert.Equal("DUMMY||VARCHAR2(1)", string.Join('|', rows.Single().Cells));
+    }
+
+    [Fact]
+    public async Task Desc_UnknownObject_FailsLikeOra04043()
+    {
+        if (Host is null) return;
+
+        await using var session = await QuerySession.CreateAsync(Profile);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => session.ExecuteAsync("desc aurum_no_such_table"));
+        Assert.Contains("does not exist", ex.Message);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PlainSelect_DoesNotInvokeNoticeReceived()
     {
         if (Host is null) return;

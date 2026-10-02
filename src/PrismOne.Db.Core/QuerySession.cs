@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Diagnostics;
+using System.Globalization;
 using Npgsql;
 using Oracle.ManagedDataAccess.Client;
 using Oracle.ManagedDataAccess.Types;
@@ -261,6 +262,9 @@ public sealed class QuerySession : IAsyncDisposable
             await EnableOracleOutputAsync(oracleConn, ct);
             _oracleOutputEnabled = true;
         }
+        // SQL*Plus 의 DESC — 어느 서버도 받지 않는 문장이라 같은 모양의 카탈로그 조회로 바꿔 보낸다
+        if (DescribeCommand.Parse(sql) is { } describe && describe.BuildQuery(Provider.Kind) is { } describeQuery)
+            return await ExecuteDescribeAsync(describe, describeQuery, ct);
 
         var cmd = NewCommand(binds is { Count: > 0 } ? BindVariables.Rewrite(sql) : sql);
         if (binds is { Count: > 0 })
@@ -298,6 +302,60 @@ public sealed class QuerySession : IAsyncDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// DESC 결과(많아야 컬럼 수만큼의 행)를 메모리에 다 읽어 SQL*Plus 의 세 컬럼으로 내보낸다.
+    /// 다 읽어야 "대상 없음"을 판정할 수 있고(ORA-04043 자리), Oracle 의 NULL 을 SQL*Plus 처럼
+    /// 빈칸으로 맞출 수 있다. 그 뒤는 보통 결과셋과 같은 ActiveQuery 경로를 탄다.
+    /// </summary>
+    private async Task<ActiveQuery> ExecuteDescribeAsync(
+        DescribeCommand describe, DescribeQuery query, CancellationToken ct)
+    {
+        // 접속 하나에 reader 하나 — 이전 결과가 열려 있으면 먼저 닫는다 (공유 세션 시맨틱)
+        if (Current is { Completed: false })
+            await Current.AbortAsync();
+
+        var cmd = NewCommand(query.Sql);
+        if (cmd is OracleCommand oracleCmd)
+            oracleCmd.BindByName = true;   // 같은 바인드(:owner, :name)를 여러 번 쓴다
+        foreach (var (name, value) in query.Parameters)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = name;
+            p.DbType = DbType.String;
+            p.Value = (object?)value ?? DBNull.Value;
+            cmd.Parameters.Add(p);
+        }
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var table = new DataTable();
+            table.Columns.Add("Name");
+            table.Columns.Add("Null?");
+            table.Columns.Add("Type");
+            await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                    table.Rows.Add(CellText(reader, 0), CellText(reader, 1), CellText(reader, 2));
+            }
+            sw.Stop();
+            if (table.Rows.Count == 0 && query.EmptyMeansMissing)
+                throw new InvalidOperationException($"Object {describe.Target} does not exist.");
+
+            var result = await ActiveQuery.CreateAsync(cmd, table.CreateDataReader(), sw.Elapsed);
+            Current = result;
+            return result;
+        }
+        catch
+        {
+            await cmd.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static string CellText(DbDataReader reader, int ordinal) =>
+        reader.IsDBNull(ordinal) ? "" : Convert.ToString(reader.GetValue(ordinal), CultureInfo.InvariantCulture) ?? "";
 
     /// <summary>취소/오류로 세션이 끊겼으면 같은 프로파일로 다시 연다. (트랜잭션은 소멸)</summary>
     public async Task EnsureAliveAsync(CancellationToken ct = default)
@@ -358,7 +416,8 @@ public sealed class QuerySession : IAsyncDisposable
             || head.StartsWith("EXPLAIN", StringComparison.OrdinalIgnoreCase)
             || head.StartsWith("SHOW", StringComparison.OrdinalIgnoreCase)
             || head.StartsWith("VALUES", StringComparison.OrdinalIgnoreCase)
-            || head.StartsWith("TABLE ", StringComparison.OrdinalIgnoreCase);
+            || head.StartsWith("TABLE ", StringComparison.OrdinalIgnoreCase)
+            || DescribeCommand.IsCommandStart(head);
     }
 
     /// <summary>사용자가 직접 BEGIN/COMMIT/ROLLBACK 을 친 경우 상태를 따라간다.</summary>

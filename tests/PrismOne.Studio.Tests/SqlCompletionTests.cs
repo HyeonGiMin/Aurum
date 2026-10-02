@@ -83,6 +83,26 @@ public class SqlCompletionTests
         => Assert.True(SqlCompletion.IsTablePosition(sql, WordStart(sql)));
 
     [Theory]
+    [InlineData("desc ")]
+    [InlineData("DESCRIBE ")]
+    [InlineData("select 1;\n  descr ")]
+    public void TablePositionIsRecognisedAfterDescribeCommand(string sql)
+        => Assert.True(SqlCompletion.IsTablePosition(sql, WordStart(sql)));
+
+    [Theory]
+    [InlineData("select * from study order by study_key desc ")]
+    [InlineData("select * from study\norder by study_key\n  desc ")]   // 여러 줄 ORDER BY 의 줄 첫 DESC
+    public void OrderByDescIsNotTablePosition(string sql)
+        => Assert.False(SqlCompletion.IsTablePosition(sql, WordStart(sql)));
+
+    [Fact]
+    public void DescAfterAnotherDescLineIsTablePosition()
+    {
+        const string sql = "desc study\ndesc ";
+        Assert.True(SqlCompletion.IsTablePosition(sql, WordStart(sql)));
+    }
+
+    [Theory]
     [InlineData("select ")]
     [InlineData("select * from study where ")]
     public void OtherPlacesAreNotTablePositions(string sql)

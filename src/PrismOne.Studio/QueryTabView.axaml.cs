@@ -845,6 +845,11 @@ public partial class QueryTabView : UserControl
         if (_executing) { SetInfo("Busy — statement still running. Cancel first."); return; }
         var stmt = StatementSplitter.StatementAt(Editor.Text ?? "", Editor.CaretOffset, IsOracleSession);
         if (stmt is null) return;
+        if (DescribeCommand.IsCommandStart(stmt.Text))
+        {
+            SetInfo("DESC 는 실행 계획 대상이 아닙니다 — F9 로 실행하세요");
+            return;
+        }
         if (!_session.TryBeginRun(this))
         {
             SetInfo("Busy — another tab is running on this session.");
@@ -1170,7 +1175,8 @@ public partial class QueryTabView : UserControl
                     if (Options.FetchAllOnExecute)
                         await FetchUntilDoneAsync();
                     // 점진 fetch 로 둔 경우에만 전체 건수를 따로 센다 (옵션, 기본 꺼짐)
-                    else if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text))
+                    else if (Options.CountTotalRecords && QuerySession.IsReadOnlyStatement(stmt.Text)
+                             && !DescribeCommand.IsCommandStart(stmt.Text))   // DESC 는 count 로 감쌀 수 없다
                         _ = CountTotalAsync(stmt.Text);
                     // 편집 모드는 헤더 정렬을 막아 두므로 들어올 때 잡아둔 정렬을 여기서 적용한다
                     if (IsEditing)
