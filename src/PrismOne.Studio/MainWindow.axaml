@@ -7,6 +7,8 @@
         Icon="/Assets/icon.png"
         Width="1280" Height="840"
         WindowStartupLocation="CenterScreen">
+  <!-- 바깥 Panel: 본 화면(DockPanel) 위에 "Claude 조작 중" 오버레이를 겹친다 (MainWindow.ClaudeControl.cs) -->
+  <Panel>
   <DockPanel>
 
     <!-- 메뉴바 (Golden: File Edit Script Results View Tools Tabs Help) -->
@@ -109,6 +111,7 @@
         <MenuItem Header="Import JSON… (Mongo)" Click="OnMenuImportJson"/>
         <MenuItem Header="Query History…" Click="OnMenuHistory"/>
         <MenuItem Header="Session Monitor…" Click="OnMenuSessionMonitor"/>
+        <MenuItem Header="MCP Server (Claude Code)…" Click="OnMenuMcp"/>
         <MenuItem Header="Options…" Click="OnMenuOptions"/>
       </MenuItem>
       <MenuItem Header="Help">
@@ -594,4 +597,33 @@
     </Grid>
 
   </DockPanel>
+
+  <!-- Claude(MCP)가 조작하는 동안: 테두리 + 배너, 투명 배경이 마우스 입력을 막는다 (Chrome 의 "제어 중" 표시) -->
+  <Border Name="ClaudeOverlay" IsVisible="False"
+          Background="#14D97757" BorderBrush="#D97757" BorderThickness="3">
+    <Border HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,34,0,0"
+            Background="#D97757" CornerRadius="6" Padding="14,6"
+            BoxShadow="0 2 10 0 #40000000">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <TextBlock Name="ClaudeOverlayText" Foreground="White" FontWeight="SemiBold"
+                   VerticalAlignment="Center"
+                   Text="Claude 가 Aurum 을 조작하는 중 — 입력이 잠겨 있습니다"/>
+        <Button Content="중지 (Esc)" Click="OnClaudeStop" Padding="10,3"
+                ToolTip.Tip="실행 중인 쿼리를 취소하고 Claude 의 조작을 멈춥니다"/>
+      </StackPanel>
+    </Border>
+  </Border>
+
+  <!-- 중지 후: 입력은 풀리고, 재개 버튼만 오른쪽 아래에 남는다 -->
+  <Border Name="ClaudePausedBar" IsVisible="False"
+          HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,36"
+          Background="#5A5A5A" CornerRadius="6" Padding="12,5"
+          BoxShadow="0 2 8 0 #40000000">
+    <StackPanel Orientation="Horizontal" Spacing="10">
+      <TextBlock Foreground="White" VerticalAlignment="Center" Text="Claude 조작을 중지했습니다"/>
+      <Button Content="재개" Click="OnClaudeResume" Padding="10,2"
+              ToolTip.Tip="Claude 가 다시 Aurum 을 조작할 수 있게 합니다"/>
+    </StackPanel>
+  </Border>
+  </Panel>
 </Window>

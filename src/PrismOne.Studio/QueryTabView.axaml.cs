@@ -573,6 +573,43 @@ public partial class QueryTabView : UserControl
 
     public string GetSql() => Editor.Text ?? "";
 
+    // ---------- MCP (Claude Code 가 이 탭을 조작할 때) ----------
+
+    /// <summary>실행·fetch 중인지 — MCP 가 겹쳐 실행하지 않게 미리 본다.</summary>
+    public bool IsExecuting => _executing;
+
+    /// <summary>마지막 실행의 오류 메시지 (오류 창이 떠 있을 때만). 성공하면 null.</summary>
+    public string? LastError => ErrorPane.IsVisible ? ErrorText.Text : null;
+
+    public string SelectedSql => Editor.SelectedText ?? "";
+
+    /// <summary>
+    /// 에디터 내용을 바꾸되 Undo 로 되돌릴 수 있게 한다 (<c>Editor.Text =</c> 는 Undo 기록을 지운다).
+    /// AI 가 사용자가 쓰던 SQL 을 덮어써도 Ctrl+Z 한 번이면 돌아온다.
+    /// </summary>
+    public void ReplaceSqlUndoable(string sql)
+    {
+        Editor.Document.Replace(0, Editor.Document.TextLength, sql);
+        Editor.SelectionLength = 0;
+        Editor.CaretOffset = 0;
+    }
+
+    /// <summary>끝에 덧붙인다 — 앞 문장과 빈 줄로 떼어 F9 가 문장을 섞지 않게 한다.</summary>
+    public void AppendSql(string sql)
+    {
+        var text = Editor.Text ?? "";
+        var separator = text.Length == 0 ? "" : text.EndsWith('\n') ? "\n" : "\n\n";
+        Editor.Document.Insert(Editor.Document.TextLength, separator + sql);
+        Editor.CaretOffset = Editor.Document.TextLength;
+    }
+
+    /// <summary>MCP run_query — SQL 을 에디터에 보이게 넣고 처음부터 스크립트로 실행한다.</summary>
+    public Task RunSqlFromMcpAsync(string sql)
+    {
+        ReplaceSqlUndoable(sql);
+        return RunScriptAsync();
+    }
+
     /// <summary>브라우저 더블클릭/quick 셀 — 커서 위치에 텍스트 삽입 (Golden 의 paste-into-query).</summary>
     public void InsertAtCaret(string text)
     {

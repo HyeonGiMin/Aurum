@@ -618,6 +618,74 @@ PID·사용자·클라이언트·상태·경과시간·대기 이벤트·쿼리.
 **Cancel Query**(쿼리만 취소) / **Terminate**(세션 종료 — 권한 필요).
 공유 staging 에서 누가 물고 있는지 확인할 때 사용.
 
+## 9.7 MCP Server — Claude Code 로 Aurum 조작하기 (Tools 메뉴)
+
+Claude Code 를 터미널에 띄워 두고 "지난주 주문 중 환불률 높은 상품 10개 보여줘" 처럼 말하면,
+Claude 가 **실행 중인 Aurum 화면에서** 스키마를 보고 → 에디터에 SQL 을 쓰고 → 실행하고 →
+결과를 읽고 → 필요하면 고쳐 다시 실행합니다. 하는 일이 전부 Aurum 화면에 그대로 보입니다.
+등록부터 문제 해결까지 한 장으로 정리한 문서: **[MCP 연결 가이드](MCP_GUIDE.md)**
+
+**설정 (한 번만)**
+
+1. **Tools > MCP Server (Claude Code)…** → *MCP 서버 켜기* 체크 → OK.
+   상태바에 `MCP server listening — http://localhost:47900/mcp` 가 뜹니다.
+2. 같은 창의 **명령 복사** → 터미널에 붙여 넣어 Claude Code 에 등록합니다.
+   ```
+   claude mcp add --transport http aurum http://localhost:47900/mcp --header "Authorization: Bearer <토큰>"
+   ```
+3. Claude Code 에서 `/mcp` 로 `aurum` 이 connected 인지 확인합니다.
+
+이후엔 Aurum 을 띄우면 서버가 자동으로 열립니다 (끄려면 같은 창에서 체크 해제).
+
+**Claude 가 쓸 수 있는 도구**
+
+| 도구 | 하는 일 |
+|---|---|
+| `aurum_status` | 접속·탭 목록·트랜잭션·실행 상태 |
+| `list_tables` · `describe_table` | 스키마 (introspection 캐시 — DB 왕복 없음) |
+| `validate_sql` | 없는 테이블·컬럼 검사 (에디터의 빨간 밑줄과 같은 검사) |
+| `get_editor` · `set_editor` · `new_tab` | 에디터 읽기/쓰기 (Ctrl+Z 로 되돌릴 수 있음) |
+| `run_query` · `get_results` | 실행과 결과 페이지 읽기 |
+| `commit` · `rollback` | 트랜잭션 확정/취소 |
+
+탭을 따로 지정하지 않으면 Claude 는 **`Claude` 라는 전용 탭**을 만들어 씁니다 —
+사용자가 쓰던 탭의 SQL 을 덮어쓰지 않습니다.
+
+**조작 중 표시와 입력 잠금 (Chrome 의 "제어 중" 표시처럼)**
+
+- Claude 가 도구를 쓰는 동안 창에 **주황 테두리와 상단 배너**("Claude 가 Aurum 을 조작하는 중")가 뜨고,
+  마우스·키보드 입력이 잠깁니다. 연달아 호출할 때 깜빡이지 않도록 마지막 호출 뒤 3초간 유지합니다.
+- **[중지] 또는 Esc** — 실행 중인 쿼리를 취소하고 Claude 의 조작을 멈춥니다. 오른쪽 아래에
+  [재개] 버튼이 남고, 누르기 전까지 Claude 의 요청은 "사용자가 중지함" 으로 거절됩니다.
+- 승인 창은 별도 창이라 잠금과 상관없이 답할 수 있습니다.
+
+**안전장치**
+
+- **단순 SELECT 만 바로 실행**합니다. INSERT/UPDATE/DELETE/DDL, `SELECT … INTO`, `FOR UPDATE`,
+  PL/SQL 블록, EXPLAIN ANALYZE, MongoDB 명령, 부작용이 있는 내장 함수(`nextval`, advisory lock,
+  `pg_terminate_backend`, `dbms_*`/`utl_*` 등)는 매번 **SQL 전문을 보여주는 승인 창**이 뜹니다.
+  판정은 PG 식·Oracle 식(`/` 종결자, `q'[…]'` 인용) 두 번 해서 한쪽이라도 쓰기면 쓰기로 봅니다.
+  승인 창에 다 보이지 않을 만큼 긴(2만 자 초과) 쓰기 SQL 은 아예 받지 않습니다.
+- **INSERT/UPDATE/DELETE 승인 흐름** (탭의 Tx 모드에 따라):
+
+  | 탭 | Claude 에게 시킨 말 | 묻는 것 |
+  |---|---|---|
+  | 수동 커밋 (기본) | "업데이트 해줘" | ① 실행 승인 → 미확정으로 남음 → ② COMMIT 승인 (따로) |
+  | 수동 커밋 (기본) | "업데이트하고 **커밋까지** 해줘" | 실행+COMMIT 승인 **한 번** — 오류가 나면 자동 ROLLBACK |
+  | Auto Commit | 무엇이든 | 실행 승인 **한 번** (실행 즉시 확정 — 빨간 경고 표시) |
+
+- **COMMIT·ROLLBACK 을 따로 요청할 때도 승인 창**을 거칩니다 (ROLLBACK 은 사용자가 하던 작업을 버릴 수 있어서).
+- 승인 창은 **5분 안에 답하지 않으면 거부**로 처리합니다. 승인을 기다리거나 쿼리가 도는 동안 들어온
+  다른 요청은 줄 서지 않고 busy 를 받습니다 — 재전송된 쓰기가 두 번 실행되지 않게.
+- Claude 에게 넘어가는 결과는 **호출당 최대 200행**, 긴 셀은 500자에서 자릅니다.
+- **감사 로그** `~/.prismone-studio/mcp-audit.jsonl` — Claude 가 실행·조회한 SQL, 승인 여부,
+  돌려준 행 수를 한 줄씩 남깁니다 (행 데이터 자체는 남기지 않음).
+- 서버는 **localhost 에만** 열리고 **Bearer 토큰**이 없으면 401 입니다. 브라우저 페이지에서 오는
+  요청(외부 Origin)은 거부합니다. 토큰은 접속 비밀번호와 같은 방식으로 암호화해 `mcp.json` 에 둡니다.
+  유출이 의심되면 **토큰 재발급** 후 `claude mcp remove aurum` → 다시 등록.
+- 한계: `select my_func()` 처럼 SELECT 안에서 부르는 함수의 부작용은 판별하지 못합니다
+  — 수동 커밋 모드가 마지막 안전망입니다. 민감한 DB 에서는 서버를 꺼 두세요.
+
 ## 10. 파일 · 내보내기 · 탭
 
 - **Ctrl+O** 스크립트 열기(새 탭으로) / **Ctrl+S** 저장.
@@ -715,7 +783,7 @@ Golden 매뉴얼의 공식 키맵을 따르고, 현대 관행 키를 별칭으�
 
 - `~/.prismone-studio/` — `connections.json`(접속 목록, 비밀번호 암호문),
   `key.bin`(암호화 키, 0600), `history.jsonl`(쿼리 히스토리), `options.json`(옵션),
-  `favorites.json`(즐겨찾기 — 이름과 SQL만).
+  `favorites.json`(즐겨찾기 — 이름과 SQL만), `mcp.json`(MCP 서버 설정 — 켜기·포트·토큰 암호문), `mcp-audit.jsonl`(Claude 실행·조회 감사 로그).
 - 키 파일을 지우면 저장된 비밀번호만 무효가 됩니다(접속 목록은 유지) —
   다음 로그인 때 비밀번호만 다시 입력하면 됩니다.
 - 세션이 끊기면 다음 실행 때 같은 프로파일로 자동 재접속합니다(열려 있던 트랜잭션은 소멸).

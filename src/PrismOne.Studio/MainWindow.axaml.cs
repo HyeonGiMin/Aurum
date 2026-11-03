@@ -72,8 +72,10 @@ public partial class MainWindow : Window
         ShowCombo.ItemsSource = new[] { "Tables", "Views", "All" };
         ShowCombo.SelectedIndex = 0;
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        HookClaudeControl();   // Claude(MCP) 조작 중 표시·입력 잠금
         Closed += async (_, _) =>
         {
+            await StopMcpAsync();
             foreach (var view in AllViews())
                 await view.CloseSessionAsync();
             if (_sharedSession is not null)
@@ -96,6 +98,8 @@ public partial class MainWindow : Window
             {
                 if (_tabs.Count == 0)
                     await NewTabAsync(null);
+                // Claude Code 용 MCP 서버 (Tools > MCP Server 에서 켠 경우만)
+                StartMcpIfEnabled();
                 // 업데이트를 로그온보다 **먼저** 묻는다 — 접속해서 일을 시작한 뒤에
                 // "다시 시작하라"고 하면 하던 것을 버려야 한다. 네트워크가 느리면
                 // AppUpdater 가 스스로 물러나 로그온을 먼저 띄운다.
@@ -388,6 +392,7 @@ public partial class MainWindow : Window
             Item("Import JSON… (Mongo)", () => OnMenuImportJson(this, args)),
             Item("Query History…", () => OnMenuHistory(this, args)),
             Item("Session Monitor…", () => OnMenuSessionMonitor(this, args)),
+            Item("MCP Server (Claude Code)…", () => OnMenuMcp(this, args)),
             Item("Options…", () => OnMenuOptions(this, args))));
         root.Items.Add(Sub("Help",
             Item("Check for Updates…", () => OnMenuCheckUpdates(this, args)),
@@ -434,6 +439,9 @@ public partial class MainWindow : Window
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        // Claude 가 조작 중이면 사용자 키는 막는다 (Esc 만 "중지")
+        if (HandleLockedKey(e))
+            return;
         var cmdOrCtrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         // Ctrl+F5/F6 은 무수식 F5/F6 보다 먼저 판정해야 한다 (Golden 키맵)
