@@ -138,10 +138,14 @@ public static class FavoriteSql
         @"\b(insert|update|delete|merge|truncate|drop|alter|create|grant|revoke|call|do|copy|vacuum|refresh|reindex|cluster|lock|comment|set|begin|commit|rollback)\b",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    /// <summary>스크립트의 모든 문장이 읽기 전용(SELECT 계열)일 때만 true.</summary>
-    public static bool IsSelectOnly(string sql)
+    /// <summary>
+    /// 스크립트의 모든 문장이 읽기 전용(SELECT 계열)일 때만 true.
+    /// <paramref name="oracleBlocks"/> 는 실행기와 같은 방식으로 문장을 나누기 위한 것 —
+    /// Oracle 세션은 줄 하나짜리 '/' 에서 끊고 '$' 를 인용으로 보지 않는다.
+    /// </summary>
+    public static bool IsSelectOnly(string sql, bool oracleBlocks = false)
     {
-        var statements = StatementSplitter.Split(sql);
+        var statements = StatementSplitter.Split(sql, oracleBlocks);
         return statements.Count > 0 && statements.All(s => IsSelectStatement(s.Text));
     }
 

@@ -42,6 +42,11 @@
 - **Schema Diff** — 표준 스키마 스냅샷(JSON)과 현재 접속을 비교. 패치 누락·드리프트 탐지
 - Object Browser(F8) · describe(Ctrl+D) · Session Monitor · 스키마 버전 pill
 
+**AI 연동 (MCP)**
+- **Claude Code 가 실행 중인 Aurum 을 조작** — 스키마 조회 → 에디터에 SQL → 실행 → 결과 읽기를
+  화면에 보이는 그대로 수행 (Tools > MCP Server). 단순 SELECT 외 문장과 COMMIT·ROLLBACK 은 매번 승인 창,
+  localhost 전용 + Bearer 토큰, 감사 로그. 연결 방법은 **[MCP 연결 가이드](docs/MCP_GUIDE.md)**
+
 ![erd](docs/img/erd.png)
 
 **UI**
