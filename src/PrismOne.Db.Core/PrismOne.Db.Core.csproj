@@ -16,6 +16,9 @@
     <PackageReference Include="MongoDB.Driver" Version="3.10.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="23.26.300" />
+    <!-- Oracle 드라이버가 끌어오는 8.0.1 은 DoS 취약성(CVE-2026-84008·CVE-2026-70162)이 있어
+         패치된 판으로 올려 고정한다. Oracle 이 의존성을 올리면 이 줄은 지워도 된다. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <!-- SSH 터널(DataGrip 의 SSH tunnel 대응). 순수 .NET 구현이라 OS 의 ssh 클라이언트가
          없어도 되고 비밀번호 인증도 자동화된다 — 외부 ssh 프로세스로는 둘 다 안 된다. -->
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
