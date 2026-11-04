@@ -216,7 +216,7 @@ public class McpSettingsTests : IDisposable
         var command = settings.ClaudeAddCommand("tok123");
 
         Assert.Equal(
-            "claude mcp add --transport http aurum http://localhost:47901/mcp --header \"Authorization: Bearer tok123\"",
+            "claude mcp add --transport http --scope user aurum http://localhost:47901/mcp --header \"Authorization: Bearer tok123\"",
             command);
     }
 }

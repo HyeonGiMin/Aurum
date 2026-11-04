@@ -631,7 +631,7 @@ Claude 가 **실행 중인 Aurum 화면에서** 스키마를 보고 → 에디�
    상태바에 `MCP server listening — http://localhost:47900/mcp` 가 뜹니다.
 2. 같은 창의 **명령 복사** → 터미널에 붙여 넣어 Claude Code 에 등록합니다.
    ```
-   claude mcp add --transport http aurum http://localhost:47900/mcp --header "Authorization: Bearer <토큰>"
+   claude mcp add --transport http --scope user aurum http://localhost:47900/mcp --header "Authorization: Bearer <토큰>"
    ```
 3. Claude Code 에서 `/mcp` 로 `aurum` 이 connected 인지 확인합니다.
 
