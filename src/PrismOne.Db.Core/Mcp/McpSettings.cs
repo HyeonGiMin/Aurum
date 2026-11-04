@@ -41,9 +41,12 @@ public sealed record McpSettings
     /// <summary>토큰이 없으면 만든다.</summary>
     public McpSettings EnsureToken() => string.IsNullOrEmpty(Token) ? WithNewToken() : this;
 
-    /// <summary>Claude Code 에 등록하는 명령 (사용자가 복사해 터미널에 붙인다).</summary>
+    /// <summary>
+    /// Claude Code 에 등록하는 명령 (사용자가 복사해 터미널에 붙인다).
+    /// <c>--scope user</c> — 명령을 실행한 폴더가 아니라 어느 폴더에서 연 Claude Code 에서도 보이게.
+    /// </summary>
     public string ClaudeAddCommand(string token) =>
-        $"claude mcp add --transport http aurum {Url} --header \"Authorization: Bearer {token}\"";
+        $"claude mcp add --transport http --scope user aurum {Url} --header \"Authorization: Bearer {token}\"";
 
     private static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".prismone-studio", "mcp.json");

@@ -12,12 +12,18 @@ Claude Code (터미널) ──MCP(HTTP, localhost)──▶ 실행 중인 Aurum 
 
 ## 1. 준비
 
-- Aurum (이 기능이 들어간 버전). 소스에서 실행한다면:
-  ```powershell
-  cd D:\07.Source\iap\Aurum
-  dotnet run --project src/PrismOne.Studio
-  ```
-- Claude Code (`claude` 명령)
+**Aurum 설치** — [GitHub Releases](https://github.com/HyeonGiMin/Aurum/releases/latest) 에서 받습니다.
+
+| OS | 받을 것 | 설치 |
+|---|---|---|
+| Windows | `Aurum-win-Setup.exe` | 실행 (관리자 권한 없이 `%LocalAppData%\Aurum` 에 설치) |
+| macOS (Apple Silicon) | `Aurum-osx-arm64.dmg` | 열어서 `Aurum.app` 을 Applications 로 끌어다 놓기 |
+
+- **Tools** 메뉴에 **MCP Server (Claude Code)…** 가 있어야 합니다. 없으면 이전 버전이니
+  **Help > Check for Updates…** 로 업데이트하세요.
+
+**Claude Code 설치** — 터미널(Windows: PowerShell, macOS: 터미널)에서 `claude --version` 이 나오면 준비된 것입니다.
+설치는 [Claude Code](https://claude.com/claude-code) 안내를 따르세요.
 
 ## 2. Aurum 에서 MCP 서버 켜기 (처음 한 번)
 
@@ -30,16 +36,16 @@ Claude Code (터미널) ──MCP(HTTP, localhost)──▶ 실행 중인 Aurum 
 
 ## 3. Claude Code 에 등록 (처음 한 번)
 
-복사한 명령을 터미널에 붙여 넣습니다. **`--scope user`** 를 붙이면 어느 폴더에서 Claude Code 를 열어도 쓸 수 있습니다
-(빼면 명령을 실행한 폴더에서만 보입니다).
+복사한 명령을 터미널(Windows: PowerShell, macOS: 터미널)에 **그대로** 붙여 넣고 Enter.
+`--scope user` 가 들어 있어 어느 폴더에서 Claude Code 를 열어도 쓸 수 있습니다.
 
-```powershell
+```
 claude mcp add --transport http --scope user aurum http://localhost:47900/mcp --header "Authorization: Bearer <복사된 토큰>"
 ```
 
 확인:
 
-```powershell
+```
 claude mcp list
 # aurum: http://localhost:47900/mcp (HTTP) - ✓ Connected
 ```
@@ -103,10 +109,11 @@ Chrome 확장이 브라우저를 제어할 때처럼:
 ## 7. 보안과 기록
 
 - 서버는 **localhost 에만** 열리고 **Bearer 토큰**이 없으면 401 입니다. 브라우저 페이지에서 오는 요청(외부 Origin)은 403 으로 거부합니다.
-- 토큰은 접속 비밀번호와 같은 방식으로 암호화해 `~/.prismone-studio/mcp.json` 에 둡니다.
+- 설정·기록 폴더: Windows `%USERPROFILE%\.prismone-studio\` · macOS `~/.prismone-studio/`
+- 토큰은 접속 비밀번호와 같은 방식으로 암호화해 `mcp.json` 에 둡니다.
   유출이 의심되면 MCP 창에서 **[토큰 재발급]** → `claude mcp remove aurum` → 새 명령으로 다시 등록.
 - Claude 에게 넘어가는 결과는 **호출당 최대 200행**, 긴 셀은 500자에서 자릅니다.
-- **감사 로그** `~/.prismone-studio/mcp-audit.jsonl` — Claude 가 실행·조회한 SQL, 승인 여부, 돌려준 행 수 (행 데이터는 남기지 않음).
+- **감사 로그** `mcp-audit.jsonl` (같은 폴더) — Claude 가 실행·조회한 SQL, 승인 여부, 돌려준 행 수 (행 데이터는 남기지 않음).
 - 한계: 사용자 정의 함수(`select my_func()`)의 부작용은 판별하지 못합니다 — 수동 커밋 모드가 마지막 안전망입니다.
   **민감한 DB 에서는 MCP 서버를 꺼 두세요.**
 
@@ -120,3 +127,18 @@ Chrome 확장이 브라우저를 제어할 때처럼:
 | "busy" 응답 | 앞 쿼리가 실행 중이거나 승인 창이 떠 있음 → Aurum 화면의 승인 창에 답하기 |
 | "user stopped Claude's control" | [중지] 를 누른 상태 → 오른쪽 아래 **[재개]** |
 | "not connected" | Aurum 에서 DB 로그온 (Ctrl+L) |
+| Tools 메뉴에 MCP Server 가 없음 | 이전 버전 → **Help > Check for Updates…** 또는 Releases 에서 최신본 설치 |
+
+---
+
+## 개발자용 — 소스에서 실행할 때
+
+배포본 대신 저장소에서 바로 띄우는 경우입니다. 이후 절차(2~4)는 같습니다.
+
+```
+git clone https://github.com/HyeonGiMin/Aurum.git
+cd Aurum
+dotnet run --project src/PrismOne.Studio
+```
+
+실행 중인 Aurum 이 `bin/` 의 dll 을 잠그므로, 앱을 띄운 채로 다시 빌드하면 복사 오류가 납니다 — 앱을 닫고 빌드하세요.
